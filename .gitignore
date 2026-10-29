@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+# captures and secrets never go in git
+*.pcap
+*.pcapng
+*.key
+*.pem
+.env
