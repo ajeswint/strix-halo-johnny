@@ -1,0 +1,39 @@
+# This is the network config written by 'subiquity'
+# 2026-10-28: E810 ports = capture-only, no addressing, not required for online
+# 2026-10-29: RTL8127 enabled; eno3 = RTL8127 (r8169) host mgmt, DHCP; eno4 = I226-LM (igc) AMT-only, no host IP
+network:
+  version: 2
+  ethernets:
+    eno3:
+      match:
+        macaddress: "38:05:25:3a:a3:71"
+      set-name: eno3
+      accept-ra: true
+      dhcp4: true
+    eno1np0:
+      match:
+        macaddress: "38:05:25:3a:ac:da"
+      set-name: eno1np0
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    eno2np1:
+      match:
+        macaddress: "38:05:25:3a:ac:db"
+      set-name: eno2np1
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
+    eno4:
+      match:
+        macaddress: "38:05:25:3a:a3:70"
+      set-name: eno4
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+      optional: true
