@@ -28,14 +28,26 @@ Verified by sysfs driver binding, lspci, udev hwdb, firmware onboard index, `rpc
 - `rpc-go` v2.52.8 at `~/rpc/rpc` on Johnny (not installed system-wide; sha256 verified).
 - Leftovers: `grub-pc` in `rc` state (left alone). KHO "failed to reserve scratch" on every boot (pre-existing; likely harmless).
 
-## In progress
-- KVM viewer test from rock-box: Intel DMT Console v1.47.0 (alpha), `https://localhost:8181` (listens on all interfaces; stop it after). rock-box has temp alias 192.168.51.2/24 on `enp11s0`. `eno4` temporarily on office LAN for the test.
-- HDMI dummy plug ordered (UGREEN 4-pack). Headless KVM needs it (Minisforum).
+## KVM bench test (Intel DMT Console v1.47.0, alpha, on rock-box)
+| Test | Result |
+|---|---|
+| Connect over TLS (16993, self-signed allowed) | ✅ Console reads AMT 19.0.5, ACM, KVM/IDE-R/SOL enabled, consent none |
+| KVM video, Ubuntu + BIOS password prompt | ✅ with display connected; **black with HDMI unplugged** → HDMI dummy required (ordered, UGREEN 4-pack) |
+| KVM keyboard | ✅ typed `kvmtest` at login prompt, erased |
+| Power Off / Soft Reset / Ctrl+Alt+Del from Console | ❌ "Device did not respond" / no effect; AMT stayed reachable → likely Console alpha bug. Retest with MeshCommander or `rpc-go` |
+| AMT session indicator | Flashing red/yellow border on local screen while KVM connected (expected) |
 
-## After the bench (no console needed)
-1. Unplug `eno4`; remove rock-box alias.
-2. CRS309 SwOS: SFP+4 isolated (forwards only to rock-box's port; SFP+5 assumed), L1-2 (`sfp-sfpplus7` out of default bridge).
-3. Router: optional .151 reservation → `38:05:25:3a:a3:71`.
-4. Closet cabling per table above; insert HDMI dummy when it arrives.
-5. Thermal soak, tool install (pinned, SBOM), rest of rev 3 next steps.
-6. Session end: `docs/os-handoff.md` rev 4 (port rename, AMT, all of the above), session CSV, commit, push.
+Console notes: serves **HTTPS** on 8181 on **all interfaces**; v1.47 generates a random 16-char admin password in `dist/linux/config/config.yml` (docs' `G@ppm0ym` is stale). Its `jwtKey` was exposed in the Claude transcript: rotate it and the admin password before reuse. Console is stopped. DB at `~/.config/device-management-toolkit/console.db` holds the device entry.
+
+## Current state (2026-10-29 23:49 UTC): Johnny in the closet
+- `eno3` (Realtek) → CRS309 SFP+3, 1G, 192.168.50.152. PCR 7 baseline, unattended boot 19.9 s.
+- `eno4` (I226/AMT) **unplugged** until SFP+4 is isolated. E810 cages empty (DAC gate).
+- rock-box temp alias removed; office test cable removed.
+
+## Next (no console needed)
+1. **CRS309 SwOS (in progress):** SFP+4 isolated (forwards only to rock-box's port; SFP+5 assumed, verify), then plug `eno4` → SFP+4. rock-box needs 192.168.51.2/24 to reach AMT (make persistent or add on demand). L1-2: `sfp-sfpplus7` out of default bridge, then DACs.
+2. Router: optional .151 reservation → `38:05:25:3a:a3:71`.
+3. HDMI dummy into HDMI port when it arrives; retest headless BIOS picture.
+4. AMT power control with another tool.
+5. Thermal soak, tool install (pinned, SBOM: add rpc-go v2.52.8 in `~/rpc/rpc`, DMT Console v1.47.0 on rock-box), rest of rev 3 next steps.
+6. Session end: `docs/os-handoff.md` rev 4 (port rename, AMT, all of the above; also README hardware table still says I226 = mgmt `eno3`), session CSV, commit, push.
