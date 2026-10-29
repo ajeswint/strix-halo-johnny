@@ -10,3 +10,9 @@
 - Never `pci=noaer`; never disable ACS Source Validation; no snaps; no LLM on the box.
 - Johnny work stays here, not in strix-halo-lab. Flag before drifting into other projects.
 - After presenting options, stop and wait for AJ's choice.
+
+## Cursor Cloud specific instructions
+
+- Docs and `etc/` mirrors only. No app, lockfile, test suite, or dev server. Do not apt-install the tool-block candidates (tshark, zeek, suricata, and the rest); those decisions are pending and run on Johnny.
+- This VM is not on 192.168.50.0/24. Do not `ssh aj@192.168.50.151` from here. Read-only SSH stays on aj-rock-box.
+- No secrets. Install checks `README.md`, `AGENTS.md`, `docs/os-handoff.md`, `docs/sessions/`, and `etc/.gitkeep`, then exits.
