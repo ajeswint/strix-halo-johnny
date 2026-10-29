@@ -14,7 +14,7 @@ Repo: ajeswint/strix-halo-johnny. Base state: `docs/os-handoff.md` rev 3. Projec
 
 ## Decision: remote console = AMT KVM on isolated port (follow design)
 - AMT shares the I226-LM (`eno3`) with the OS. To isolate it, host mgmt moves to **RTL8127** (currently Disabled in BIOS; reason not recorded) → CRS309 SFP+3; `eno3` → SFP+4 as AMT-only, no host IP.
-- RTL8127 is 10GBASE-T copper. With the 1G SFP-RJ45 modules, SFP+3 runs at 1G. 10G needs a 10GBASE-T SFP+ module (not owned).
+- LAN is 1G end to end (SFP-RJ45 modules + switch). RTL8127 on SFP+3 at 1G is by design.
 
 ## Bench steps (in order; stop after each)
 1. **Recovery passphrase test** before poweroff (no reboot): `sudo cryptsetup open --test-passphrase --key-slot 0 /dev/nvme0n1p3 && echo PASSPHRASE-OK`. Must pass before continuing.
