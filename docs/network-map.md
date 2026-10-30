@@ -39,7 +39,7 @@ History: 2026-10-29, SFP+3 → SFP+4 was applied and verified, then SFP+3 turned
 | IP | MAC | OUI vendor | Switch port | Likely device |
 |---|---|---|---|---|
 | .1 | a0:ad:9f:6b:e9:d0 | ASUSTek | SFP+1 | RT-BE88U router |
-| .7 | fc:6d:77:b1:b9:35 | Intel | SFP+1 (behind router) | unknown PC/NIC |
+| .7 | fc:6d:77:b1:b9:35 | Intel | SFP+1 (behind router) | AJ's laptop (aj-Thin-15-B13VE) `wlo1` Wi-Fi |
 | .92 | a8:b5:7c:4d:6f:d5 | Roku | SFP+1 (behind router) | Roku |
 | .104 | 1a:b7:b1:20:9a:18 | randomized | SFP+1 (behind router) | Pixel 8 Pro (router reservation name) |
 | .133 | d4:ad:fc:96:3e:5d | Shenzhen Intellirocks | SFP+1 (behind router) | smart-home device (likely Govee) |
@@ -54,7 +54,7 @@ History: 2026-10-29, SFP+3 → SFP+4 was applied and verified, then SFP+3 turned
 No unknown MACs on the switch: every learned MAC maps to a host above.
 
 ### Router DHCP (RT-BE88U, LAN → DHCP Server, checked 2026-10-30)
-Pool 192.168.50.2–.254, lease 86400 s. **Enable Manual Assignment was No** (listed entries were inactive; rock-box's .223 was a sticky lease). Turned on 2026-10-30 (Claude via Chrome extension, AJ approved Apply); verified on reload. Each entry matched the host's current address, so no host moved.
+Pool 192.168.50.2–.254, lease 86400 s. **Enable Manual Assignment was No** (listed entries were inactive; rock-box's .223 was a sticky lease). Turned on 2026-10-30 (Claude via Chrome extension, AJ approved Apply); verified on reload. Each entry matched the host's current address, so no host moved. **Apply on this page restarts the router's Wi-Fi** (~40 s: laptop `wlo1` disconnected 20:52:15 CT, `ssid-not-found` 20:52:30, back 20:52:58); Wi-Fi clients, incl. a browser driving the UI, drop.
 
 | Name (router) | MAC | IP |
 |---|---|---|
