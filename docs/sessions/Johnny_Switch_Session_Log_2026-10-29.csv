@@ -12,3 +12,6 @@ Seq,Time_UTC,Step,Issue,Actor,Action,Command,Result,Files_Changed,Status
 11,00:57,1,AMT cabling,Claude (SSH Johnny),eno4 baseline,ip -br link show eno4; cat /sys/class/net/eno4/carrier,"NO-CARRIER, no addresses, 38:05:25:3a:a3:70",,Done
 12,-,1,AMT port,AJ,SFP+3 is a wall drop to primary bedroom -> unmanaged switch; AMT moves to SFP+6 (new SFP-GE-T),-,Isolation to move SFP+3 -> SFP+6,,In progress
 13,01:10,-,docs,Claude,Rewrite docs to physical layout; os-handoff rev 4,-,"network-map, README, AGENTS IP .152, switch + bench handoffs, os-handoff rev 4",docs/network-map.md; README.md; AGENTS.md; docs/os-handoff.md; docs/sessions/*,Done
+14,01:06,1,AMT cabling,AJ,Cable eno4 -> SFP+6 (before isolation moved),-,igc eno4: NIC Link is Up 1000 Mbps Full Duplex,,Done
+15,-,1,AMT isolation,AJ (laptop ether1),Move isolation SFP+3 -> SFP+6,/interface ethernet switch port-isolation unset sfp-sfpplus3 forwarding-override; set sfp-sfpplus6 forwarding-override=sfp-sfpplus4; print,"SFP+3 unset; SFP+6 override=sfp-sfpplus4; no I flag",docs/network-map.md,Done
+16,-,1,AMT cabling,Claude (SSH Johnny),Verify eno4,ip -br link/addr show eno4; carrier; speed; journalctl -k,"UP, LOWER_UP, carrier 1, 1000, no addresses",,Done

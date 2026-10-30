@@ -8,10 +8,10 @@ Audited 2026-10-29 19:45–20:05 CT. Sources: CRS309 `/interface bridge host pri
 | ether1 | up, 1G | built-in RJ45 | n/a (not bridged) | AJ's laptop: **OOB switch mgmt**, switch side 192.168.88.1/24 | no (list `MGMT`) | n/a |
 | SFP+1 | up, 1G | OEM `SFP-GE-T` (SFP-to-RJ45) | `A0:AD:9F:6B:E9:D0` + 7 LAN clients | **RT-BE88U router** (everything behind the router is learned here) | yes | none |
 | SFP+2 | up, 1G | OEM `SFP-GE-T` | `38:05:25:3A:A3:71` | **Johnny `eno3`** (RTL8127, host mgmt) | yes | none |
-| SFP+3 | no link | OEM `SFP-GE-T` | none | **Wall drop → primary bedroom → unmanaged switch** (nothing up on it at audit) | yes | none (set by mistake, being removed) |
+| SFP+3 | no link | OEM `SFP-GE-T` | none | **Wall drop → primary bedroom → unmanaged switch** (nothing up on it at audit) | yes | none (mistaken override removed 2026-10-29) |
 | SFP+4 | up, 1G | OEM `SFP-GE-T` | `9C:6B:00:D0:49:29` | **rock-box** | yes | none (full LAN) |
 | SFP+5 | up, 1G | OEM `SFP-GE-T` | `9C:BF:0D:01:F9:5C` | **Framework** laptop (192.168.50.188) | yes | none |
-| SFP+6 | pending | new `SFP-GE-T` going in | pending | **Johnny `eno4`** (I226-LM, AMT only, `38:05:25:3a:a3:70`) | yes | **forwards only to SFP+4** (pending verification) |
+| SFP+6 | up, 1G (Johnny side: 1000 full, 01:06 UTC) | OEM `SFP-GE-T` | not checked | **Johnny `eno4`** (I226-LM, AMT only, `38:05:25:3a:a3:70`) | yes | **forwards only to SFP+4** (verified) |
 | SFP+7 | no link | **10G DAC** OEM `SFP-H10GB-CU3M` | none | E810 (Johnny end unplugged) | yes | none |
 | SFP+8 | no link | **10G DAC** OEM `SFP-H10GB-CU3M` | none | E810 (Johnny end unplugged) | yes | none |
 
@@ -22,7 +22,7 @@ Audited 2026-10-29 19:45–20:05 CT. Sources: CRS309 `/interface bridge host pri
 - **Management:** ether1 only. 192.168.88.1/24 on ether1, not bridged. SSH + Winbox allowed from 192.168.88.0/24 only; www, api, api-ssl, telnet, ftp, reverse-proxy disabled; MAC server/MAC-Winbox and neighbor discovery on `MGMT` only. (Matches the rock-box probe: 22/8291 accept then drop, 80/443 closed, no MNDP.)
 - **LAN address:** DHCP client on `bridge` (comment "L1-2 uplink via ASUS") → 192.168.50.221. `ip-forward=no`. Pingable from the LAN, not manageable from it.
 - **Bridge:** one default `bridge`, all 8 SFP+ ports (`defconf`), hardware offloaded (host flags E). No VLAN filtering, **no port mirror** yet.
-- **Port isolation:** `/interface ethernet switch port-isolation`, per-port `forwarding-override` (one-way: frames entering the port may leave only via the listed ports). Target state: SFP+6 → SFP+4; every other port, incl. `switch1-cpu`, unset. Two-way isolation (other ports excluding SFP+6) not applied; effect on `switch1-cpu` / .221 unverified.
+- **Port isolation:** `/interface ethernet switch port-isolation`, per-port `forwarding-override` (one-way: frames entering the port may leave only via the listed ports). Verified 2026-10-29 with `print`: SFP+6 → SFP+4; every other port, incl. `switch1-cpu`, unset; no invalid flag. Two-way isolation (other ports excluding SFP+6) not applied; effect on `switch1-cpu` / .221 unverified.
 - NTP client → time.cloudflare.com, TZ America/Chicago. Boot setup key = Delete.
 - IPv6: default ND entry only; rock-box gets no IPv6 route from it (checked).
 
@@ -32,7 +32,7 @@ Audited 2026-10-29 19:45–20:05 CT. Sources: CRS309 `/interface bridge host pri
 /interface ethernet switch port-isolation set sfp-sfpplus6 forwarding-override=sfp-sfpplus4
 /interface ethernet switch port-isolation print
 ```
-History: 2026-10-29, SFP+3 → SFP+4 was applied and verified, then SFP+3 turned out to be the bedroom drop; moved to SFP+6.
+History: 2026-10-29, SFP+3 → SFP+4 was applied and verified, then SFP+3 turned out to be the bedroom drop; moved to SFP+6. `eno4` was cabled ~minutes before the SFP+6 override went in (no host IP on `eno4`; AMT TLS-only).
 
 ## LAN hosts (192.168.50.0/24, ping sweep + ARP)
 | IP | MAC | OUI vendor | Switch port | Likely device |

@@ -9,10 +9,8 @@ Current state: `docs/os-handoff.md` rev 4. Network: `docs/network-map.md`. Same 
 ## Ports (CRS309, verified 2026-10-29)
 ether1 laptop (OOB mgmt) · SFP+1 router uplink · SFP+2 Johnny `eno3` · SFP+3 bedroom drop → unmanaged switch · SFP+4 rock-box · SFP+5 Framework · **SFP+6 Johnny `eno4` (AMT)** · SFP+7/8 E810 DACs (Johnny ends out).
 
-## In progress
-1. AJ: move isolation SFP+3 → SFP+6 (commands in `docs/network-map.md`), paste `print`.
-2. AJ: new `SFP-GE-T` into SFP+6; cable Johnny `eno4` → SFP+6.
-3. Claude: verify `eno4` carrier over `ssh aj@192.168.50.152` (baseline: NO-CARRIER, no addresses).
+## Done
+- SFP+3 override removed; SFP+6 → SFP+4 (verified). `eno4` → SFP+6, link up 1000 full, no host IP.
 
 ## Then
 1. rock-box 192.168.51.2/24 (persistent or on demand) → reach AMT 192.168.51.10:16993.

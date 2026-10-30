@@ -21,7 +21,7 @@ Supersedes rev 3, `docs/sessions/2026-10-29-bench-handoff.md` and `docs/sessions
 | Initramfs | dracut 110-11ubuntu0.1; rebuild with `sudo update-initramfs -u` (dracut's own wrapper, writes `/boot/initrd.img-<ver>`) |
 | Hostname / user | `johnny` / `aj` |
 | Mgmt NIC | `eno3` = RTL8127 (`r8169`, ab:00.0), `38:05:25:3a:a3:71`, DHCP **192.168.50.152**/24 (router reservation .151 pending); sole wait-online link. CRS309 **SFP+2** |
-| AMT NIC | `eno4` = I226-LM (`igc`, ac:00.0), `38:05:25:3a:a3:70`, no host addressing, `optional: true`. AMT 192.168.51.10/24 static. CRS309 **SFP+6** (isolated to SFP+4 / rock-box); cabling in progress |
+| AMT NIC | `eno4` = I226-LM (`igc`, ac:00.0), `38:05:25:3a:a3:70`, no host addressing, `optional: true`. AMT 192.168.51.10/24 static. CRS309 **SFP+6** (isolated to SFP+4 / rock-box, verified); link up 1000 full (2026-10-30 01:06 UTC) |
 | Capture NICs | `eno1np0` (…:ac:da), `eno2np1` (…:ac:db) = E810-XXV on riser in PCIe 4.0 x16 slot (bifurcated x4/x4/x4) → **Gen4 x4 by design**. No addresses (v4/v6/link-local), `optional: true`. Cage map (facing back): left = `eno1np0`, right = `eno2np1`. DACs: switch ends in CRS309 SFP+7/8, Johnny ends **out** |
 | Disk | CT1000P310SSD8: p1 ESP 1G `/boot/efi`; p2 2G ext4 `/boot`; p3 **LUKS2** (aes-xts-plain64, argon2id) → LVM `ubuntu-vg` → `ubuntu-lv` 460G XFS `/` |
 | LUKS slots | 0 = passphrase (recovery, tested OK 2026-10-29); 1 = TPM2, PCR 7 |
@@ -95,7 +95,7 @@ Switch changes (CRS309): `docs/network-map.md`.
 - LAN is 1G end to end by design.
 
 ## Next steps (in order)
-1. **AMT cabling:** AJ moves isolation SFP+3 → SFP+6 and pastes `print`; new `SFP-GE-T` into SFP+6; cable `eno4` → SFP+6. Claude verifies `eno4` carrier over SSH and `38:05:25:3A:A3:70` learned on `sfp-sfpplus6`.
+1. ~~AMT cabling~~ done 2026-10-29: SFP+6 isolated to SFP+4 (verified), `eno4` → SFP+6, link up 1000 full, no host IP.
 2. rock-box 192.168.51.2/24 (persistent or on demand) → AMT 192.168.51.10:16993 reachable from rock-box; confirm it is not reachable from another port.
 3. **L1-2:** `sfp-sfpplus7` and `sfp-sfpplus8` out of the default `bridge`, port mirror config, then DAC Johnny ends. Find `claude/L1 Handoff.md` rev 5 for the original L1-2 design.
 4. Router: optional .151 reservation → `38:05:25:3a:a3:71` (else keep .152 in docs).
