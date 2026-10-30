@@ -21,7 +21,7 @@ Host `johnny`, 192.168.50.152 (DHCP on `eno3`; .151 reservation pending), Ubuntu
 
 ## Design decisions (from planning, 2026-10-20)
 - Passive (SPAN) first, inline later. Sensor sits LAN-side of the RT-BE88U (WireGuard encrypts at the router, which can't mirror).
-- CRS309 ports, as cabled (audit 2026-10-29, [docs/network-map.md](docs/network-map.md)): ether1 OOB switch mgmt (laptop only), SFP+1 uplink to RT-BE88U, SFP+2 Johnny `eno3`, SFP+3 free, SFP+4 rock-box (Ubuntu workstation), SFP+5 Framework, SFP+6–8 free. Still to place: vPro/AMT `eno4` OOB (isolated to SFP+4, never quarantinable) and the E810 mirror target (DAC).
+- CRS309 ports, as cabled (audit 2026-10-29, [docs/network-map.md](docs/network-map.md)): ether1 OOB switch mgmt (laptop only), SFP+1 uplink to RT-BE88U, SFP+2 Johnny `eno3`, SFP+4 rock-box (Ubuntu workstation), SFP+5 Framework, SFP+6 empty. SFP+3 vPro/AMT `eno4` OOB (isolated to SFP+4, never quarantinable; not yet cabled), SFP+7–8 E810 DACs (Johnny ends out until L1-2). Mirror target port TBD.
 - Stack fits 32 GB: Suricata + Zeek + own daemon + ClickHouse or Postgres/Timescale. No Elastic/OpenSearch.
 - No LLM on the box. Johnny keeps deterministic detection; LLM triage goes over the LAN to the MAX.
 - Logs on their own LVM volume. TLC NVMe only when full PCAP starts.

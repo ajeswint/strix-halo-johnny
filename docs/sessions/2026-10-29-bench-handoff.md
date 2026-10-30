@@ -2,7 +2,7 @@
 
 Repo: ajeswint/strix-halo-johnny. Base state: `docs/os-handoff.md` rev 3. Project is "Johnny", never "Sentinel". Terse, one step at a time, exact commands only, AJ runs sudo, never echo/store passwords. AJ is new/rusty on many concepts: give a one-line "what this does" per step.
 
-> **Switch ports superseded** by `docs/network-map.md` (audit 2026-10-29): Johnny `eno3` is on **SFP+2** (not SFP+3), rock-box on SFP+4, Framework on SFP+5. AMT (`eno4`) port TBD, isolated to SFP+4.
+> **Switch ports superseded** by `docs/network-map.md` (audit 2026-10-29): Johnny `eno3` is on **SFP+2** (not SFP+3), rock-box on SFP+4, Framework on SFP+5. AMT (`eno4`) → SFP+3, isolated to SFP+4.
 
 ## PORT NAMES CHANGED — read first
 Enabling the RTL8127 in BIOS renamed the onboard copper ports. Rev 3's "eno3 = I226" is **obsolete**.
