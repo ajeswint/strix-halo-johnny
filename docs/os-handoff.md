@@ -10,7 +10,7 @@ Supersedes rev 3, `docs/sessions/2026-10-29-bench-handoff.md` and `docs/sessions
 ## Rules
 - Terse. One step at a time. Show commands before running. AJ runs anything needing sudo/credentials. Never echo or store passwords.
 - Mark assumptions. Search before stating Ubuntu 26.04 specifics (package names, dracut behavior, kernel).
-- Access: `ssh aj@192.168.50.152` from aj-rock-box (key auth only). Read-only checks run by Claude over SSH; `aj` has no passwordless sudo.
+- Access: `ssh aj@192.168.50.152` from aj-rock-box or the laptop (aj-Thin-15-B13VE, over Wi-Fi) (key auth only). Read-only checks run by Claude over SSH; `aj` has no passwordless sudo.
 - Switch: AJ manages the CRS309 from a laptop on ether1 only. Physical cabling is the truth; docs follow it.
 
 ## Installed state
@@ -22,13 +22,13 @@ Supersedes rev 3, `docs/sessions/2026-10-29-bench-handoff.md` and `docs/sessions
 | Hostname / user | `johnny` / `aj` |
 | Mgmt NIC | `eno3` = RTL8127 (`r8169`, ab:00.0), `38:05:25:3a:a3:71`, DHCP **192.168.50.152**/24 (router reservation .151 pending); sole wait-online link. CRS309 **SFP+2** |
 | AMT NIC | `eno4` = I226-LM (`igc`, ac:00.0), `38:05:25:3a:a3:70`, no host addressing, `optional: true`. AMT 192.168.51.10/24 static. CRS309 **SFP+6** (isolated to SFP+4 / rock-box, verified); link up 1000 full (2026-10-30 01:06 UTC) |
-| Capture NICs | `eno1np0` (…:ac:da), `eno2np1` (…:ac:db) = E810-XXV on riser in PCIe 4.0 x16 slot (bifurcated x4/x4/x4) → **Gen4 x4 by design**. No addresses (v4/v6/link-local), `optional: true`. Cage map (facing back): left = `eno1np0`, right = `eno2np1`. DACs: switch ends in CRS309 SFP+7/8, Johnny ends **out** |
+| Capture NICs | `eno1np0` (…:ac:da), `eno2np1` (…:ac:db) = E810-XXV on riser in PCIe 4.0 x16 slot (bifurcated x4/x4/x4) → **Gen4 x4 by design**. No addresses (v4/v6/link-local), `optional: true`. Cage map (facing back): left = `eno1np0`, right = `eno2np1`. DACs: SFP+7 DAC → `eno1np0` (left), link 10000, **mirror target** (L1-2, 2026-10-30); SFP+8 DAC Johnny end **out**, switch port disabled. `eno2np1` down |
 | Disk | CT1000P310SSD8: p1 ESP 1G `/boot/efi`; p2 2G ext4 `/boot`; p3 **LUKS2** (aes-xts-plain64, argon2id) → LVM `ubuntu-vg` → `ubuntu-lv` 460G XFS `/` |
 | LUKS slots | 0 = passphrase (recovery, tested OK 2026-10-29); 1 = TPM2, PCR 7 |
 | Secure Boot | Enabled; kernel lockdown active. PK = MINISFORUM PK. db = MS UEFI CA 2011 + **MS UEFI CA 2023** + **Option ROM UEFI CA 2023** + Windows UEFI CA 2023 + Windows PCA 2011 + MINISFORUM OWN CA. dbx 20260707 |
 | PCR 7 baseline | `B6D0F97FA80D8614711B20726D7FB7B00D77D52F24C3C0251630F925BA07F3FF` (unchanged by BIOS admin password, RTL8127 enable, GRUB cmdline) |
 | Boot | Unattended, 19.9 s total (2026-10-29, after RTL8127 enable) |
-| SSH | OpenSSH; password auth OFF; 3× ed25519 from `gh:ajeswint` |
+| SSH | OpenSSH; password auth OFF; 3× ed25519 from `gh:ajeswint`. Host key ED25519 `SHA256:8YASZyfuArzZSXjusI8OphopsKKm+ntmDuqbnT1v3OM` (laptop scan matched rock-box `known_hosts`, 2026-10-30) |
 | Updates | `full-upgrade` done 2026-10-29 04:18 UTC. `unattended-upgrades` **security-only**, no auto reboot (`/etc/apt/apt.conf.d/52johnny-unattended-upgrades`). Holds: `shim-signed`, `secureboot-db` |
 | Removed | `snapd` (purged + pinned -1, `/etc/apt/preferences.d/johnny-no-snapd`); `ModemManager` + 8 modem-related pkgs incl. tcl (`--autoremove`) |
 | AMT | ME 19.0.5. **Activated, admin control mode (ACM).** TLS-only: 16993 + 16995 + 664 open; 16992/16994/623/5900 closed (from rock-box 2026-10-30; bench record had 16995 closed; 16995 = TLS redirection for KVM/SOL). KVM on, User Opt-in None, MEBx password changed. Self-signed Intel cert SHA-256 `8C:D6:65:E9:E5:0C:49:00:65:D3:D9:D3:13:5B:66:97:5C:E3:89:4F:F5:04:48:B0:75:BC:44:5C:47:35:3D:0A`. `rpc-go` v2.52.8 at `~/rpc/rpc` (sha256 verified, not system-wide) |
@@ -97,7 +97,7 @@ Switch changes (CRS309): `docs/network-map.md`.
 ## Next steps (in order)
 1. ~~AMT cabling~~ done 2026-10-29: SFP+6 isolated to SFP+4 (verified), `eno4` → SFP+6, link up 1000 full, no host IP.
 2. ~~rock-box 192.168.51.2/24~~ done (persistent, `/etc/netplan/60-johnny-amt-oob.yaml` on rock-box); AMT reachable, cert matches. Negative test passed (unreachable from Johnny `eno3` on SFP+2; see `docs/network-map.md`).
-3. **L1-2:** designed from the physical layout (`docs/network-map.md` § L1-2 design): SFP+7 standalone mirror target, SFP+8 out of `bridge` + disabled, ingress mirror on SFP+1/3/4/5, SFP+7 DAC → `eno1np0`. Not applied yet.
+3. **L1-2:** designed from the physical layout (`docs/network-map.md` § L1-2 design): SFP+7 standalone mirror target, SFP+8 out of `bridge` + disabled, ingress mirror on SFP+1/3/4/5, SFP+7 DAC → `eno1np0`. **Applied 2026-10-30**: `eno1np0` 10000, no addresses, mirrored frames counted at the NIC (see `docs/network-map.md` § L1-2 result).
 4. Router: optional .151 reservation → `38:05:25:3a:a3:71` (else keep .152 in docs).
 5. HDMI dummy into Johnny's HDMI when it arrives; retest headless KVM video incl. BIOS.
 6. AMT power control retest with MeshCommander or `rpc-go`. Rotate DMT Console `jwtKey` + admin password before any reuse.
@@ -114,7 +114,7 @@ Switch changes (CRS309): `docs/network-map.md`.
 3. TPM unlock + unattended reboot ✓
 4. BIOS final: Quiet Boot ✓, 1.04 latest ✓, admin password ✓ (reboot + power pull → TPM unlock, PCR 7 baseline)
 
-**DAC gate (open):** both DACs' switch ends are in CRS309 SFP+7/8, default-`bridge` ports. Johnny ends stay out until both are out of `bridge` (L1-2). Safe at the OS level (no addressing, no initrd DHCP), but keep the gate.
+**DAC gate (closed 2026-10-30):** SFP+7/8 out of `bridge`, SFP+8 disabled, then SFP+7 DAC → `eno1np0`. SFP+8 DAC's Johnny end stays out.
 
 ## Decisions
 - Netplan E810: no addressing + optional (needed for the final capture config anyway).

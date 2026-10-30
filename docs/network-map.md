@@ -12,16 +12,17 @@ Audited 2026-10-29 19:45–20:05 CT. Sources: CRS309 `/interface bridge host pri
 | SFP+4 | up, 1G | OEM `SFP-GE-T` | `9C:6B:00:D0:49:29` | **rock-box** | yes | none (full LAN) |
 | SFP+5 | up, 1G | OEM `SFP-GE-T` | `9C:BF:0D:01:F9:5C` | **Framework** laptop (192.168.50.188) | yes | none |
 | SFP+6 | up, 1G (Johnny side: 1000 full, 01:06 UTC) | OEM `SFP-GE-T` | not checked | **Johnny `eno4`** (I226-LM, AMT only, `38:05:25:3a:a3:70`) | yes | **forwards only to SFP+4** (verified) |
-| SFP+7 | no link | **10G DAC** OEM `SFP-H10GB-CU3M` | none | E810 (Johnny end unplugged) | yes | none |
-| SFP+8 | no link | **10G DAC** OEM `SFP-H10GB-CU3M` | none | E810 (Johnny end unplugged) | yes | none |
+| SFP+7 | up, 10G (Johnny side: 10000, 2026-10-30) | **10G DAC** OEM `SFP-H10GB-CU3M` | n/a (mirror target) | **Johnny `eno1np0`** (E810 left cage): **mirror target** | no (removed L1-2) | none |
+| SFP+8 | **disabled** | **10G DAC** OEM `SFP-H10GB-CU3M` | none | E810 right cage (Johnny end **out**; reserved for inline) | no (removed L1-2) | none |
 
-**DAC gate:** both DACs' switch ends sit in SFP+7/8, which are default-`bridge` ports. Their Johnny ends stay out until both ports are out of `bridge` (L1-2; the old note named only SFP+7). Johnny cage map (facing back): left = `eno1np0`, right = `eno2np1`.
+**DAC gate (closed 2026-10-30):** SFP+7/8 removed from `bridge` and SFP+8 disabled before the SFP+7 DAC went into Johnny. SFP+8's Johnny end stays out. Johnny cage map (facing back): left = `eno1np0`, right = `eno2np1`.
 
 ## CRS309 config (from `/export terse`)
 - CRS309-1G-8S+ r3, serial HMP0B0AZEKG, RouterOS 7.23.8 (long-term channel), routerboard firmware 7.23.8 (current = upgrade).
 - **Management:** ether1 only. 192.168.88.1/24 on ether1, not bridged. SSH + Winbox allowed from 192.168.88.0/24 only; www, api, api-ssl, telnet, ftp, reverse-proxy disabled; MAC server/MAC-Winbox and neighbor discovery on `MGMT` only. (Matches the rock-box probe: 22/8291 accept then drop, 80/443 closed, no MNDP.)
 - **LAN address:** DHCP client on `bridge` (comment "L1-2 uplink via ASUS") → 192.168.50.221. `ip-forward=no`. Pingable from the LAN, not manageable from it.
-- **Bridge:** one default `bridge`, all 8 SFP+ ports (`defconf`), hardware offloaded (host flags E). No VLAN filtering, **no port mirror** yet.
+- **Bridge:** one default `bridge`, SFP+1–6 (`defconf`), hardware offloaded (host flags E). No VLAN filtering. SFP+7/8 removed (L1-2); `sfp-sfpplus8` disabled.
+- **Port mirror (L1-2, 2026-10-30):** `mirror-ingress=yes` on SFP+1/3/4/5; `switch1` `mirror-target=sfp-sfpplus7` (check: `:put [/interface ethernet switch get switch1 mirror-target]`; plain `print` doesn't show it).
 - **Port isolation:** `/interface ethernet switch port-isolation`, per-port `forwarding-override` (one-way: frames entering the port may leave only via the listed ports). Verified 2026-10-29 with `print`: SFP+6 → SFP+4; every other port, incl. `switch1-cpu`, unset; no invalid flag. Two-way isolation (other ports excluding SFP+6) not applied; effect on `switch1-cpu` / .221 unverified.
 - NTP client → time.cloudflare.com, TZ America/Chicago. Boot setup key = Delete.
 - IPv6: default ND entry only; rock-box gets no IPv6 route from it (checked).
@@ -81,9 +82,9 @@ network:
 | (unplanned) | SFP+7/8 E810 DACs |
 | ether1 spare | OOB switch mgmt |
 
-Mirror target port for E810 capture: TBD (L1-2).
+Mirror target port for E810 capture: SFP+7 (L1-2, applied 2026-10-30).
 
-## L1-2 design (proposed 2026-10-30, from the physical layout)
+## L1-2 design (proposed and applied 2026-10-30, from the physical layout)
 Goal: hardware port mirror (SPAN) of the LAN into one E810 port, with both DAC ports out of the default `bridge` so the E810 never joins the LAN.
 
 | Item | Design | Why |
@@ -97,7 +98,7 @@ Goal: hardware port mirror (SPAN) of the LAN into one E810 port, with both DAC p
 
 Not covered: Wi-Fi-to-internet traffic stays inside the RT-BE88U and never crosses the CRS309 (README "Open" item). Capture itself starts only with the tool install; the mirror alone records nothing (README Legal defaults apply then).
 
-Untested: E810-XXV link with a 10G passive DAC (`SFP-H10GB-CU3M`); expect 10G.
+E810-XXV link with the 10G passive DAC (`SFP-H10GB-CU3M`): 10000, tested 2026-10-30.
 
 ### Switch commands (AJ, laptop on ether1)
 ```
@@ -108,14 +109,19 @@ Untested: E810-XXV link with a 10G passive DAC (`SFP-H10GB-CU3M`); expect 10G.
 /interface ethernet switch port set sfp-sfpplus3 mirror-ingress=yes
 /interface ethernet switch port set sfp-sfpplus4 mirror-ingress=yes
 /interface ethernet switch port set sfp-sfpplus5 mirror-ingress=yes
-/interface ethernet switch set switch1 mirror-source=none mirror-target=sfp-sfpplus7
+/interface ethernet switch set switch1 mirror-target=sfp-sfpplus7
 /export terse
+:put [/interface ethernet switch get switch1 mirror-target]
 ```
-Verify in the export: no `bridge port` lines for sfp7/sfp8; sfp8 disabled; four `mirror-ingress=yes`; `mirror-target=sfp-sfpplus7`.
+Verify in the export: no `bridge port` lines for sfp7/sfp8; sfp8 disabled; four `mirror-ingress=yes`. `mirror-target` isn't in the export or plain `print`; the `:put` prints `sfp-sfpplus7`.
+
+Correction: the design's original last line, `... set switch1 mirror-source=none mirror-target=sfp-sfpplus7`, fails on 7.23.8 (`bad parameter mirror-source`). `mirror-source` is pre-7.15; since 7.15 sources are per-port `mirror-ingress`/`mirror-egress` and the switch menu sets only `mirror-target`.
 
 ### Then (physical + Johnny)
 1. AJ plugs the **SFP+7** DAC's free end into Johnny's **left** E810 cage. If no link comes up, it's the SFP+8 DAC (disabled): swap.
 2. Claude checks over SSH (read-only): `eno1np0` carrier + speed, still no addresses, rx counters climbing.
 3. SFP+8 DAC's Johnny end stays out.
+
+**Result (2026-10-30, ~01:40 UTC):** first DAC tried was SFP+7. `eno1np0` UP, LOWER_UP, 10000, no addresses. `ethtool -S` port counters minutes after link: `rx_bytes.nic` 828118, `rx_unicast.nic` 3649, `rx_multicast.nic` 37, `rx_broadcast.nic` 7, `rx_dropped.nic` 0, `tx_bytes.nic` 0. Kernel saw 19 packets: not promisc, so the NIC filters mirrored unicast for other MACs (promisc is OS next step 11). `eno2np1` DOWN, no carrier.
 
 Sources: MikroTik CRS3xx switch chip features, Mirroring (port-based multiple sources since 7.15; target may be standalone): https://help.mikrotik.com/docs/spaces/ROS/pages/30474317/CRS3xx+CRS5xx+CCR2116+CCR2216+switch+chip+features

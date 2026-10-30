@@ -38,7 +38,7 @@ AMT 192.168.51.10: reachable from rock-box, cert SHA-256 matches record, unreach
 /interface ethernet switch port set sfp-sfpplus3 mirror-ingress=yes
 /interface ethernet switch port set sfp-sfpplus4 mirror-ingress=yes
 /interface ethernet switch port set sfp-sfpplus5 mirror-ingress=yes
-/interface ethernet switch set switch1 mirror-source=none mirror-target=sfp-sfpplus7
+/interface ethernet switch set switch1 mirror-target=sfp-sfpplus7
 /export terse
 ```
 What it does: takes both DAC ports out of the LAN bridge, switches SFP+8 off, and copies every frame entering SFP+1/3/4/5 to SFP+7.
