@@ -1,10 +1,10 @@
-# Johnny — OS Handoff (rev 4, 2026-10-29 20:10 CT)
+# Johnny — OS Handoff (rev 5, 2026-10-29 21:02 CT)
 
-Supersedes rev 3, `docs/sessions/2026-10-29-bench-handoff.md` and `docs/sessions/2026-10-29-switch-handoff.md` for current state. Network and switch ports: `docs/network-map.md`. Session logs: `docs/sessions/`. Prior records: `claude/L1 Handoff.md` (rev 5, location unknown: not on rock-box or in this repo), `claude/Johnny_L1_Session_Log_2026-10-28.csv`.
+Supersedes rev 4, `docs/sessions/2026-10-29-bench-handoff.md`, `docs/sessions/2026-10-29-switch-handoff.md` and `docs/sessions/2026-10-30-laptop-handoff.md` for current state. Rev 5: L1-2 applied (SFP+7 mirror → `eno1np0`), router DHCP reservation .152. Network and switch ports: `docs/network-map.md`. Session logs: `docs/sessions/`. Prior records: `claude/L1 Handoff.md` (rev 5, location unknown: not on rock-box or in this repo), `claude/Johnny_L1_Session_Log_2026-10-28.csv`.
 
 ## Context
 - Johnny = Minisforum MS-02 Ultra (Core Ultra 9 285HX, 1× 32GB DDR5 non-ECC, Crucial P310 1TB). Defensive network-security platform; AJ designs, Claude builds.
-- Sequence: L1 lab → **2. OS (installed; boot/firmware/TPM/closet move/AMT done; AMT cabling, tools, capture config pending)** → 3. Overseer review → 4. Module 1 (eBPF fast-path).
+- Sequence: L1 lab → **2. OS (installed; boot/firmware/TPM/closet move/AMT done; AMT cabling + L1-2 mirror + DHCP reservation done; tools, capture config pending)** → 3. Overseer review → 4. Module 1 (eBPF fast-path).
 - Location: closet, headless, unattended boot. PCR 7 at baseline.
 
 ## Rules

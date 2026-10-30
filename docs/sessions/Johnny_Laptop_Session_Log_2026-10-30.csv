@@ -1,0 +1,10 @@
+Seq,Time_UTC,Step,Issue,Actor,Action,Command,Result,Files_Changed,Status
+1,~01:20,-,Laptop SSH,Claude (laptop),SSH to Johnny,ssh aj@192.168.50.152,Host key verification failed: laptop had no known_hosts entry (not a changed key),,Done
+2,~01:22,-,Laptop SSH,Claude (laptop) + AJ (rock-box),Verify host key out of band,ssh-keyscan -t ed25519 192.168.50.152 | ssh-keygen -lf - (laptop); ssh-keygen -lF 192.168.50.152 (rock-box),ED25519 SHA256:8YASZyfuArzZSXjusI8OphopsKKm+ntmDuqbnT1v3OM matched; added to laptop known_hosts,docs/os-handoff.md,Done
+3,~01:25,L1-2,Pre-check,Claude (SSH Johnny),eno1np0 state before L1-2,ip -br link/addr show eno1np0; ip -s link,"NO-CARRIER, 0 rx/tx: DAC out, L1-2 not applied",,Done
+4,~01:34,L1-2,Mirror config,AJ (laptop ether1),Switch L1-2 + mirror target,see Johnny_Switch_Session_Log_2026-10-29.csv rows 24-26,"Bridge/disable/ingress OK; mirror-source rejected (pre-7.15); mirror-target set separately, verified sfp-sfpplus7",docs/network-map.md,Done
+5,~01:38,L1-2,DAC gate,AJ (physical),SFP+7 DAC into Johnny left cage,-,Plugged,,Done
+6,~01:40,L1-2,Capture link,Claude (SSH Johnny),Verify eno1np0,ip/ethtool -S,"10000, no addresses, rx_unicast.nic 3649, 0 drops; eno2np1 down",docs/network-map.md; docs/os-handoff.md; README.md,Done
+7,~01:50,4,Router reservation,Claude (Chrome ext.; AJ approved Apply),RT-BE88U DHCP: Manual Assignment on; johnny -> .152,see Johnny_Switch_Session_Log_2026-10-29.csv rows 29-31,"Was off (all reservations inactive); saved, verified on reload; no host moved",docs/network-map.md; docs/os-handoff.md; README.md; AGENTS.md,Done
+8,~01:53,4,Chrome ext. disconnect,Claude (laptop journal),Find cause,journalctl -u NetworkManager,"Apply restarted router Wi-Fi: wlo1 down 20:52:15 CT, ssid-not-found 20:52:30, back 20:52:58. Misclick earlier = viewport shift from AJ closing a Chrome panel",docs/network-map.md,Done
+9,~02:02,-,Session end,Claude,Bump handoff rev 4 -> 5; add this CSV,-,-,docs/os-handoff.md; docs/sessions/Johnny_Laptop_Session_Log_2026-10-30.csv,Done
