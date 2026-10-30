@@ -31,6 +31,7 @@ Host `johnny`, 192.168.50.152 (DHCP on `eno3`, reserved on the router), Ubuntu S
 ## Layout
 - `docs/os-handoff.md`: current state, config changes, gaps, next steps, SBOM. Revision number in its header.
 - `docs/sessions/`: per-session CSV logs (who ran what, result).
+- `docs/cis-26.04-l1-results.csv`: CIS Ubuntu 26.04 1.0.0 Level 1 – Server audit results (rule, result, evidence). Benchmark PDF and audit scripts stay local (gitignored).
 - `etc/`: copies of Johnny's live config files, mirroring their real paths.
 
 ## Legal

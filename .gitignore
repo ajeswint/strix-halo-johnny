@@ -7,3 +7,6 @@ __pycache__/
 *.key
 *.pem
 .env
+# CIS benchmark PDF and audit scripts copied from it: licensed, local only
+docs/CIS_*.pdf
+docs/cis-local/
