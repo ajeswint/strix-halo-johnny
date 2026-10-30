@@ -135,4 +135,6 @@ Correction: the design's original last line, `... set switch1 mirror-source=none
 
 **Result (2026-10-30, ~01:40 UTC):** first DAC tried was SFP+7. `eno1np0` UP, LOWER_UP, 10000, no addresses. `ethtool -S` port counters minutes after link: `rx_bytes.nic` 828118, `rx_unicast.nic` 3649, `rx_multicast.nic` 37, `rx_broadcast.nic` 7, `rx_dropped.nic` 0, `tx_bytes.nic` 0. Kernel saw 19 packets: not promisc, so the NIC filters mirrored unicast for other MACs (promisc is OS next step 11). `eno2np1` DOWN, no carrier.
 
+**Validation (rock-box, 2026-10-30 ~02:15 UTC):** `rx_unicast.nic` on `eno1np0`: idle 5 s +897; during 1000 pings rock-box → Framework (~5 s) +3262; excess 2365 vs ~2000 expected (1000 requests in at SFP+4 + 1000 replies in at SFP+5). Both ports' ingress is mirrored. `rx_dropped.nic` 0, `tx_bytes.nic` 0.
+
 Sources: MikroTik CRS3xx switch chip features, Mirroring (port-based multiple sources since 7.15; target may be standalone): https://help.mikrotik.com/docs/spaces/ROS/pages/30474317/CRS3xx+CRS5xx+CCR2116+CCR2216+switch+chip+features

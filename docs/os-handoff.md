@@ -97,7 +97,7 @@ Switch changes (CRS309): `docs/network-map.md`.
 ## Next steps (in order)
 1. ~~AMT cabling~~ done 2026-10-29: SFP+6 isolated to SFP+4 (verified), `eno4` → SFP+6, link up 1000 full, no host IP.
 2. ~~rock-box 192.168.51.2/24~~ done (persistent, `/etc/netplan/60-johnny-amt-oob.yaml` on rock-box); AMT reachable, cert matches. Negative test passed (unreachable from Johnny `eno3` on SFP+2; see `docs/network-map.md`).
-3. **L1-2:** designed from the physical layout (`docs/network-map.md` § L1-2 design): SFP+7 standalone mirror target, SFP+8 out of `bridge` + disabled, ingress mirror on SFP+1/3/4/5, SFP+7 DAC → `eno1np0`. **Applied 2026-10-30**: `eno1np0` 10000, no addresses, mirrored frames counted at the NIC (see `docs/network-map.md` § L1-2 result).
+3. ~~L1-2~~ done 2026-10-30: designed from the physical layout (`docs/network-map.md` § L1-2 design): SFP+7 standalone mirror target, SFP+8 out of `bridge` + disabled, ingress mirror on SFP+1/3/4/5, SFP+7 DAC → `eno1np0`. **Applied 2026-10-30**: `eno1np0` 10000, no addresses, mirrored frames counted at the NIC; A/B ping test from rock-box confirmed SFP+4 and SFP+5 ingress reach `eno1np0` (see `docs/network-map.md` § L1-2 result).
 4. ~~Router reservation~~ done 2026-10-30: kept .152 (no address change). RT-BE88U LAN → DHCP Server: Manual Assignment was **off** (listed entries inactive); turned on, added johnny `38:05:25:3A:A3:71` → .152. See `docs/network-map.md` § Router DHCP.
 5. HDMI dummy into Johnny's HDMI when it arrives; retest headless KVM video incl. BIOS.
 6. AMT power control retest with MeshCommander or `rpc-go`. Rotate DMT Console `jwtKey` + admin password before any reuse.
@@ -105,7 +105,7 @@ Switch changes (CRS309): `docs/network-map.md`.
 8. Thermal soak: `stress-ng --cpu 0 --timeout 30m` + `turbostat`.
 9. EDAC: document (non-ECC now).
 10. `pro attach` (free personal token) → USG (STIG/CIS), FIPS (verify 26.04 status).
-11. E810 capture config: capture port promisc, `disable_ipv6=1`, `arp off`, link-up only; second port admin-down (netplan `activation-mode: off`, verify); verify native XDP on ice (count with XDP); capture-core tuning (EPP performance, per-core deep C-state off). DDP COMMS package optional.
+11. E810 capture config: capture port `eno1np0` promisc, `disable_ipv6=1`, `arp off`, link-up only; second port `eno2np1` admin-down (netplan `activation-mode: off`, verify); verify native XDP on ice (count with XDP); capture-core tuning (EPP performance, per-core deep C-state off). DDP COMMS package optional.
 12. Research option D (signed UKI + PCR 11) for fleet.
 
 ## Closet move gate (closed 2026-10-29)

@@ -15,7 +15,7 @@ Host `johnny`, 192.168.50.152 (DHCP on `eno3`, reserved on the router), Ubuntu S
 
 ## Sequence
 1. L1 lab: done
-2. **OS: in progress.** Boot, firmware, TPM, closet move and AMT are done; AMT cabling, tool install and capture config are next. State: [docs/os-handoff.md](docs/os-handoff.md)
+2. **OS: in progress.** Boot, firmware, TPM, closet move, AMT (cabled + isolated) and the L1-2 port mirror are done; tool install and capture config are next. State: [docs/os-handoff.md](docs/os-handoff.md)
 3. Overseer review
 4. Module 1: eBPF fast path
 
