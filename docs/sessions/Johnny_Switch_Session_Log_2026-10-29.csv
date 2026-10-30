@@ -1,0 +1,14 @@
+Seq,Time_UTC,Step,Issue,Actor,Action,Command,Result,Files_Changed,Status
+1,-,1,rock-box port,Claude (rock-box),Read rock-box NIC,ip -br link; ip -br addr; ip route; ip neigh,"enp11s0 9c:6b:00:d0:49:29, 192.168.50.223 DHCP",,Done
+2,-,1,switch IP,Claude (rock-box),Ping sweep /24 + ARP + OUI lookup,ping -c1 -W1 192.168.50.1-254; ip neigh; grep oui.txt,"192.168.50.221 = d0:ea:11:df:35:18 (Routerboard.com) = CRS309; 12 live hosts, none unknown",,Done
+3,-,1,switch mgmt,Claude (rock-box),Listen for MNDP 70 s,python3 mndp_listen.py 70 (UDP 5678),0 packets (discovery limited to MGMT list),,Done
+4,-,1,switch mgmt,Claude (rock-box),Probe mgmt ports (connect only),bash /dev/tcp 21 22 23 80 443 8080 8291 8728 8729; ssh-keyscan,"22 + 8291 accept then drop (allowed-address 192.168.88.0/24); others closed",,Done
+5,-,1,docs,Claude,README: Rocky -> rock-box,Edit README.md:24,Fixed,README.md,Done (f68f729)
+6,-,1,switch mgmt,AJ,Settled: switch managed from laptop on ether1 only; drop switch-OS question,-,Recorded,docs/sessions/2026-10-29-switch-handoff.md,Done (f8d210d)
+7,-,1,rock-box port,AJ (laptop ether1),Bridge host lookup,/interface bridge host print where mac-address=9C:6B:00:D0:49:29,rock-box on sfp-sfpplus4 (not SFP+5 as planned),README.md; docs,Done (a57a270)
+8,00:43,1,audit,AJ (laptop ether1),Full switch audit,/system routerboard print; /interface ethernet monitor [find] once; /interface bridge host print; /ip neighbor print; /export terse,"CRS309-1G-8S+ r3, RouterOS 7.23.8. Johnny eno3 on SFP+2, Framework on SFP+5, router on SFP+1. ether1 = OOB mgmt 192.168.88.1. All SFP+ in default bridge; no isolation, VLANs, or mirror. sfp7 still in bridge",docs/network-map.md; README.md,Done (bbd4546)
+9,-,1,audit,AJ (laptop ether1),Per-port module readout,:foreach ... monitor once as-value,"SFP-GE-T in SFP+1-5; SFP+6 empty; 10G DACs (SFP-H10GB-CU3M) in SFP+7 and SFP+8, Johnny ends out",docs/network-map.md,Done (66851b2)
+10,-,1,AMT isolation,AJ (laptop ether1),Isolate SFP+3 to SFP+4,/interface ethernet switch port-isolation set sfp-sfpplus3 forwarding-override=sfp-sfpplus4; print,"Applied, verified (override=sfp-sfpplus4, no I flag)",,Done
+11,00:57,1,AMT cabling,Claude (SSH Johnny),eno4 baseline,ip -br link show eno4; cat /sys/class/net/eno4/carrier,"NO-CARRIER, no addresses, 38:05:25:3a:a3:70",,Done
+12,-,1,AMT port,AJ,SFP+3 is a wall drop to primary bedroom -> unmanaged switch; AMT moves to SFP+6 (new SFP-GE-T),-,Isolation to move SFP+3 -> SFP+6,,In progress
+13,01:10,-,docs,Claude,Rewrite docs to physical layout; os-handoff rev 4,-,"network-map, README, AGENTS IP .152, switch + bench handoffs, os-handoff rev 4",docs/network-map.md; README.md; AGENTS.md; docs/os-handoff.md; docs/sessions/*,Done

@@ -1,5 +1,7 @@
 # Handoff: repo setup (2026-10-29)
 
+> **Historical.** Current state: `docs/os-handoff.md` rev 4. Johnny is now `ssh aj@192.168.50.152`.
+
 From the aj-rock-box home-folder Claude Code session to Claude Code in Cursor.
 
 Repo: ajeswint/strix-halo-johnny (private), cloned at ~/Projects/strix-halo-johnny, branch main tracking origin over SSH (git@github.com:ajeswint/strix-halo-johnny.git). Pushes work with the ~/.ssh/id_ed25519 key. No gh CLI on this machine; AJ creates GitHub repos on the web.
