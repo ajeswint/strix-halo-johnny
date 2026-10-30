@@ -97,7 +97,7 @@ Switch changes (CRS309): `docs/network-map.md`.
 ## Next steps (in order)
 1. ~~AMT cabling~~ done 2026-10-29: SFP+6 isolated to SFP+4 (verified), `eno4` → SFP+6, link up 1000 full, no host IP.
 2. ~~rock-box 192.168.51.2/24~~ done (persistent, `/etc/netplan/60-johnny-amt-oob.yaml` on rock-box); AMT reachable, cert matches. Negative test passed (unreachable from Johnny `eno3` on SFP+2; see `docs/network-map.md`).
-3. **L1-2:** `sfp-sfpplus7` and `sfp-sfpplus8` out of the default `bridge`, port mirror config, then DAC Johnny ends. Find `claude/L1 Handoff.md` rev 5 for the original L1-2 design.
+3. **L1-2:** designed from the physical layout (`docs/network-map.md` § L1-2 design): SFP+7 standalone mirror target, SFP+8 out of `bridge` + disabled, ingress mirror on SFP+1/3/4/5, SFP+7 DAC → `eno1np0`. Not applied yet.
 4. Router: optional .151 reservation → `38:05:25:3a:a3:71` (else keep .152 in docs).
 5. HDMI dummy into Johnny's HDMI when it arrives; retest headless KVM video incl. BIOS.
 6. AMT power control retest with MeshCommander or `rpc-go`. Rotate DMT Console `jwtKey` + admin password before any reuse.

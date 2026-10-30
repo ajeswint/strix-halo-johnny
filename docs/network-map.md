@@ -82,3 +82,40 @@ network:
 | ether1 spare | OOB switch mgmt |
 
 Mirror target port for E810 capture: TBD (L1-2).
+
+## L1-2 design (proposed 2026-10-30, from the physical layout)
+Goal: hardware port mirror (SPAN) of the LAN into one E810 port, with both DAC ports out of the default `bridge` so the E810 never joins the LAN.
+
+| Item | Design | Why |
+|---|---|---|
+| Mirror target | **SFP+7**, standalone (removed from `bridge`) | DAC already in it. A standalone target carries only mirrored copies, never LAN forwarding or floods. |
+| SFP+8 | Removed from `bridge` **and disabled** | Second DAC, reserved (inline later). Disabled = can't link even if its Johnny end goes in. Matches "second E810 port admin-down". |
+| Mirror sources | **Ingress** on SFP+1 (router), SFP+3 (bedroom), SFP+4 (rock-box), SFP+5 (Framework) | Ingress-only on every LAN-facing port mirrors each frame once, at the port it entered: north-south and east-west, no duplicates. |
+| Not mirrored | SFP+2 (Johnny `eno3`), SFP+6 (AMT) | Sensor doesn't mirror its own outbound mgmt; AMT's outbound only goes to rock-box. Their inbound halves are still seen at the sender's ingress (e.g. rock-box → Johnny at SFP+4). |
+| Johnny capture port | SFP+7 DAC → **left cage = `eno1np0`** | Netplan already: no addressing, `optional: true`. Capture tuning (promisc, `arp off`, XDP) stays OS next step 11. |
+| Bandwidth | ≤ 4 × 1G ingress = 4 Gb/s into a 10G DAC | No oversubscription. |
+
+Not covered: Wi-Fi-to-internet traffic stays inside the RT-BE88U and never crosses the CRS309 (README "Open" item). Capture itself starts only with the tool install; the mirror alone records nothing (README Legal defaults apply then).
+
+Untested: E810-XXV link with a 10G passive DAC (`SFP-H10GB-CU3M`); expect 10G.
+
+### Switch commands (AJ, laptop on ether1)
+```
+/interface bridge port remove [find interface=sfp-sfpplus7]
+/interface bridge port remove [find interface=sfp-sfpplus8]
+/interface ethernet disable sfp-sfpplus8
+/interface ethernet switch port set sfp-sfpplus1 mirror-ingress=yes
+/interface ethernet switch port set sfp-sfpplus3 mirror-ingress=yes
+/interface ethernet switch port set sfp-sfpplus4 mirror-ingress=yes
+/interface ethernet switch port set sfp-sfpplus5 mirror-ingress=yes
+/interface ethernet switch set switch1 mirror-source=none mirror-target=sfp-sfpplus7
+/export terse
+```
+Verify in the export: no `bridge port` lines for sfp7/sfp8; sfp8 disabled; four `mirror-ingress=yes`; `mirror-target=sfp-sfpplus7`.
+
+### Then (physical + Johnny)
+1. AJ plugs the **SFP+7** DAC's free end into Johnny's **left** E810 cage. If no link comes up, it's the SFP+8 DAC (disabled): swap.
+2. Claude checks over SSH (read-only): `eno1np0` carrier + speed, still no addresses, rx counters climbing.
+3. SFP+8 DAC's Johnny end stays out.
+
+Sources: MikroTik CRS3xx switch chip features, Mirroring (port-based multiple sources since 7.15; target may be standalone): https://help.mikrotik.com/docs/spaces/ROS/pages/30474317/CRS3xx+CRS5xx+CCR2116+CCR2216+switch+chip+features
