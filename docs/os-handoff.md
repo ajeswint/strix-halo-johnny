@@ -1,6 +1,6 @@
-# Johnny — OS Handoff (rev 6, 2026-10-29 21:45 CT)
+# Johnny — OS Handoff (rev 6, 2026-10-29 22:10 CT)
 
-Supersedes rev 5 and every handoff in `docs/sessions/` (each bannered historical) for current state. Rev 6: repo audit only, no change on Johnny. `etc/` now mirrors every file in Config changes (hashes match Johnny), incl. the masked sleep targets as links to `/dev/null`; session-log times corrected from commit times. Rev 5: L1-2 applied (SFP+7 mirror → `eno1np0`), router DHCP reservation .152. Network and switch ports: `docs/network-map.md`. Session logs: `docs/sessions/`. Prior records: `claude/L1 Handoff.md` (rev 5, location unknown: not on rock-box or in this repo), `claude/Johnny_L1_Session_Log_2026-10-28.csv`.
+Supersedes rev 5 and every handoff in `docs/sessions/` (each bannered historical) for current state. Rev 6: repo audit only, no change on Johnny. `etc/` now mirrors every file in Config changes (hashes match Johnny), incl. the masked sleep targets as links to `/dev/null`; session-log times corrected from commit times; step 10 compliance status corrected (26.04 has no USG/STIG profile; CIS 26.04 1.0.0 exists). Rev 5: L1-2 applied (SFP+7 mirror → `eno1np0`), router DHCP reservation .152. Network and switch ports: `docs/network-map.md`. Session logs: `docs/sessions/`. Prior records: `claude/L1 Handoff.md` (rev 5, location unknown: not on rock-box or in this repo), `claude/Johnny_L1_Session_Log_2026-10-28.csv`.
 
 ## Context
 - Johnny = Minisforum MS-02 Ultra (Core Ultra 9 285HX, 1× 32GB DDR5 non-ECC, Crucial P310 1TB). Defensive network-security platform; AJ designs, Claude builds.
@@ -101,10 +101,15 @@ Switch changes (CRS309): `docs/network-map.md`.
 4. ~~Router reservation~~ done 2026-10-30: kept .152 (no address change). RT-BE88U LAN → DHCP Server: Manual Assignment was **off** (listed entries inactive); turned on, added johnny `38:05:25:3A:A3:71` → .152. See `docs/network-map.md` § Router DHCP.
 5. HDMI dummy into Johnny's HDMI when it arrives; retest headless KVM video incl. BIOS.
 6. AMT power control retest with MeshCommander or `rpc-go`. Rotate DMT Console `jwtKey` + admin password before any reuse.
-7. Tool install: one pinned apt block, versions recorded for SBOM. Candidates: tshark/wireshark-common, tcpdump, zeek, suricata, nmap, masscan, iperf3, hping3, tcpreplay, netsniff-ng, bpftrace, bpftool, bpfcc-tools, mtr-tiny, ethtool, bind9-dnsutils, stress-ng. Verify names in 26.04; zeek may need upstream repo.
+7. Tool install (**after step 10's baseline**, AJ 2026-10-30): one pinned apt block, versions recorded for SBOM. Candidates: tshark/wireshark-common, tcpdump, zeek, suricata, nmap, masscan, iperf3, hping3, tcpreplay, netsniff-ng, bpftrace, bpftool, bpfcc-tools, mtr-tiny, ethtool, bind9-dnsutils, stress-ng. Verify names in 26.04; zeek may need upstream repo.
 8. Thermal soak: `stress-ng --cpu 0 --timeout 30m` + `turbostat`.
 9. EDAC: document (non-ECC now).
-10. `pro attach` (free personal token) → USG (STIG/CIS), FIPS (verify 26.04 status).
+10. **Compliance baseline: method not chosen (AJ decides).** AJ (2026-10-30): baseline before tool install (step 7). Verified 2026-10-30:
+    - Canonical lists 26.04 FIPS 140-3, DISA-STIG and CIS as "Planned" ([release cycle](https://ubuntu.com/about/release-cycle)). USG profiles exist for 20.04/22.04/24.04 only ([USG](https://documentation.ubuntu.com/security/compliance/usg/)), so `pro attach` → `usg audit` cannot run on 26.04 today. No FIPS for 26.04.
+    - CIS has published Ubuntu Linux 26.04 LTS Benchmark 1.0.0; CIS-CAT Pro and Build Kit are CIS membership tools ([CIS](https://www.cisecurity.org/benchmark/ubuntu_linux/)).
+    - Do not scan 26.04 with 24.04 SCAP content: its rules are gated to 24.04 and return "not applicable" ([ComplianceAsCode #14857](https://github.com/ComplianceAsCode/content/discussions/14857)). Upstream 26.04 product has a default profile only ([#14721](https://github.com/ComplianceAsCode/content/pull/14721)). Resolute ships `openscap-scanner` 1.4.3+dfsg-1ubuntu1 and `ssg-*` 0.1.79-1; not installed; whether 0.1.79 holds a 26.04 datastream is unverified.
+    - Choices: (a) stay on 26.04, wait for USG; (b) rebuild on 24.04, audit with USG before tools; (c) stay on 26.04, check by hand against CIS 26.04 1.0.0 (CIS only, not DISA).
+    - Gaps vs typical CIS rules (read-only check 2026-10-30): no `auditd`, no AIDE, `ufw` installed but inactive, no `libpam-pwquality`, no login banner. SSH offers `publickey` only. Do not fix from a 24.04 checklist; wait for the chosen benchmark.
 11. E810 capture config: capture port `eno1np0` promisc, `disable_ipv6=1`, `arp off`, link-up only; second port `eno2np1` admin-down (netplan `activation-mode: off`, verify); verify native XDP on ice (count with XDP); capture-core tuning (EPP performance, per-core deep C-state off). DDP COMMS package optional.
 12. Research option D (signed UKI + PCR 11) for fleet.
 
