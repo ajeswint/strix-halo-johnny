@@ -157,6 +157,13 @@ Versions as of rev 3 except where noted; security updates since may have moved s
 Off-box: Intel DMT Console v1.47.0 (alpha) on rock-box.
 
 ## Parked
+- **Cursor cloud environment** for this repo: AJ sets it up after Cursor's Cloud Agent degradation (2026-10-30) clears. Docs/research only: the VM is in Cursor's data center, off 192.168.50.0/24, so no SSH to Johnny, switch, or AMT. Prior attempt's branch `cursor/cloud-agent-env-2b7e` (commit `02690d8`, based on rev 3) deleted 2026-10-30. Its install script only checked that `README.md`, `AGENTS.md`, `docs/os-handoff.md`, `docs/sessions/`, `etc/.gitkeep` exist. Re-add to `AGENTS.md` (updated to current facts):
+  ```
+  ## Cursor Cloud specific instructions
+  - Docs and `etc/` mirrors only. No app, lockfile, test suite, or dev server. Do not apt-install the tool-block candidates; those run on Johnny.
+  - This VM is not on 192.168.50.0/24. Do not `ssh aj@192.168.50.152` from here. Read-only SSH runs from aj-rock-box or the laptop.
+  - No secrets. Install checks `README.md`, `AGENTS.md`, `docs/os-handoff.md`, `docs/sessions/`, and `etc/.gitkeep`, then exits.
+  ```
 - ECC: 2× Kingston KSM56T46BD8KM-48HM (Minisforum-validated). Confirm Saitech $335/stick special-order price before buying. Two sticks also fixes **single-channel** memory.
 - Memory 19–20% used at idle (6.2 GB): userspace+slab+cache ≈ 0.5 GB; ~5.7 GB is direct kernel/driver allocation. Hypothesis: ice (48 queues) or GPU driver. Investigate before Module 1 sizing.
 
