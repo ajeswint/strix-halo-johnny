@@ -21,7 +21,7 @@ Host `johnny`, 192.168.50.151, Ubuntu Server 26.04.1. Access: `ssh aj@192.168.50
 
 ## Design decisions (from planning, 2026-10-20)
 - Passive (SPAN) first, inline later. Sensor sits LAN-side of the RT-BE88U (WireGuard encrypts at the router, which can't mirror).
-- CRS309 ports: SFP+1 router 10G uplink (DAC), SFP+2 E810 mirror target (DAC), SFP+3 Johnny 10G mgmt/API, SFP+4 vPro 2.5G OOB (isolated, never quarantinable), SFP+5 rock-box (Ubuntu workstation), SFP+6 Framework/MAX, ether1 spare.
+- CRS309 ports: SFP+1 router 10G uplink (DAC), SFP+2 E810 mirror target (DAC), SFP+3 Johnny 10G mgmt/API, SFP+4 rock-box (Ubuntu workstation), SFP+5 vPro 2.5G OOB (isolated to SFP+4, never quarantinable), SFP+6 Framework/MAX, ether1 spare.
 - Stack fits 32 GB: Suricata + Zeek + own daemon + ClickHouse or Postgres/Timescale. No Elastic/OpenSearch.
 - No LLM on the box. Johnny keeps deterministic detection; LLM triage goes over the LAN to the MAX.
 - Logs on their own LVM volume. TLC NVMe only when full PCAP starts.
