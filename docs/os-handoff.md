@@ -1,6 +1,6 @@
-# Johnny — OS Handoff (rev 6, 2026-10-29 21:42 CT)
+# Johnny — OS Handoff (rev 6, 2026-10-29 21:45 CT)
 
-Supersedes rev 5 and every handoff in `docs/sessions/` (each bannered historical) for current state. Rev 6: repo audit only, no change on Johnny. `etc/` now mirrors every file in Config changes (hashes match Johnny) except the masked sleep targets; session-log times corrected from commit times. Rev 5: L1-2 applied (SFP+7 mirror → `eno1np0`), router DHCP reservation .152. Network and switch ports: `docs/network-map.md`. Session logs: `docs/sessions/`. Prior records: `claude/L1 Handoff.md` (rev 5, location unknown: not on rock-box or in this repo), `claude/Johnny_L1_Session_Log_2026-10-28.csv`.
+Supersedes rev 5 and every handoff in `docs/sessions/` (each bannered historical) for current state. Rev 6: repo audit only, no change on Johnny. `etc/` now mirrors every file in Config changes (hashes match Johnny), incl. the masked sleep targets as links to `/dev/null`; session-log times corrected from commit times. Rev 5: L1-2 applied (SFP+7 mirror → `eno1np0`), router DHCP reservation .152. Network and switch ports: `docs/network-map.md`. Session logs: `docs/sessions/`. Prior records: `claude/L1 Handoff.md` (rev 5, location unknown: not on rock-box or in this repo), `claude/Johnny_L1_Session_Log_2026-10-28.csv`.
 
 ## Context
 - Johnny = Minisforum MS-02 Ultra (Core Ultra 9 285HX, 1× 32GB DDR5 non-ECC, Crucial P310 1TB). Defensive network-security platform; AJ designs, Claude builds.
