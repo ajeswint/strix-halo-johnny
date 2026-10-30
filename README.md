@@ -11,7 +11,7 @@ Johnny: defensive network-security platform (monitoring, threat detection, respo
 | Switch | MikroTik CRS309-1G-8S+IN, RouterOS 7.23.8; managed only from a laptop on ether1. Hardware port mirror (SPAN): ingress on SFP+1/3/4/5 → SFP+7. Port map: [docs/network-map.md](docs/network-map.md) |
 | Optics | 1G SFP-to-RJ45 (OEM `SFP-GE-T`) in SFP+1–6; 2× 3m passive 10G DAC (OEM `SFP-H10GB-CU3M`) in SFP+7–8: SFP+7 → Johnny `eno1np0` (mirror target), SFP+8 disabled, Johnny end out |
 
-Host `johnny`, 192.168.50.152 (DHCP on `eno3`; .151 reservation pending), Ubuntu Server 26.04.1. Access: `ssh aj@192.168.50.152` (key only).
+Host `johnny`, 192.168.50.152 (DHCP on `eno3`, reserved on the router), Ubuntu Server 26.04.1. Access: `ssh aj@192.168.50.152` (key only).
 
 ## Sequence
 1. L1 lab: done

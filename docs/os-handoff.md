@@ -20,7 +20,7 @@ Supersedes rev 3, `docs/sessions/2026-10-29-bench-handoff.md` and `docs/sessions
 | Kernel | 7.0.0-42-generic (only kernel; installer's unsigned 7.0.0-30 purged). Cmdline adds `pcie_aspm=off` (`/etc/default/grub.d/johnny.cfg`); kernel logs "PCIe ASPM is disabled" |
 | Initramfs | dracut 110-11ubuntu0.1; rebuild with `sudo update-initramfs -u` (dracut's own wrapper, writes `/boot/initrd.img-<ver>`) |
 | Hostname / user | `johnny` / `aj` |
-| Mgmt NIC | `eno3` = RTL8127 (`r8169`, ab:00.0), `38:05:25:3a:a3:71`, DHCP **192.168.50.152**/24 (router reservation .151 pending); sole wait-online link. CRS309 **SFP+2** |
+| Mgmt NIC | `eno3` = RTL8127 (`r8169`, ab:00.0), `38:05:25:3a:a3:71`, DHCP **192.168.50.152**/24, reserved on the RT-BE88U (2026-10-30); sole wait-online link. CRS309 **SFP+2** |
 | AMT NIC | `eno4` = I226-LM (`igc`, ac:00.0), `38:05:25:3a:a3:70`, no host addressing, `optional: true`. AMT 192.168.51.10/24 static. CRS309 **SFP+6** (isolated to SFP+4 / rock-box, verified); link up 1000 full (2026-10-30 01:06 UTC) |
 | Capture NICs | `eno1np0` (…:ac:da), `eno2np1` (…:ac:db) = E810-XXV on riser in PCIe 4.0 x16 slot (bifurcated x4/x4/x4) → **Gen4 x4 by design**. No addresses (v4/v6/link-local), `optional: true`. Cage map (facing back): left = `eno1np0`, right = `eno2np1`. DACs: SFP+7 DAC → `eno1np0` (left), link 10000, **mirror target** (L1-2, 2026-10-30); SFP+8 DAC Johnny end **out**, switch port disabled. `eno2np1` down |
 | Disk | CT1000P310SSD8: p1 ESP 1G `/boot/efi`; p2 2G ext4 `/boot`; p3 **LUKS2** (aes-xts-plain64, argon2id) → LVM `ubuntu-vg` → `ubuntu-lv` 460G XFS `/` |
@@ -98,7 +98,7 @@ Switch changes (CRS309): `docs/network-map.md`.
 1. ~~AMT cabling~~ done 2026-10-29: SFP+6 isolated to SFP+4 (verified), `eno4` → SFP+6, link up 1000 full, no host IP.
 2. ~~rock-box 192.168.51.2/24~~ done (persistent, `/etc/netplan/60-johnny-amt-oob.yaml` on rock-box); AMT reachable, cert matches. Negative test passed (unreachable from Johnny `eno3` on SFP+2; see `docs/network-map.md`).
 3. **L1-2:** designed from the physical layout (`docs/network-map.md` § L1-2 design): SFP+7 standalone mirror target, SFP+8 out of `bridge` + disabled, ingress mirror on SFP+1/3/4/5, SFP+7 DAC → `eno1np0`. **Applied 2026-10-30**: `eno1np0` 10000, no addresses, mirrored frames counted at the NIC (see `docs/network-map.md` § L1-2 result).
-4. Router: optional .151 reservation → `38:05:25:3a:a3:71` (else keep .152 in docs).
+4. ~~Router reservation~~ done 2026-10-30: kept .152 (no address change). RT-BE88U LAN → DHCP Server: Manual Assignment was **off** (listed entries inactive); turned on, added johnny `38:05:25:3A:A3:71` → .152. See `docs/network-map.md` § Router DHCP.
 5. HDMI dummy into Johnny's HDMI when it arrives; retest headless KVM video incl. BIOS.
 6. AMT power control retest with MeshCommander or `rpc-go`. Rotate DMT Console `jwtKey` + admin password before any reuse.
 7. Tool install: one pinned apt block, versions recorded for SBOM. Candidates: tshark/wireshark-common, tcpdump, zeek, suricata, nmap, masscan, iperf3, hping3, tcpreplay, netsniff-ng, bpftrace, bpftool, bpfcc-tools, mtr-tiny, ethtool, bind9-dnsutils, stress-ng. Verify names in 26.04; zeek may need upstream repo.

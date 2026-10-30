@@ -41,17 +41,28 @@ History: 2026-10-29, SFP+3 → SFP+4 was applied and verified, then SFP+3 turned
 | .1 | a0:ad:9f:6b:e9:d0 | ASUSTek | SFP+1 | RT-BE88U router |
 | .7 | fc:6d:77:b1:b9:35 | Intel | SFP+1 (behind router) | unknown PC/NIC |
 | .92 | a8:b5:7c:4d:6f:d5 | Roku | SFP+1 (behind router) | Roku |
-| .104 | 1a:b7:b1:20:9a:18 | randomized | SFP+1 (behind router) | phone/tablet |
+| .104 | 1a:b7:b1:20:9a:18 | randomized | SFP+1 (behind router) | Pixel 8 Pro (router reservation name) |
 | .133 | d4:ad:fc:96:3e:5d | Shenzhen Intellirocks | SFP+1 (behind router) | smart-home device (likely Govee) |
 | .152 | 38:05:25:3a:a3:71 | IEEE RA (Minisforum) | SFP+2 | Johnny `eno3` |
 | .184 | 64:db:a0:f6:2d:08 | Select Comfort | SFP+1 (behind router) | Sleep Number bed |
 | .188 | 9c:bf:0d:01:f9:5c | Framework | SFP+5 | Framework laptop |
-| .193 | 30:d1:6b:0e:d7:3a | Liteon | SFP+1 (behind router) | unknown (Wi-Fi card) |
+| .193 | 30:d1:6b:0e:d7:3a | Liteon | SFP+1 (behind router) | Hisense Roku TV (router reservation name `60HisenseRokuTV`) |
 | .221 | d0:ea:11:df:35:18 | Routerboard.com | (switch itself) | CRS309 |
 | .223 | 9c:6b:00:d0:49:29 | ASRock | SFP+4 | rock-box |
 | .233 | 84:a9:3e:cc:bf:43 | Hewlett Packard | SFP+1 (behind router) | HP (likely printer) |
 
 No unknown MACs on the switch: every learned MAC maps to a host above.
+
+### Router DHCP (RT-BE88U, LAN → DHCP Server, checked 2026-10-30)
+Pool 192.168.50.2–.254, lease 86400 s. **Enable Manual Assignment was No** (listed entries were inactive; rock-box's .223 was a sticky lease). Turned on 2026-10-30 (Claude via Chrome extension, AJ approved Apply); verified on reload. Each entry matched the host's current address, so no host moved.
+
+| Name (router) | MAC | IP |
+|---|---|---|
+| Pixel-8-Pro | 1A:B7:B1:20:9A:18 | .104 |
+| johnny (added) | 38:05:25:3A:A3:71 | .152 |
+| 60HisenseRokuTV | 30:D1:6B:0E:D7:3A | .193 |
+| "IEEE Registration Authority" | 34:46:63:20:98:D1 | .197 (unknown device; not seen in the sweep) |
+| aj-rock-box | 9C:6B:00:D0:49:29 | .223 |
 
 **AMT subnet (separate L3, same switch):** 192.168.51.0/24. AMT = 192.168.51.10 (static, on `eno4`, MAC `38:05:25:3a:a3:70`). rock-box = 192.168.51.2/24 on `enp11s0`, persistent, alongside DHCP .223.
 
