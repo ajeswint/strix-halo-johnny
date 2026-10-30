@@ -14,7 +14,8 @@ ether1 laptop (OOB mgmt) · SFP+1 router uplink · SFP+2 Johnny `eno3` · SFP+3 
 
 - rock-box 192.168.51.2/24 persistent (`/etc/netplan/60-johnny-amt-oob.yaml`); AMT reachable from rock-box, cert fingerprint matches.
 
+- Negative test passed: AMT unreachable from Johnny `eno3` (SFP+2).
+
 ## Then
-1. Negative test: AMT unreachable from a host on another port.
-2. L1-2: SFP+7 and SFP+8 out of `bridge`, mirror config, then DAC Johnny ends.
-3. Rest of `docs/os-handoff.md` rev 4 next steps.
+1. L1-2: SFP+7 and SFP+8 out of `bridge`, mirror config, then DAC Johnny ends.
+2. Rest of `docs/os-handoff.md` rev 4 next steps.

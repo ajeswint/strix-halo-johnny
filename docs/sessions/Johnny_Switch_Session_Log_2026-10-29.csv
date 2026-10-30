@@ -19,3 +19,6 @@ Seq,Time_UTC,Step,Issue,Actor,Action,Command,Result,Files_Changed,Status
 18,-,2,AMT reach,AJ (rock-box),Check merged netplan,pkexec netplan get ethernets.enp11s0,"MAC match, dhcp4/dhcp6 true, addresses 192.168.51.2/24",,Done
 19,-,2,AMT reach,AJ (rock-box),Apply,pkexec netplan apply,"Warning: no networkd varlink, hard restart of systemd-networkd (not the renderer; manages no links)",,Done
 20,~01:25,2,AMT reach,Claude (rock-box),Verify address + AMT,ip -br addr; ping; /dev/tcp port scan; openssl s_client | x509 -fingerprint -sha256,"51.2 + .223 on enp11s0; AMT ping OK, ARP :70; 16993/16995/664 open, 16992/16994/623/5900 closed; cert SHA-256 matches record",docs/network-map.md; docs/os-handoff.md,Done
+21,-,2,AMT isolation,AJ (SSH Johnny),Temp test address on eno3,sudo ip addr add 192.168.51.3/24 dev eno3,Added (separate terminal; ! prompt has no TTY for sudo),,Done
+22,-,2,AMT isolation,Claude (SSH Johnny),Negative test from SFP+2,ping -I eno3 192.168.51.10; /dev/tcp 16993 16995 664; ip neigh,"0/3 ping; ARP INCOMPLETE -> FAILED; no TCP answer. Isolation holds",docs/network-map.md,Done
+23,-,2,AMT isolation,AJ (SSH Johnny),Remove temp address,sudo ip addr del 192.168.51.3/24 dev eno3,Removed; verified eno3 = 192.168.50.152 only,,Done

@@ -65,7 +65,9 @@ network:
 ```
 `netplan get ethernets.enp11s0` after install: MAC match + `dhcp4: true` + `dhcp6: true` + `192.168.51.2/24` (merged). `netplan apply` printed "Failed to connect to network service /run/systemd/netif/io.systemd.Network … hard restart of systemd-networkd" (networkd is not the renderer; now running, manages no links, disabled at boot).
 
-**AMT test from rock-box (2026-10-30 ~01:25 UTC):** ping OK; ARP 192.168.51.10 → `38:05:25:3a:a3:70`. TCP 16993 open, 16995 open, 664 open; 16992, 16994, 623, 5900 closed. TLS cert SHA-256 `8C:D6:65:E9:E5:0C:49:00:65:D3:D9:D3:13:5B:66:97:5C:E3:89:4F:F5:04:48:B0:75:BC:44:5C:47:35:3D:0A` = recorded; Intel AMT self-signed, notAfter 2037-12-31. Negative test (unreachable from other ports) not done.
+**AMT test from rock-box (2026-10-30 ~01:25 UTC):** ping OK; ARP 192.168.51.10 → `38:05:25:3a:a3:70`. TCP 16993 open, 16995 open, 664 open; 16992, 16994, 623, 5900 closed. TLS cert SHA-256 `8C:D6:65:E9:E5:0C:49:00:65:D3:D9:D3:13:5B:66:97:5C:E3:89:4F:F5:04:48:B0:75:BC:44:5C:47:35:3D:0A` = recorded; Intel AMT self-signed, notAfter 2037-12-31. 
+
+**Negative test (2026-10-30):** temporary 192.168.51.3/24 on Johnny `eno3` (SFP+2): ping 0/3, ARP for 192.168.51.10 INCOMPLETE → FAILED, TCP 16993/16995/664 no answer. One-way isolation holds: AMT's replies cannot leave SFP+6 except to SFP+4. Temp address removed, verified.
 
 ## Plan (2026-10-20) vs. physical
 | Plan | Physical |
