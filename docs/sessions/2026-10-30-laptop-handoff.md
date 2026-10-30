@@ -1,5 +1,7 @@
 # Johnny handoff → Claude Code on the laptop (2026-10-30)
 
+> **Historical.** Do not act on the steps below. Current state: `docs/os-handoff.md` (latest rev) and `docs/network-map.md`. Since then: L1-2 applied, router reservation .152.
+
 Repo: `ajeswint/strix-halo-johnny` (head `53dcd6d` or later; `git pull` first). Read `AGENTS.md`, `README.md`, `docs/os-handoff.md` (rev 4), `docs/network-map.md`. Project is "Johnny", never "Sentinel".
 
 ## How to work with AJ

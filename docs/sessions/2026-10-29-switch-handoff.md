@@ -1,5 +1,7 @@
 # Johnny switch handoff (2026-10-29, for Claude chat)
 
+> **Historical.** Do not act on the steps below. Current state: `docs/os-handoff.md` (latest rev) and `docs/network-map.md`. Since then: L1-2 applied, router reservation .152.
+
 Current state: `docs/os-handoff.md` rev 4. Network: `docs/network-map.md`. Same rules: "Johnny", never "Sentinel". Terse, one step at a time, exact commands, AJ enters all passwords, one-line "what this does" per step.
 
 ## Settled (do not reopen)

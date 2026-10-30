@@ -1,0 +1,1 @@
+dm_crypt-0 UUID=a6d02318-e79b-4a4c-bafa-0097695493db none luks,tpm2-device=auto

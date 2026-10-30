@@ -1,6 +1,6 @@
 # Handoff: repo setup (2026-10-29)
 
-> **Historical.** Current state: `docs/os-handoff.md` rev 4. Johnny is now `ssh aj@192.168.50.152`.
+> **Historical.** Do not act on the steps below. Current state: `docs/os-handoff.md` (latest rev). Johnny is now `ssh aj@192.168.50.152`.
 
 From the aj-rock-box home-folder Claude Code session to Claude Code in Cursor.
 
