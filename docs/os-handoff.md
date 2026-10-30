@@ -31,7 +31,7 @@ Supersedes rev 3, `docs/sessions/2026-10-29-bench-handoff.md` and `docs/sessions
 | SSH | OpenSSH; password auth OFF; 3× ed25519 from `gh:ajeswint` |
 | Updates | `full-upgrade` done 2026-10-29 04:18 UTC. `unattended-upgrades` **security-only**, no auto reboot (`/etc/apt/apt.conf.d/52johnny-unattended-upgrades`). Holds: `shim-signed`, `secureboot-db` |
 | Removed | `snapd` (purged + pinned -1, `/etc/apt/preferences.d/johnny-no-snapd`); `ModemManager` + 8 modem-related pkgs incl. tcl (`--autoremove`) |
-| AMT | ME 19.0.5. **Activated, admin control mode (ACM).** TLS-only: 16993 + 664 open; 16992/16994/16995/623/5900 closed. KVM on, User Opt-in None, MEBx password changed. Self-signed Intel cert SHA-256 `8C:D6:65:E9:E5:0C:49:00:65:D3:D9:D3:13:5B:66:97:5C:E3:89:4F:F5:04:48:B0:75:BC:44:5C:47:35:3D:0A`. `rpc-go` v2.52.8 at `~/rpc/rpc` (sha256 verified, not system-wide) |
+| AMT | ME 19.0.5. **Activated, admin control mode (ACM).** TLS-only: 16993 + 16995 + 664 open; 16992/16994/623/5900 closed (from rock-box 2026-10-30; bench record had 16995 closed; 16995 = TLS redirection for KVM/SOL). KVM on, User Opt-in None, MEBx password changed. Self-signed Intel cert SHA-256 `8C:D6:65:E9:E5:0C:49:00:65:D3:D9:D3:13:5B:66:97:5C:E3:89:4F:F5:04:48:B0:75:BC:44:5C:47:35:3D:0A`. `rpc-go` v2.52.8 at `~/rpc/rpc` (sha256 verified, not system-wide) |
 | Time | UTC, NTP synced, RTC local = no |
 
 Secrets: LUKS passphrase (recovery; needed if PCR 7 changes), `aj` login password, BIOS admin password, MEBx password, AMT admin password. DMT Console (rock-box) admin password + `jwtKey`: rotate before reuse (`jwtKey` was exposed in a Claude transcript).
@@ -96,7 +96,7 @@ Switch changes (CRS309): `docs/network-map.md`.
 
 ## Next steps (in order)
 1. ~~AMT cabling~~ done 2026-10-29: SFP+6 isolated to SFP+4 (verified), `eno4` → SFP+6, link up 1000 full, no host IP.
-2. rock-box 192.168.51.2/24 (persistent or on demand) → AMT 192.168.51.10:16993 reachable from rock-box; confirm it is not reachable from another port.
+2. ~~rock-box 192.168.51.2/24~~ done (persistent, `/etc/netplan/60-johnny-amt-oob.yaml` on rock-box); AMT reachable, cert matches. **Remaining:** negative test (AMT unreachable from a host on another port).
 3. **L1-2:** `sfp-sfpplus7` and `sfp-sfpplus8` out of the default `bridge`, port mirror config, then DAC Johnny ends. Find `claude/L1 Handoff.md` rev 5 for the original L1-2 design.
 4. Router: optional .151 reservation → `38:05:25:3a:a3:71` (else keep .152 in docs).
 5. HDMI dummy into Johnny's HDMI when it arrives; retest headless KVM video incl. BIOS.

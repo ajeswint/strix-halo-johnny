@@ -15,3 +15,7 @@ Seq,Time_UTC,Step,Issue,Actor,Action,Command,Result,Files_Changed,Status
 14,01:06,1,AMT cabling,AJ,Cable eno4 -> SFP+6 (before isolation moved),-,igc eno4: NIC Link is Up 1000 Mbps Full Duplex,,Done
 15,-,1,AMT isolation,AJ (laptop ether1),Move isolation SFP+3 -> SFP+6,/interface ethernet switch port-isolation unset sfp-sfpplus3 forwarding-override; set sfp-sfpplus6 forwarding-override=sfp-sfpplus4; print,"SFP+3 unset; SFP+6 override=sfp-sfpplus4; no I flag",docs/network-map.md,Done
 16,-,1,AMT cabling,Claude (SSH Johnny),Verify eno4,ip -br link/addr show eno4; carrier; speed; journalctl -k,"UP, LOWER_UP, carrier 1, 1000, no addresses",,Done
+17,-,2,AMT reach,AJ (rock-box),Install netplan drop-in,pkexec install -m 600 -o root -g root .../60-johnny-amt-oob.yaml /etc/netplan/60-johnny-amt-oob.yaml,No output (OK),rock-box /etc/netplan/60-johnny-amt-oob.yaml,Done
+18,-,2,AMT reach,AJ (rock-box),Check merged netplan,pkexec netplan get ethernets.enp11s0,"MAC match, dhcp4/dhcp6 true, addresses 192.168.51.2/24",,Done
+19,-,2,AMT reach,AJ (rock-box),Apply,pkexec netplan apply,"Warning: no networkd varlink, hard restart of systemd-networkd (not the renderer; manages no links)",,Done
+20,~01:25,2,AMT reach,Claude (rock-box),Verify address + AMT,ip -br addr; ping; /dev/tcp port scan; openssl s_client | x509 -fingerprint -sha256,"51.2 + .223 on enp11s0; AMT ping OK, ARP :70; 16993/16995/664 open, 16992/16994/623/5900 closed; cert SHA-256 matches record",docs/network-map.md; docs/os-handoff.md,Done

@@ -52,7 +52,20 @@ History: 2026-10-29, SFP+3 → SFP+4 was applied and verified, then SFP+3 turned
 
 No unknown MACs on the switch: every learned MAC maps to a host above.
 
-**AMT subnet (separate L3, same switch):** 192.168.51.0/24. AMT = 192.168.51.10 (static, on `eno4`). rock-box needs 192.168.51.2/24 on `enp11s0` to reach it (not yet configured).
+**AMT subnet (separate L3, same switch):** 192.168.51.0/24. AMT = 192.168.51.10 (static, on `eno4`, MAC `38:05:25:3a:a3:70`). rock-box = 192.168.51.2/24 on `enp11s0`, persistent, alongside DHCP .223.
+
+rock-box `/etc/netplan/60-johnny-amt-oob.yaml` (root 600; rock-box file, not mirrored under `etc/`):
+```
+network:
+  version: 2
+  ethernets:
+    enp11s0:
+      addresses:
+        - 192.168.51.2/24
+```
+`netplan get ethernets.enp11s0` after install: MAC match + `dhcp4: true` + `dhcp6: true` + `192.168.51.2/24` (merged). `netplan apply` printed "Failed to connect to network service /run/systemd/netif/io.systemd.Network … hard restart of systemd-networkd" (networkd is not the renderer; now running, manages no links, disabled at boot).
+
+**AMT test from rock-box (2026-10-30 ~01:25 UTC):** ping OK; ARP 192.168.51.10 → `38:05:25:3a:a3:70`. TCP 16993 open, 16995 open, 664 open; 16992, 16994, 623, 5900 closed. TLS cert SHA-256 `8C:D6:65:E9:E5:0C:49:00:65:D3:D9:D3:13:5B:66:97:5C:E3:89:4F:F5:04:48:B0:75:BC:44:5C:47:35:3D:0A` = recorded; Intel AMT self-signed, notAfter 2037-12-31. Negative test (unreachable from other ports) not done.
 
 ## Plan (2026-10-20) vs. physical
 | Plan | Physical |
