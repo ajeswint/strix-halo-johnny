@@ -77,3 +77,47 @@ id,title,level,result,evidence,date
 1.7.6,Ensure XDMCP is not enabled,L1,N/A,"gdm3 not installed; no /etc/gdm3 or /etc/gdm (CIS: section can be skipped)",2026-10-30
 1.6.5,Ensure sshd warning Banner is configured,L1,FAIL,"sshd -T: banner none (sudo, AJ)",2026-10-30
 1.6.10,Ensure access to sshd warning banner is configured,L1,PASS,"sshd -T: banner none, so nothing returned (CIS: passing state; depends on 1.6.5) (sudo, AJ)",2026-10-30
+2.1.1,Ensure autofs services are not in use,L1,PASS,"autofs not installed (dpkg-query -s); autofs.service not enabled, not active",2026-10-31
+2.1.2,Ensure avahi daemon services are not in use,L1,PASS,"avahi-daemon not installed (dpkg-query -s); avahi-daemon.socket/.service not enabled, not active",2026-10-31
+2.1.3,Ensure dhcp server services are not in use,L1,PASS,"no kea package in dpkg-query -l; kea-dhcp4/kea-dhcp6/kea-dhcp-ddns units not enabled, not active (systemctl show)",2026-10-31
+2.1.4,Ensure dns server services are not in use,L1,PASS,"bind9 not installed (dpkg-query -s); named.service not enabled, not active",2026-10-31
+2.1.5,Ensure dnsmasq services are not in use,L1,PASS,"dnsmasq not installed (dpkg-query -s); dnsmasq.service not enabled, not active",2026-10-31
+2.1.6,Ensure ftp server services are not in use,L1,PASS,"vsftpd not installed (dpkg-query -s); vsftpd.service not enabled, not active",2026-10-31
+2.1.7,Ensure ldap server services are not in use,L1,PASS,"slapd not installed (dpkg-query -s); slapd.service not enabled, not active",2026-10-31
+2.1.8,Ensure message access server services are not in use,L1,PASS,"dovecot-imapd and dovecot-pop3d not installed (dpkg-query -s); dovecot.socket/.service not enabled, not active",2026-10-31
+2.1.9,Ensure network file system services are not in use,L1,PASS,"nfs-kernel-server not installed (dpkg-query -s); nfs-server.service not enabled, not active",2026-10-31
+2.1.10,Ensure nis server services are not in use,L1,PASS,"ypserv not installed (dpkg-query -s); ypserv.service not enabled, not active",2026-10-31
+2.1.11,Ensure print server services are not in use,L1,PASS,"cups not installed (dpkg-query -s); cups.socket/.service not enabled, not active",2026-10-31
+2.1.12,Ensure rpcbind services are not in use,L1,PASS,"rpcbind not installed (dpkg-query -s); rpcbind.socket/.service not enabled, not active",2026-10-31
+2.1.13,Ensure rsync services are not in use,L1,FAIL,"rsync 3.4.1+ds1-7ubuntu0.3 installed; only installed reverse dependency is ubuntu-standard; rsync.service not enabled, not active. AJ did not approve ubuntu-standard (strict CIS, 2026-10-31), so the dependency branch does not apply; fix pass removes ubuntu-standard and rsync",2026-10-31
+2.1.14,Ensure samba file server services are not in use,L1,PASS,"samba not installed (dpkg-query -s); smbd.service not enabled, not active",2026-10-31
+2.1.15,Ensure snmp services are not in use,L1,PASS,"snmpd not installed (dpkg-query -s); snmpd.service not enabled, not active",2026-10-31
+2.1.16,Ensure telnet server services are not in use,L1,PASS,"no telnetd/telnetd-ssl in dpkg-query -l; inetutils-inetd.service not enabled, not active",2026-10-31
+2.1.17,Ensure tftp server services are not in use,L1,PASS,"tftpd-hpa not installed (dpkg-query -s); tftpd-hpa.service not enabled, not active",2026-10-31
+2.1.18,Ensure web proxy server services are not in use,L1,PASS,"squid not installed (dpkg-query -s); squid.service not enabled, not active",2026-10-31
+2.1.19,Ensure web server services are not in use,L1,PASS,"apache2 and nginx not installed (dpkg-query -s); apache2.socket/.service and nginx.service not enabled, not active (systemctl show)",2026-10-31
+2.1.20,Ensure xinetd services are not in use,L1,PASS,"xinetd not installed (dpkg-query -s); xinetd.service not enabled, not active",2026-10-31
+2.1.22,Ensure mail transfer agents are configured for local-only mode,L1,PASS,"CIS script PASS: no listener on 25/465/587 (ss -plntu); no postconf/exim/sendmail found (MTA not detected)",2026-10-31
+2.1.23,Ensure only approved services are listening on a network interface,L1,PASS (manual),"ss -plntu (non-root): tcp 0.0.0.0:22 and [::]:22; tcp+udp 127.0.0.53%lo:53 and 127.0.0.54:53; udp 192.168.50.152%eno3:68; udp 127.0.0.1:323 and [::1]:323. Process names from a non-root unit check, not root ss: ssh.socket Listen 0.0.0.0:22 [::]:22; systemd-resolved stub (LLMNR and mDNS off); systemd-networkd DHCP client; chrony cmdport. AJ approved all four 2026-10-31",2026-10-31
+2.2.1,Ensure nis client is not installed,L1,PASS,"nis not installed (dpkg-query -s)",2026-10-31
+2.2.2,Ensure rsh client is not installed,L1,PASS,"rsh-client not installed (dpkg-query -s)",2026-10-31
+2.2.3,Ensure talk client is not installed,L1,PASS,"talk not installed (dpkg-query -s)",2026-10-31
+2.2.4,Ensure telnet client is not installed,L1,FAIL,"telnet 0.17+2.7-2ubuntu1.1 and inetutils-telnet 2:2.7-2ubuntu1.1 installed (ii); no installed package depends on telnet; only telnet depends on inetutils-telnet; telnet-ssl not installed; apt-get -s remove telnet inetutils-telnet removes exactly those 2, installs nothing",2026-10-31
+2.2.5,Ensure ldap client is not installed,L1,PASS,"ldap-utils not installed (dpkg-query -s)",2026-10-31
+2.2.6,Ensure ftp client is not installed,L1,FAIL,"ftp 20260211-1 and tnftp 20260211-1 installed (ii); installed ubuntu-standard depends on ftp; ftp depends on tnftp. apt-get -s remove ftp tnftp also installs ftp-ssl (also on the 2.2.6 list), so the fix requires removing ubuntu-standard (not approved by AJ, 2026-10-31) with its deps marked manual first (as with the ubuntu-server-minimal removal)",2026-10-31
+2.3.1.1,Ensure a single time synchronization daemon is in use,L1,PASS,"CIS script PASS: chrony.service enabled and active; systemd-timesyncd not installed (dpkg un), not enabled, not active",2026-10-31
+2.3.2.1,Ensure systemd-timesyncd configured with authorized timeserver,L1,N/A,"systemd-timesyncd not installed (dpkg un; unit not-found); chrony in use (2.3.1.1), so the timesyncd section is skipped (CIS 2.3 and 2.3.2 notes). Script FAIL (NTP/FallbackNTP unset) is moot",2026-10-31
+2.3.2.2,Ensure systemd-timesyncd is enabled and running,L1,N/A,"systemd-timesyncd.service not-found and inactive; package not installed; chrony in use, so the timesyncd section is skipped (CIS 2.3 and 2.3.2 notes)",2026-10-31
+2.3.3.1,Ensure chrony is configured,L1,PASS,"CIS script PASS: pool 1-4.ntp.ubuntu.com and ntp-bootstrap.ubuntu.com (nts) in /etc/chrony/sources.d/ubuntu-ntp-pools.sources; AJ approved the Ubuntu NTS pools as Johnny's time source 2026-10-31",2026-10-31
+2.3.3.2,Ensure chrony is running as user _chrony,L1,PASS (manual),"CIS awk prints root: it matches root /bin/sh /usr/lib/systemd/scripts/chronyd-starter.sh -n -F 1 (pid 1644; chrony's starter wrapper); chronyd pids 1733 and 1738 run as _chrony; /proc has no hidepid. Interpretation: the daemon runs as _chrony; the root hit is the wrapper path containing chronyd",2026-10-31
+2.3.3.3,Ensure chrony is enabled and running,L1,PASS,"chrony.service enabled; active",2026-10-31
+2.4.1.1,Ensure cron daemon is enabled and active,L1,PASS,"cron 3.0pl1-200ubuntu1 installed; cron.service enabled (list-unit-files) and active (list-units)",2026-10-31
+2.4.1.2,Ensure access to /etc/crontab is configured,L1,FAIL,"/etc/crontab 644 (-rw-r--r--) 0/root 0/root: group and other can read",2026-10-31
+2.4.1.3,Ensure access to /etc/cron.hourly is configured,L1,FAIL,"/etc/cron.hourly 755 (drwxr-xr-x) 0/root 0/root: group and other have r-x",2026-10-31
+2.4.1.4,Ensure access to /etc/cron.daily is configured,L1,FAIL,"/etc/cron.daily 755 (drwxr-xr-x) 0/root 0/root: group and other have r-x",2026-10-31
+2.4.1.5,Ensure access to /etc/cron.weekly is configured,L1,FAIL,"/etc/cron.weekly 755 (drwxr-xr-x) 0/root 0/root: group and other have r-x",2026-10-31
+2.4.1.6,Ensure access to /etc/cron.monthly is configured,L1,FAIL,"/etc/cron.monthly 755 (drwxr-xr-x) 0/root 0/root: group and other have r-x",2026-10-31
+2.4.1.7,Ensure access to /etc/cron.yearly is configured,L1,FAIL,"/etc/cron.yearly exists; 755 (drwxr-xr-x) 0/root 0/root: group and other have r-x",2026-10-31
+2.4.1.8,Ensure access to /etc/cron.d is configured,L1,FAIL,"/etc/cron.d 755 (drwxr-xr-x) 0/root 0/root: group and other have r-x",2026-10-31
+2.4.1.9,Ensure access to crontab is configured,L1,FAIL,"/etc/cron.allow does not exist (stat: No such file or directory); /etc/cron.deny absent",2026-10-31
+2.4.2.1,Ensure access to at is configured,L1,N/A,"at not installed (dpkg-query -s); no /etc/at.allow or /etc/at.deny; at section skipped when at is not installed (CIS 2.4.2 note)",2026-10-31

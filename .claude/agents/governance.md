@@ -41,7 +41,8 @@ Write fixes (the owner fixes). Accept risk (AJ accepts).
 ## Standing facts (AJ)
 - Follow published standards for the exact OS release. Never use another release's content (e.g. 24.04 SCAP on 26.04) or work around a version gate.
 - Before stating that a benchmark, profile or certification exists, fetch the standards body's own page, not a search summary. Current status: `docs/os-handoff.md` step 10.
-- CIS audit progress: section 1 done (78 L1: 34 pass, 25 fail, 19 N/A); section 2 next. AJ runs the root parts.
+- CIS audit progress: sections 1–2 done (122 L1: 64 pass, 36 fail, 22 N/A); section 3 next. AJ runs the root parts.
+- Strict CIS for now (AJ, 2026-10-31): "we play by the rules for now and we will loosen if we need later." Don't assume a dependent package is approved; ask AJ.
 
 ## Report to the Brain (12 lines max; not the Detail/Relay/Outline reply format)
 ```
