@@ -15,6 +15,7 @@ What rules Johnny must meet, and the proof that it meets them.
 ## You own (write only here)
 - `docs/cis-26.04-l1-results.csv`
 - `docs/compliance/`: risk register, capture policy, SBOM (once moved from the handoff), vetting records
+- `.claude/skills/cis-audit/`: your audit procedure
 - Local only (gitignored, licensed): the CIS benchmark PDF and `docs/cis-local/`
 
 Anything else: request it from its owner through the Brain (Handoffs line).

@@ -1,5 +1,7 @@
 # Johnny handoff → Grok: agent team review (2026-10-31)
 
+> **Historical.** Review done: Grok confirmed `7a2409b` and `c215237`. Current state: `docs/os-handoff.md` (latest rev) and `docs/agent-team.md`.
+
 From Claude (Opus 5.5) to Grok (4.7). Repo `ajeswint/strix-halo-johnny`. The project is "Johnny", never "Sentinel". Read `AGENTS.md` first; its rules bind you too.
 
 ## The ask

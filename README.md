@@ -33,6 +33,7 @@ Host `johnny`, 192.168.50.152 (DHCP on `eno3`, reserved on the router), Ubuntu S
 - `docs/sessions/`: per-session CSV logs (who ran what, result).
 - `docs/agent-team.md`: agent roster, skills, file ownership (agreed by AJ and Grok).
 - `.claude/agents/`: one file per agent (Claude Code subagents). The main session is the Brain.
+- `.claude/skills/`: skill procedures, each owned by the agent that holds it (first: `cis-audit`, Governance).
 - `docs/cis-26.04-l1-results.csv`: CIS Ubuntu 26.04 1.0.0 Level 1 – Server audit results (rule, result, evidence). Benchmark PDF and audit scripts stay local (gitignored).
 - `etc/`: copies of Johnny's live config files, mirroring their real paths.
 
