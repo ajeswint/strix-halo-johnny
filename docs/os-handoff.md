@@ -8,7 +8,7 @@ Supersedes rev 7 and the 2026-10-29/30 handoffs in `docs/sessions/` (each banner
 - Location: closet, headless, unattended boot. PCR 7 at baseline.
 
 ## Rules
-- Terse. One step at a time. Show commands before running. AJ runs anything needing sudo/credentials. Never echo or store passwords.
+- Replies: Detail → Relay (for Grok) → Outline (`AGENTS.md`). One step at a time. Show commands before running. AJ runs anything needing sudo/credentials. Never echo or store passwords.
 - Mark assumptions. Search before stating Ubuntu 26.04 specifics (package names, dracut behavior, kernel).
 - Access: `ssh aj@192.168.50.152` from aj-rock-box or the laptop (aj-Thin-15-B13VE, over Wi-Fi) (key auth only). Read-only checks run by Claude over SSH; `aj` has no passwordless sudo.
 - Switch: AJ manages the CRS309 from a laptop on ether1 only. Physical cabling is the truth; docs follow it.

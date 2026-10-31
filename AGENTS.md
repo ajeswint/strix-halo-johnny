@@ -1,7 +1,11 @@
 # Working rules for agents in this repo
 
 - Read `README.md`, then `docs/os-handoff.md` (current state). The project is "Johnny"; never call it "Sentinel".
-- Terse. One step at a time. Show commands before running them.
+- Reply in three parts, in this order (one-line answers excepted):
+  1. **Detail**: the full write-up. Long is fine; this is the record.
+  2. **Relay**: a short summary for Grok, pasteable as-is.
+  3. **Outline**: a nested outline of the Detail.
+- One step at a time. Show commands before running them.
 - AJ runs anything needing sudo or credentials. Claude runs read-only checks on Johnny over `ssh aj@192.168.50.152` (DHCP on `eno3`, reserved on the router); `aj` has no passwordless sudo. Never echo or store passwords.
 - Mark assumptions. Search before stating Ubuntu 26.04 specifics (package names, dracut behavior, kernel) and cite the URL.
 - Exact copy-paste commands only. No `<placeholders>` in command blocks.

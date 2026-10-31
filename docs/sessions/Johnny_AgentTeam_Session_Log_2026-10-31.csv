@@ -6,3 +6,4 @@ Seq,Time_UTC,Step,Issue,Actor,Action,Command,Result,Files_Changed,Status
 5,17:49,13,SLM scope,AJ; Claude,"AJ: models have full function for now; skip architecture logic",Edit,"Tighten-only limits removed; architecture-logic conflicts deferred (agent-team §7); agent-team rev 2; checks re-run OK",docs/agent-team.md; README.md; AGENTS.md,Done
 6,17:49,-,Wrap,Claude,Grok brief; handoff rev 8; session log,-,"No change on Johnny",docs/sessions/2026-10-31-grok-handoff.md; docs/os-handoff.md; this file,Done
 7,17:50,-,Commit,AJ approved; Claude,Commit and push everything incl. AJ reference docs,git commit; git push origin main,"9e2d834 on origin/main (17 files)",all session files + docs/ reference docs,Done
+8,17:56,-,Reply format,AJ; Claude,"AJ: carry the strix-halo reply format into this repo",Edit,"AGENTS.md: replies = Detail, Relay (for Grok), Outline; replaces Terse. Handoff Rules line updated",AGENTS.md; docs/os-handoff.md; this file,Done
