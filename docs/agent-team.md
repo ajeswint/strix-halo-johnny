@@ -1,6 +1,6 @@
 # Johnny agent team
 
-Rev 2, 2026-10-31. Proposal for AJ and the Overseer (README step 3); Grok compares. Not yet wired into `.claude/agents/`. Rev 2 (AJ): the SLM has full function for now; architecture-logic questions deferred (§7).
+Rev 2, 2026-10-31. Proposal for AJ and the Overseer (README step 3); Grok compares. Not yet wired into `.claude/agents/`. Rev 2 (AJ): the SLM has full function for now; architecture-logic questions deferred (§7). Rev 3: Grok review applied (quarantine cross-reference, `.gitignore` owner, Fast Path in PW.9).
 
 What this is: the roster that says which agent owns which job, so no two agents do the same work. Inputs: role list `docs/Enterprise Security Software Team Roles.md` (127 titles); control model `docs/Distributed Neural Networks and Control Systems in Cephalopods.md` §1, §4–5; architecture `docs/JOHNNY_ Executive Architectural Summary.md`.
 
@@ -109,7 +109,7 @@ Thin by design, 6 skills:
 - `routeros-crs309`: exact RouterOS 7 commands for AJ to paste on the laptop (ether1); read-back checks; `/export terse` snapshots.
 - `span-design`: which ports mirror, what stays invisible (Wi-Fi behind the router), oversubscription (4 × 1G into a 10G target).
 - `port-isolation`: `forwarding-override` one-way vs two-way; the AMT out-of-band path to rock-box.
-- `quarantine-path`: MAC ACL / VLAN quarantine on the CRS309, and how an automated response would reach the switch (§7.5).
+- `quarantine-path`: MAC ACL / VLAN quarantine on the CRS309, and how an automated response would reach the switch (§7.6).
 - `router-rtbe88u`: DHCP reservations, WireGuard placement, the Wi-Fi drop on Apply.
 - `cabling-optics`: SFP/DAC inventory, link checks, wall drops. Physical cabling is the truth.
 - `port-audit`: bridge host table ↔ port ↔ device, from AJ's pastes and rock-box ARP.
@@ -168,7 +168,7 @@ Places that look shared, and the split:
 
 | Path | Owner |
 |---|---|
-| `README.md`, `AGENTS.md`, `CLAUDE.md`, `docs/os-handoff.md`, `docs/sessions/`, `docs/agent-team.md` | Brain |
+| `README.md`, `AGENTS.md`, `CLAUDE.md`, `.gitignore`, `docs/os-handoff.md`, `docs/sessions/`, `docs/agent-team.md` | Brain |
 | `docs/architecture/`\*, `common/`\* | Architect |
 | `bpf/`\*, capture units `etc/systemd/system/johnny-capture.*`\* | Fast Path |
 | `daemon/`\*, `etc/systemd/system/johnny-daemon.service`\* | Daemon |
@@ -282,7 +282,7 @@ For the Overseer and Grok. Each line can be checked:
 | PW.6 Secure build configuration | same split as PW.5 |
 | PW.7 Review code | Assurance |
 | PW.8 Test executable code | Assurance |
-| PW.9 Secure defaults | by path: Platform (OS), Daemon, SLM, Detection (sensor configs) |
+| PW.9 Secure defaults | by path: Platform (OS), Daemon, SLM, Detection (sensor configs), Fast Path (`bpf/`, capture units) |
 | RV.1 Identify vulnerabilities | Governance |
 | RV.2 Assess, prioritize, remediate | Governance (fix: owning agent) |
 | RV.3 Root-cause analysis | Assurance |
