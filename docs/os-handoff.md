@@ -115,7 +115,7 @@ Switch changes (CRS309): `docs/network-map.md`.
     - Gaps vs typical CIS rules (read-only check 2026-10-30): no `auditd`, no AIDE, `ufw` installed but inactive, no `libpam-pwquality`, no login banner. SSH offers `publickey` only. Do not fix from a 24.04 checklist; wait for the chosen benchmark.
 11. E810 capture config: capture port `eno1np0` promisc, `disable_ipv6=1`, `arp off`, link-up only; second port `eno2np1` admin-down (netplan `activation-mode: off`, verify); verify native XDP on ice (count with XDP); capture-core tuning (EPP performance, per-core deep C-state off). DDP COMMS package optional.
 12. Research option D (signed UKI + PCR 11) for fleet.
-13. Agent team: ~~Grok review~~ done 2026-10-31 (agrees with §1–3, 5–7, 9; its 3 edits applied in `docs/agent-team.md` rev 3). Next: wire `.claude/agents/`. Architecture-logic items deferred (`docs/agent-team.md` §7).
+13. Agent team: ~~Grok review~~ done 2026-10-31 (agrees with §1–3, 5–7, 9; its 3 edits applied in `docs/agent-team.md` rev 3). ~~Wire `.claude/agents/`~~ done 2026-10-31: 9 agent files (rev 4). Architecture-logic items deferred (`docs/agent-team.md` §7).
 
 ## Closet move gate (closed 2026-10-29)
 1. SSH key login ✓

@@ -1,7 +1,8 @@
 # Working rules for agents in this repo
 
 - Read `README.md`, then `docs/os-handoff.md` (current state). The project is "Johnny"; never call it "Sentinel".
-- Reply in three parts, in this order (one-line answers excepted):
+- Team: `docs/agent-team.md` (roster, file ownership); agent files in `.claude/agents/`. The main session is the Brain. Agent reports to the Brain use that doc's §6 format.
+- Reply to AJ in three parts, in this order (one-line answers excepted):
   1. **Detail**: the full write-up. Long is fine; this is the record.
   2. **Relay**: a short summary for Grok, pasteable as-is.
   3. **Outline**: a nested outline of the Detail.

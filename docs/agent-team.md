@@ -1,6 +1,6 @@
 # Johnny agent team
 
-Rev 2, 2026-10-31. Proposal for AJ and the Overseer (README step 3); Grok compares. Not yet wired into `.claude/agents/`. Rev 2 (AJ): the SLM has full function for now; architecture-logic questions deferred (§7). Rev 3: Grok review applied (quarantine cross-reference, `.gitignore` owner, Fast Path in PW.9).
+Rev 4, 2026-10-31. Agreed by AJ and Grok. Wired: `.claude/agents/` holds one file per agent (9); the Brain is the main session and has no file. Rev 2 (AJ): the SLM has full function for now; architecture-logic questions deferred (§7). Rev 3: Grok review applied (quarantine cross-reference, `.gitignore` owner, Fast Path in PW.9). Rev 4: agent files created.
 
 What this is: the roster that says which agent owns which job, so no two agents do the same work. Inputs: role list `docs/Enterprise Security Software Team Roles.md` (127 titles); control model `docs/Distributed Neural Networks and Control Systems in Cephalopods.md` §1, §4–5; architecture `docs/JOHNNY_ Executive Architectural Summary.md`.
 
@@ -168,7 +168,7 @@ Places that look shared, and the split:
 
 | Path | Owner |
 |---|---|
-| `README.md`, `AGENTS.md`, `CLAUDE.md`, `.gitignore`, `docs/os-handoff.md`, `docs/sessions/`, `docs/agent-team.md` | Brain |
+| `README.md`, `AGENTS.md`, `CLAUDE.md`, `.gitignore`, `.claude/agents/`, `docs/os-handoff.md`, `docs/sessions/`, `docs/agent-team.md` | Brain |
 | `docs/architecture/`\*, `common/`\* | Architect |
 | `bpf/`\*, capture units `etc/systemd/system/johnny-capture.*`\* | Fast Path |
 | `daemon/`\*, `etc/systemd/system/johnny-daemon.service`\* | Daemon |
@@ -291,7 +291,7 @@ PW.3 was deleted in v1.1 (merged into PW.4). Source: [NIST SP 800-218, SSDF v1.1
 
 ## 9. Next (not done)
 
-1. AJ and Grok agree on this roster.
-2. Wire it: one `.claude/agents/<agent>.md` per agent (mission, owned paths, skills, report format). Skills start as lines in the agent file; a skill gets its own `SKILL.md` once its procedure is stable (first candidate: `cis-audit`, whose method is already in the handoff).
+1. ~~AJ and Grok agree on this roster.~~ Done 2026-10-31.
+2. ~~Wire it: one `.claude/agents/<agent>.md` per agent (mission, owned paths, skills, report format).~~ Done 2026-10-31. Skills are lines in each agent file; a skill gets its own `SKILL.md` once its procedure is stable (first candidate: `cis-audit`, whose method is already in the handoff).
 3. Optional: a hook that blocks writes outside an agent's owned paths.
 4. Architecture pass: the deferred items in §7.
