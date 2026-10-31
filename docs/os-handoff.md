@@ -1,6 +1,6 @@
-# Johnny — OS Handoff (rev 7, 2026-10-29 22:50 CT)
+# Johnny — OS Handoff (rev 8, 2026-10-31 12:55 CT)
 
-Supersedes rev 6 and every handoff in `docs/sessions/` (each bannered historical) for current state. Rev 7: step 10 method (c) chosen, CIS 26.04 1.0.0 Level 1 – Server; section 1 audited (78 rules: 34 pass, 25 fail, 19 N/A); fix gate added. Audit only, no change on Johnny. Session log: `docs/sessions/Johnny_CIS_Session_Log_2026-10-30.csv`. Rev 6: repo audit only, no change on Johnny. `etc/` now mirrors every file in Config changes (hashes match Johnny), incl. the masked sleep targets as links to `/dev/null`; session-log times corrected from commit times; step 10 compliance status corrected (26.04 has no USG/STIG profile; CIS 26.04 1.0.0 exists). Rev 5: L1-2 applied (SFP+7 mirror → `eno1np0`), router DHCP reservation .152. Network and switch ports: `docs/network-map.md`. Session logs: `docs/sessions/`. Prior records: `claude/L1 Handoff.md` (rev 5, location unknown: not on rock-box or in this repo), `claude/Johnny_L1_Session_Log_2026-10-28.csv`.
+Supersedes rev 7 and the 2026-10-29/30 handoffs in `docs/sessions/` (each bannered historical) for current state. Rev 8: no change on Johnny. Agent team proposed: `docs/agent-team.md` (Brain + Architect + 8 arms, 78 skills); Grok review brief `docs/sessions/2026-10-31-grok-handoff.md`. On-box SLM is in, full function for now (AJ); "No LLM on the box" removed from README and AGENTS.md. Session log: `docs/sessions/Johnny_AgentTeam_Session_Log_2026-10-31.csv`. Rev 7: step 10 method (c) chosen, CIS 26.04 1.0.0 Level 1 – Server; section 1 audited (78 rules: 34 pass, 25 fail, 19 N/A); fix gate added. Audit only, no change on Johnny. Session log: `docs/sessions/Johnny_CIS_Session_Log_2026-10-30.csv`. Rev 6: repo audit only, no change on Johnny. `etc/` now mirrors every file in Config changes (hashes match Johnny), incl. the masked sleep targets as links to `/dev/null`; session-log times corrected from commit times; step 10 compliance status corrected (26.04 has no USG/STIG profile; CIS 26.04 1.0.0 exists). Rev 5: L1-2 applied (SFP+7 mirror → `eno1np0`), router DHCP reservation .152. Network and switch ports: `docs/network-map.md`. Session logs: `docs/sessions/`. Prior records: `claude/L1 Handoff.md` (rev 5, location unknown: not on rock-box or in this repo), `claude/Johnny_L1_Session_Log_2026-10-28.csv`.
 
 ## Context
 - Johnny = Minisforum MS-02 Ultra (Core Ultra 9 285HX, 1× 32GB DDR5 non-ECC, Crucial P310 1TB). Defensive network-security platform; AJ designs, Claude builds.
@@ -115,6 +115,7 @@ Switch changes (CRS309): `docs/network-map.md`.
     - Gaps vs typical CIS rules (read-only check 2026-10-30): no `auditd`, no AIDE, `ufw` installed but inactive, no `libpam-pwquality`, no login banner. SSH offers `publickey` only. Do not fix from a 24.04 checklist; wait for the chosen benchmark.
 11. E810 capture config: capture port `eno1np0` promisc, `disable_ipv6=1`, `arp off`, link-up only; second port `eno2np1` admin-down (netplan `activation-mode: off`, verify); verify native XDP on ice (count with XDP); capture-core tuning (EPP performance, per-core deep C-state off). DDP COMMS package optional.
 12. Research option D (signed UKI + PCR 11) for fleet.
+13. Agent team: Grok review of `docs/agent-team.md` (brief: `docs/sessions/2026-10-31-grok-handoff.md`), then wire `.claude/agents/`. Architecture-logic items deferred (`docs/agent-team.md` §7).
 
 ## Closet move gate (closed 2026-10-29)
 1. SSH key login ✓
@@ -137,6 +138,7 @@ Switch changes (CRS309): `docs/network-map.md`.
 - snapd purged + pinned; ModemManager purged; `unattended-upgrades` security-only, no auto reboot; shim-signed + secureboot-db held.
 - `pcie_aspm=off` via `/etc/default/grub.d/` drop-in.
 - LAN 1G by design.
+- On-box SLM: yes, full function for now (AJ, 2026-10-31). Limits, if any, come with the architecture pass.
 - Switch: managed from laptop on ether1 only; physical cabling wins over the 2026-10-20 port plan.
 - Carried from rev 2: headless; XFS root (FICLONE same-FS only); no snaps; no bond; STIG partition split deferred to fleet autoinstall; firmware lockdown = admin password + Secure Boot.
 

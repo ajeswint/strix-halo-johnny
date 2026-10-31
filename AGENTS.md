@@ -7,6 +7,7 @@
 - Exact copy-paste commands only. No `<placeholders>` in command blocks.
 - Files under `etc/` are copies of live files on Johnny and mirror their real paths. Update the copy in the same commit as the change.
 - At session end: bump the handoff revision in `docs/os-handoff.md` and add that session's CSV to `docs/sessions/`.
-- Never `pci=noaer`; never disable ACS Source Validation; no snaps; no LLM on the box.
+- Never `pci=noaer`; never disable ACS Source Validation; no snaps.
+- The on-box SLM is part of the architecture and has full function for now (AJ, 2026-10-31). Any limits are set in the later architecture pass.
 - Johnny work stays here, not in strix-halo-lab. Flag before drifting into other projects.
 - After presenting options, stop and wait for AJ's choice.
