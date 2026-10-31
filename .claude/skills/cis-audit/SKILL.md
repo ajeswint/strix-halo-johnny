@@ -20,7 +20,7 @@ Audit only, no change on Johnny. Fixes belong to Platform's `cis-remediation`, b
 - Never paste benchmark text or CIS script bodies into a tracked file, a commit or a report. The results CSV carries rule id, title, verdict and observed evidence only.
 
 ## Where things stand
-Source of truth: `docs/os-handoff.md` step 10 and `docs/cis-26.04-l1-results.csv`. As of 2026-10-31, sections 1–2 are done (122 L1: 64 pass, 36 fail, 22 N/A). L1 left by section: 3 (37), 4 (4), 5 (70), 6 (17), 7 (24).
+Source of truth: `docs/os-handoff.md` step 10 and `docs/cis-26.04-l1-results.csv`. As of 2026-10-31, sections 1–3 are done (159 L1: 70 pass, 67 fail, 22 N/A). L1 left by section: 4 (4), 5 (70), 6 (17), 7 (24).
 
 ## Method, per section
 1. **Extract.** `pdftotext -layout` the section from the local PDF. List its recommendations whose Profile Applicability includes Level 1 – Server; skip L2-only ones.

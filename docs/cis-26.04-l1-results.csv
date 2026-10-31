@@ -121,3 +121,40 @@ id,title,level,result,evidence,date
 2.4.1.8,Ensure access to /etc/cron.d is configured,L1,FAIL,"/etc/cron.d 755 (drwxr-xr-x) 0/root 0/root: group and other have r-x",2026-10-31
 2.4.1.9,Ensure access to crontab is configured,L1,FAIL,"/etc/cron.allow does not exist (stat: No such file or directory); /etc/cron.deny absent",2026-10-31
 2.4.2.1,Ensure access to at is configured,L1,N/A,"at not installed (dpkg-query -s); no /etc/at.allow or /etc/at.deny; at section skipped when at is not installed (CIS 2.4.2 note)",2026-10-31
+3.1.1,Ensure IPv6 status is identified,L1,FAIL (manual),"CIS script: IPv6 is enabled (ipv6.disable=0; disable_ipv6=0 on all, default and every interface); only fe80:: link-local on eno3 and ::1 on lo; no global IPv6 address; no IPv6 default route; site policy (AJ 2026-10-31): no IPv6, so state not per policy; PASS (manual) once IPv6 is disabled",2026-10-31
+3.1.2,Ensure wireless interfaces are not available,L1,PASS,"CIS script: PASS, no wireless NICs installed (no wireless dir under /sys/class/net: eno1np0 eno2np1 eno3 eno4 lo); no rfkill devices; cfg80211 loaded with 0 users; BIOS WIFI off; AJ 2026-10-31: wireless not required",2026-10-31
+3.1.3,Ensure bluetooth services are not in use,L1,PASS,"bluez not installed (dpkg-query: no packages found matching bluez); bluetooth.service not enabled, not active (no output)",2026-10-31
+3.2.1,Ensure atm kernel module is not available,L1,FAIL,"atm in /usr/lib/modules/7.0.0-42-generic/kernel/net; not loaded; no blacklist/install in modprobe --showconfig",2026-10-31
+3.2.2,Ensure can kernel module is not available,L1,FAIL,"can in /usr/lib/modules/7.0.0-42-generic/kernel/net; not loaded; no blacklist/install in modprobe --showconfig",2026-10-31
+3.2.3,Ensure dccp kernel module is not available,L1,PASS,"no dccp under /usr/lib/modules/7.0.0-42-generic/kernel/net (not available; no further steps); not loaded; no blacklist/install",2026-10-31
+3.2.4,Ensure rds kernel module is not available,L1,FAIL,"rds in /usr/lib/modules/7.0.0-42-generic/kernel/net; not loaded; no blacklist/install in modprobe --showconfig",2026-10-31
+3.2.5,Ensure sctp kernel module is not available,L1,FAIL,"sctp in /usr/lib/modules/7.0.0-42-generic/kernel/net; not loaded; no blacklist/install in modprobe --showconfig",2026-10-31
+3.2.6,Ensure tipc kernel module is not available,L1,FAIL,"tipc in /usr/lib/modules/7.0.0-42-generic/kernel/net; not loaded; no blacklist/install in modprobe --showconfig",2026-10-31
+3.2.7,Ensure unneeded network protocol kernel modules are not available,L1,FAIL (manual),"no site deny list of network-protocol modules exists (AJ 2026-10-31: record FAIL; Governance drafts list in fix pass, Detection confirms needs, AJ approves); 505 modules under kernel/net; only bluetooth has install+blacklist; CIS example esp4 esp6 rxrpc: not loaded, no install/blacklist, modprobe -n -v would insmod the real .ko",2026-10-31
+3.3.1.1,Ensure net.ipv4.ip_forward is configured,L1,FAIL,"running 0 (correct) but not set in any sysctl conf file scanned (incl. /etc/ufw/sysctl.conf)",2026-10-31
+3.3.1.2,Ensure net.ipv4.conf.all.forwarding is configured,L1,FAIL,"running 0 (correct) but not set in any sysctl conf file; skip via 3.3.1.1 not available (3.3.1.1 fails)",2026-10-31
+3.3.1.3,Ensure net.ipv4.conf.default.forwarding is configured,L1,FAIL,"running 0 (correct) but not set in any sysctl conf file; skip via 3.3.1.1 not available (3.3.1.1 fails)",2026-10-31
+3.3.1.4,Ensure net.ipv4.conf.all.send_redirects is configured,L1,FAIL,"running 1; not set in any sysctl conf file",2026-10-31
+3.3.1.5,Ensure net.ipv4.conf.default.send_redirects is configured,L1,FAIL,"running 1; not set in any sysctl conf file",2026-10-31
+3.3.1.6,Ensure net.ipv4.icmp_ignore_bogus_error_responses is configured,L1,PASS,"running 1; set to 1 only in /etc/ufw/sysctl.conf (IPT_SYSCTL), which the CIS scan counts on ufw-installed systems; note: ufw inactive, so that file is not applied now (it sets accept_redirects 0, running is 1); running 1 is the CIS default value",2026-10-31
+3.3.1.7,Ensure net.ipv4.icmp_echo_ignore_broadcasts is configured,L1,PASS,"running 1; set to 1 only in /etc/ufw/sysctl.conf (IPT_SYSCTL), which the CIS scan counts on ufw-installed systems; note: ufw inactive, so that file is not applied now (it sets accept_redirects 0, running is 1); running 1 is the CIS default value",2026-10-31
+3.3.1.8,Ensure net.ipv4.conf.all.accept_redirects is configured,L1,FAIL,"running 1; set to 0 only in /etc/ufw/sysctl.conf, not applied (ufw inactive)",2026-10-31
+3.3.1.9,Ensure net.ipv4.conf.default.accept_redirects is configured,L1,FAIL,"running 1; set to 0 only in /etc/ufw/sysctl.conf, not applied (ufw inactive)",2026-10-31
+3.3.1.10,Ensure net.ipv4.conf.all.secure_redirects is configured,L1,FAIL,"running 1; not set in any sysctl conf file",2026-10-31
+3.3.1.11,Ensure net.ipv4.conf.default.secure_redirects is configured,L1,FAIL,"running 1; not set in any sysctl conf file",2026-10-31
+3.3.1.12,Ensure net.ipv4.conf.all.rp_filter is configured,L1,FAIL,"running 2; set to 2 in /usr/lib/sysctl.d/55-network-security.conf",2026-10-31
+3.3.1.13,Ensure net.ipv4.conf.default.rp_filter is configured,L1,FAIL,"running 2; set to 2 in /usr/lib/sysctl.d/55-network-security.conf (first) and /usr/lib/sysctl.d/50-default.conf",2026-10-31
+3.3.1.14,Ensure net.ipv4.conf.all.accept_source_route is configured,L1,FAIL,"running 0 (correct) but not set in any sysctl conf file",2026-10-31
+3.3.1.15,Ensure net.ipv4.conf.default.accept_source_route is configured,L1,PASS,"running 0; set in /usr/lib/sysctl.d/50-default.conf (CIS recommends also an /etc/sysctl.d/ file)",2026-10-31
+3.3.1.16,Ensure net.ipv4.conf.all.log_martians is configured,L1,FAIL,"running 0; set to 0 in /etc/ufw/sysctl.conf (ufw inactive); no other conf file",2026-10-31
+3.3.1.17,Ensure net.ipv4.conf.default.log_martians is configured,L1,FAIL,"running 0; set to 0 in /etc/ufw/sysctl.conf (ufw inactive); no other conf file",2026-10-31
+3.3.1.18,Ensure net.ipv4.tcp_syncookies is configured,L1,FAIL,"running 1 (correct) but not set in any sysctl conf file",2026-10-31
+3.3.1.19,Ensure net.ipv4.conf.all.route_localnet is configured,L1,FAIL,"running 0 (correct) but not set in any sysctl conf file",2026-10-31
+3.3.2.1,Ensure net.ipv6.conf.all.forwarding is configured,L1,FAIL,"applies: IPv6 enabled (3.1.1); running 0 (correct) but not set in any sysctl conf file; N/A once IPv6 is disabled per AJ policy",2026-10-31
+3.3.2.2,Ensure net.ipv6.conf.default.forwarding is configured,L1,FAIL,"applies: IPv6 enabled (3.1.1); running 0 (correct) but not set in any sysctl conf file; N/A once IPv6 is disabled per AJ policy",2026-10-31
+3.3.2.3,Ensure net.ipv6.conf.all.accept_redirects is configured,L1,FAIL,"applies: IPv6 enabled (3.1.1); running 1; set to 0 only in /etc/ufw/sysctl.conf, not applied (ufw inactive); N/A once IPv6 is disabled per AJ policy",2026-10-31
+3.3.2.4,Ensure net.ipv6.conf.default.accept_redirects is configured,L1,FAIL,"applies: IPv6 enabled (3.1.1); running 1; set to 0 only in /etc/ufw/sysctl.conf, not applied (ufw inactive); N/A once IPv6 is disabled per AJ policy",2026-10-31
+3.3.2.5,Ensure net.ipv6.conf.all.accept_source_route is configured,L1,FAIL,"applies: IPv6 enabled (3.1.1); running 0 (correct) but not set in any sysctl conf file; N/A once IPv6 is disabled per AJ policy",2026-10-31
+3.3.2.6,Ensure net.ipv6.conf.default.accept_source_route is configured,L1,FAIL,"applies: IPv6 enabled (3.1.1); running 0 (correct) but not set in any sysctl conf file; N/A once IPv6 is disabled per AJ policy",2026-10-31
+3.3.2.7,Ensure net.ipv6.conf.all.accept_ra is configured,L1,FAIL,"applies: IPv6 enabled (3.1.1); running 1; not set in any sysctl conf file; per-interface accept_ra 0 on eno1np0 eno2np1 eno3 eno4 does not count (CIS checks all/default); N/A once IPv6 is disabled per AJ policy",2026-10-31
+3.3.2.8,Ensure net.ipv6.conf.default.accept_ra is configured,L1,FAIL,"applies: IPv6 enabled (3.1.1); running 1; not set in any sysctl conf file; N/A once IPv6 is disabled per AJ policy",2026-10-31
