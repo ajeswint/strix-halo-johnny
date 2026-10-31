@@ -1,6 +1,6 @@
 # Johnny handoff → new session: CIS section 3 (2026-10-31)
 
-> **Section 3 done** (handoff rev 11). For the next section, follow the same Task steps with that section's number; current numbers and fix queue: `docs/os-handoff.md` step 10.
+> **Historical.** Section 3 done (handoff rev 11). Current state: `docs/os-handoff.md` (latest rev); next brief: `docs/sessions/2026-10-31-cis-s5-handoff.md`.
 
 Repo `ajeswint/strix-halo-johnny`; `git pull` first. Read `AGENTS.md`, `README.md`, `docs/os-handoff.md` (rev 10). The project is "Johnny", never "Sentinel". Reply to AJ as Detail → Relay (for Grok) → Outline.
 
