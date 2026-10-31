@@ -47,11 +47,12 @@ History: 2026-10-29, SFP+3 → SFP+4 was applied and verified, then SFP+3 turned
 | .184 | 64:db:a0:f6:2d:08 | Select Comfort | SFP+1 (behind router) | Sleep Number bed |
 | .188 | 9c:bf:0d:01:f9:5c | Framework | SFP+5 | Framework laptop |
 | .193 | 30:d1:6b:0e:d7:3a | Liteon | SFP+1 (behind router) | Hisense Roku TV (router reservation name `60HisenseRokuTV`) |
+| .211 | 3c:7c:3f:4e:14:7d | ASUSTek | not checked | ableton_box (`ableton_box.local`); added 2026-10-31 from rock-box ARP + mDNS. Record: `docs/hosts/ableton_box.md` |
 | .221 | d0:ea:11:df:35:18 | Routerboard.com | (switch itself) | CRS309 |
 | .223 | 9c:6b:00:d0:49:29 | ASRock | SFP+4 | rock-box |
 | .233 | 84:a9:3e:cc:bf:43 | Hewlett Packard | SFP+1 (behind router) | HP (likely printer) |
 
-No unknown MACs on the switch: every learned MAC maps to a host above.
+No unknown MACs on the switch at the 2026-10-29 audit: every learned MAC mapped to a host above. (.211 appeared later; its port is not checked.)
 
 ### Router DHCP (RT-BE88U, LAN → DHCP Server, checked 2026-10-30)
 Pool 192.168.50.2–.254, lease 86400 s. **Enable Manual Assignment was No** (listed entries were inactive; rock-box's .223 was a sticky lease). Turned on 2026-10-30 (Claude via Chrome extension, AJ approved Apply); verified on reload. Each entry matched the host's current address, so no host moved. **Apply on this page restarts the router's Wi-Fi** (~40 s: laptop `wlo1` disconnected 20:52:15 CT, `ssid-not-found` 20:52:30, back 20:52:58); Wi-Fi clients, incl. a browser driving the UI, drop.

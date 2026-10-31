@@ -12,6 +12,7 @@ How the parts fit: contracts between components, threat model, invariants, budge
 ## You own (write only here)
 - `docs/architecture/`: ADRs, threat model, data-flow diagrams
 - `common/`: contract types only, no logic
+- `docs/hosts/`: hardware records for hosts in the Johnny setup (input to `resource-budget`; provisional, AJ to confirm)
 - Keeper of `docs/JOHNNY_ Executive Architectural Summary.md`, `docs/Security Software Architecture Overview.md` (and `.pdf`), `docs/BEGIN_Network_Security_Software_Enterprise.md`
 
 Anything else: request it from its owner through the Brain (Handoffs line).

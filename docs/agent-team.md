@@ -169,7 +169,7 @@ Places that look shared, and the split:
 | Path | Owner |
 |---|---|
 | `README.md`, `AGENTS.md`, `CLAUDE.md`, `.gitignore`, `.claude/agents/`, `docs/os-handoff.md`, `docs/sessions/`, `docs/agent-team.md` | Brain |
-| `docs/architecture/`\*, `common/`\* | Architect |
+| `docs/architecture/`\*, `common/`\*, `docs/hosts/` (hardware records; provisional, AJ to confirm) | Architect |
 | `bpf/`\*, capture units `etc/systemd/system/johnny-capture.*`\* | Fast Path |
 | `daemon/`\*, `etc/systemd/system/johnny-daemon.service`\* | Daemon |
 | `slm/`\*, `etc/systemd/system/johnny-slm.service`\* | SLM |
