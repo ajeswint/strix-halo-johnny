@@ -162,3 +162,73 @@ id,title,level,result,evidence,date
 4.1.2,Ensure ufw service is configured,L1,FAIL,"ufw.service is-enabled: enabled; is-active: active; root ufw status: Status: inactive; /etc/ufw/ufw.conf ENABLED=no, so the unit runs at boot but loads no rules; ufw show added: (None), no SSH allow rule staged",2026-10-31
 4.1.3,Ensure ufw incoming default is configured,L1,FAIL,"root ufw status verbose | awk: no output; inactive ufw prints only Status: inactive (no Default line); saved default in /etc/default/ufw is DEFAULT_INPUT_POLICY=DROP (deny), already the passing value, so enabling ufw is the fix",2026-10-31
 4.1.5,Ensure ufw routed default is configured,L1,FAIL,"root ufw status verbose | awk | grep -w routed: no output (ufw inactive, no Default line); the disabled (routed) display exists only while ufw is active (ufw source), so it cannot apply now; forwarding is off (ip_forward 0, ipv6 all/default forwarding 0) and the note's grep -i routed /etc/default/ufw finds no match: fails on both paths; saved default DEFAULT_FORWARD_POLICY=DROP (deny) already matches, so enabling ufw is the fix; re-audit: active ufw will print disabled (routed) and the stock file has no routed text, so judge it on DEFAULT_FORWARD_POLICY (manual)",2026-10-31
+5.1.1,Ensure access to /etc/ssh/sshd_config is configured,L1,FAIL,"stat /etc/ssh/sshd_config: Mode 0644 Owner root Group root (needs 0600 or stricter); root find of sshd_config.d/*.conf with perm /077 or non-root owner: nothing (50-cloud-init.conf is 0600 root:root)",2026-10-31
+5.1.2,Ensure access to /etc/ssh/sshd_config.d/ directory is configured,L1,FAIL,"find /etc/ssh/sshd_config.d/ -maxdepth 0 (! root owner/group or perm /077): returned the directory; ls: drwxr-xr-x root root (0755); only Include is /etc/ssh/sshd_config.d/*.conf (sshd_config:24)",2026-10-31
+5.1.3,Ensure access to SSH private host key files is configured,L1,PASS,"sshd -T hostkeys: ssh_host_rsa_key, ssh_host_ecdsa_key, ssh_host_ed25519_key all Mode 0600 Owner root Group root",2026-10-31
+5.1.4,Ensure access to SSH public host key files is configured,L1,PASS,"rsa, ecdsa, ed25519 .pub files all Mode 0644 Owner root Group root",2026-10-31
+5.1.5,Ensure sshd access is configured,L1,FAIL,"sshd -T | grep allow/deny users/groups: no output (no AllowUsers, AllowGroups, DenyUsers or DenyGroups); no Match blocks; list is site policy (AJ to choose)",2026-10-31
+5.1.6,Ensure sshd Banner is configured,L1,FAIL,"sshd -T banner: none (grep for banner /path: no output); no banner file to check; banner text is site policy (AJ to choose)",2026-10-31
+5.1.7,Ensure sshd Ciphers are configured,L1,PASS,"weak-cipher grep on sshd -T: no output; ciphers chacha20-poly1305@openssh.com,aes128-gcm,aes256-gcm,aes128-ctr,aes192-ctr,aes256-ctr; chacha20 in use: openssh-server 1:10.2p1-2ubuntu3.8 changelog lists the CVE-2023-48795 fix (strict kex)",2026-10-31
+5.1.8,Ensure sshd ClientAliveInterval and ClientAliveCountMax are configured,L1,FAIL,"sshd -T: clientaliveinterval 0 (must be > 0), clientalivecountmax 3; values are site policy (AJ to choose)",2026-10-31
+5.1.9,Ensure sshd DisableForwarding is enabled,L1,FAIL,sshd -T: disableforwarding no,2026-10-31
+5.1.10,Ensure sshd GSSAPIAuthentication is disabled,L1,PASS,sshd -T: gssapiauthentication no,2026-10-31
+5.1.11,Ensure sshd HostbasedAuthentication is disabled,L1,PASS,sshd -T: hostbasedauthentication no,2026-10-31
+5.1.12,Ensure sshd IgnoreRhosts is enabled,L1,PASS,sshd -T: ignorerhosts yes,2026-10-31
+5.1.13,Ensure sshd KexAlgorithms is configured,L1,PASS,"weak-kex grep on sshd -T: no output (no diffie-hellman-group1-sha1, group14-sha1 or group-exchange-sha1)",2026-10-31
+5.1.14,Ensure sshd post-quantum cryptography key exchange algorithms are configured,L1,PASS (manual),"sshd -V: OpenSSH 10.2 (>= 9.9, so both checks apply); sshd -T kexalgorithms includes sntrup761x25519-sha512 and mlkem768x25519-sha256 (mlkem listed first)",2026-10-31
+5.1.15,Ensure sshd LoginGraceTime is configured,L1,FAIL,sshd -T: logingracetime 120 (must be 1-60),2026-10-31
+5.1.16,Ensure sshd LogLevel is configured,L1,PASS,sshd -T: loglevel INFO,2026-10-31
+5.1.17,Ensure sshd MACs are configured,L1,FAIL,"weak-MAC grep matched: sshd -T macs includes umac-64-etm@openssh.com, umac-128-etm@openssh.com, umac-64@openssh.com (others: hmac-sha2-256/512(-etm), hmac-sha1(-etm), umac-128); CVE-2023-48795 fixed per openssh changelog",2026-10-31
+5.1.18,Ensure sshd MaxAuthTries is configured,L1,FAIL,sshd -T: maxauthtries 6 (must be 4 or less),2026-10-31
+5.1.19,Ensure sshd MaxSessions is configured,L1,PASS,sshd -T: maxsessions 10; grep for MaxSessions above 10 in sshd_config and sshd_config.d/*.conf: no output,2026-10-31
+5.1.20,Ensure sshd MaxStartups is configured,L1,FAIL,sshd -T: maxstartups 10:30:100 (third field above 60),2026-10-31
+5.1.21,Ensure sshd PermitEmptyPasswords is disabled,L1,PASS,sshd -T: permitemptypasswords no,2026-10-31
+5.1.22,Ensure sshd PermitRootLogin is disabled,L1,FAIL,sshd -T: permitrootlogin prohibit-password (must be no),2026-10-31
+5.1.23,Ensure sshd PermitUserEnvironment is disabled,L1,PASS,sshd -T: permituserenvironment no,2026-10-31
+5.1.24,Ensure sshd UsePAM is enabled,L1,PASS,sshd -T: usepam yes,2026-10-31
+5.2.1,Ensure sudo is installed,L1,PASS,"dpkg-query: sudo-rs 0.2.13-0ubuntu1.2 and sudo 1.9.17p2-1ubuntu3.2 installed; sudo alternative -> /usr/lib/cargo/bin/sudo (sudo-rs); libsss-sudo and sssd not installed (not needed)",2026-10-31
+5.2.2,Ensure sudo commands use pty,L1,PASS,"!use_pty grep: no output; use_pty grep: /etc/sudoers: Defaults use_pty",2026-10-31
+5.2.3,Ensure sudo log file exists,L1,PASS,"implementation: sudo-rs, so Method B (logfile=) does not apply; Method A journald: journalctl -t sudo shows the session and COMMAND lines for AJ's sudo of cis-5.1/5.2-root.sh within 5 min; auth.log grep: no match (file exists, syslog:adm 0640)",2026-10-31
+5.2.5,Ensure re-authentication for privilege escalation is not disabled globally,L1,PASS,!authenticate grep on /etc/sudoers and /etc/sudoers.d/: no output,2026-10-31
+5.2.6,Ensure sudo timestamp_timeout is configured,L1,FAIL,"timestamp_timeout grep on /etc/sudoers and /etc/sudoers.d/: no output (not explicitly set); active Defaults: env_reset, mail_badpass, secure_path, use_pty; value (<= 15) is site policy",2026-10-31
+5.2.7,Ensure access to the su command is restricted,L1,FAIL,"/etc/pam.d/su: no active pam_wheel line with use_uid and group=; pam_wheel lines 15, 19, 23 all commented out; no restricted su group exists",2026-10-31
+5.3.1.1,Ensure latest version of pam is installed,L1,PASS,"libpam-runtime 1.7.0-5ubuntu3.2 installed; apt list --upgradable: no libpam-runtime (apt lists refreshed 2026-10-31 02:43)",2026-10-31
+5.3.1.2,Ensure latest version of libpam-modules is installed,L1,PASS,"libpam-modules 1.7.0-5ubuntu3.2 installed; apt list --upgradable: no libpam-modules (apt lists refreshed 2026-10-31 02:43)",2026-10-31
+5.3.1.3,Ensure latest version of libpam-pwquality is installed,L1,FAIL,dpkg-query: libpam-pwquality not installed,2026-10-31
+5.3.1.4,Ensure latest version of cracklib-runtime is installed,L1,FAIL,dpkg-query: cracklib-runtime not installed,2026-10-31
+5.3.2.1,Ensure pam_unix module is enabled,L1,PASS,"pam_unix.so present in common-account, common-auth, common-password, common-session, common-session-noninteractive",2026-10-31
+5.3.2.2,Ensure pam_faillock module is enabled,L1,FAIL,"grep pam_faillock.so in common-auth and common-account: no output; /usr/share/pam-configs has only capability, mkhomedir, systemd, unix",2026-10-31
+5.3.2.3,Ensure pam_pwquality module is enabled,L1,FAIL,grep pam_pwquality.so in common-password: no output (libpam-pwquality not installed),2026-10-31
+5.3.2.4,Ensure pam_pwhistory module is enabled,L1,FAIL,grep pam_pwhistory.so in common-password: no output,2026-10-31
+5.3.3.1.1,Ensure password failed attempts lockout is configured,L1,FAIL,"faillock.conf deny grep: no output (faillock.conf has no active lines); common-auth deny override grep: no output; pam_faillock not enabled (5.3.2.2); threshold (<= 5) is site policy",2026-10-31
+5.3.3.1.2,Ensure password unlock time is configured,L1,FAIL,"faillock.conf unlock_time grep: no output (no active lines); common-auth override grep: no output; value (0 or >= 900) is site policy",2026-10-31
+5.3.3.2.1,Ensure password number of changed characters is configured,L1,FAIL,"difok grep: no output; /etc/security/pwquality.conf and pwquality.conf.d/ do not exist (libpam-pwquality not installed); value (>= 2) is site policy",2026-10-31
+5.3.3.2.2,Ensure password length is configured,L1,FAIL,"minlen grep: no output; pwquality.conf and pwquality.conf.d/ do not exist; value (>= 14) is site policy",2026-10-31
+5.3.3.2.3,Ensure password complexity is configured,L1,FAIL (manual),"minclass/[dulo]credit grep: no output; pwquality.conf and pwquality.conf.d/ do not exist and pam_pwquality is not in the stack, so no complexity rule is enforced; policy is site choice",2026-10-31
+5.3.3.2.4,Ensure password same consecutive characters is configured,L1,FAIL,"maxrepeat grep: no output; pwquality.conf and pwquality.conf.d/ do not exist; value (1-3) is site policy",2026-10-31
+5.3.3.2.5,Ensure password maximum sequential characters is configured,L1,FAIL,"maxsequence grep: no output; pwquality.conf and pwquality.conf.d/ do not exist; value (1-3) is site policy",2026-10-31
+5.3.3.2.6,Ensure password dictionary check is enabled,L1,FAIL (manual),"both dictcheck=0 greps empty only because pwquality.conf, pwquality.conf.d/ and the pam_pwquality line do not exist; libpam-pwquality and cracklib-runtime not installed, so no dictionary check runs; expected to pass on re-audit once pwquality is installed and enabled (default dictcheck=1)",2026-10-31
+5.3.3.2.7,Ensure password quality checking is enforced,L1,FAIL (manual),"both enforcing=0 greps empty only because pwquality is absent (no config files, no pam_pwquality line); nothing is enforced; expected to pass on re-audit once pwquality is installed and enabled (default enforcing=1)",2026-10-31
+5.3.3.2.8,Ensure password quality is enforced for the root user,L1,FAIL,enforce_for_root grep: no output; pwquality.conf and pwquality.conf.d/ do not exist,2026-10-31
+5.3.3.3.1,Ensure password history remember is configured,L1,FAIL,"pwhistory.conf remember grep: no output (pwhistory.conf has no active lines); no pam_pwhistory line in common-password; value (>= 24) is site policy",2026-10-31
+5.3.3.3.2,Ensure password history is enforced for the root user,L1,FAIL,enforce_for_root: not in pwhistory.conf (no active lines) and no pam_pwhistory line in common-password,2026-10-31
+5.3.3.3.3,Ensure pam_pwhistory includes use_authtok,L1,FAIL,use_authtok: not in pwhistory.conf (no active lines) and no pam_pwhistory line in common-password,2026-10-31
+5.3.3.4.1,Ensure pam_unix does not include nullok,L1,FAIL,/etc/pam.d/common-auth: auth [success=1 default=ignore] pam_unix.so nullok,2026-10-31
+5.3.3.4.2,Ensure pam_unix does not include remember,L1,PASS,remember= grep on pam_unix lines in common-*: no output,2026-10-31
+5.3.3.4.3,Ensure pam_unix includes a strong password hashing algorithm,L1,PASS,/etc/pam.d/common-password: password [success=1 default=ignore] pam_unix.so obscure yescrypt,2026-10-31
+5.3.3.4.4,Ensure pam_unix includes use_authtok,L1,FAIL,"common-password pam_unix line is 'pam_unix.so obscure yescrypt': no use_authtok (no pwquality/pwhistory module ahead of it in the stack)",2026-10-31
+5.4.1.1,Ensure password expiration is configured,L1,FAIL,"/etc/login.defs PASS_MAX_DAYS 99999 (must be 1-365); /etc/shadow: aj max 99999 (only account with a password hash); value is site policy",2026-10-31
+5.4.1.3,Ensure password expiration warning days is configured,L1,PASS,login.defs PASS_WARN_AGE 7; /etc/shadow warn check: no output (aj warn 7),2026-10-31
+5.4.1.4,Ensure strong password hashing algorithm is configured,L1,PASS,/etc/login.defs: ENCRYPT_METHOD YESCRYPT,2026-10-31
+5.4.1.5,Ensure inactive password lock is configured,L1,FAIL,"useradd -D: INACTIVE=-1 (disabled; must be 0-45); /etc/shadow: aj inactive field empty (no lock); value is site policy",2026-10-31
+5.4.1.6,Ensure all users last password change date is in the past,L1,PASS,CIS chage script: no output; aj last change day 20755 (2026-10-29),2026-10-31
+5.4.2.1,Ensure root is the only UID 0 account,L1,PASS,UID 0 in /etc/passwd: root only,2026-10-31
+5.4.2.2,Ensure root is the only GID 0 account,L1,PASS,primary GID 0 in /etc/passwd: root:0 only,2026-10-31
+5.4.2.3,Ensure group root is the only GID 0 group,L1,PASS,GID 0 in /etc/group: root:0 only,2026-10-31
+5.4.2.4,Ensure root account access is controlled,L1,PASS,"passwd -S root: status L (locked; shadow field '*'); raw: root L 2026-08-26 0 99999 7 -1",2026-10-31
+5.4.2.5,Ensure root path integrity,L1,FAIL,"CIS script: /snap/bin is not a directory; root login PATH /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin; sudoers secure_path also ends in /snap/bin",2026-10-31
+5.4.2.6,Ensure root user umask is configured,L1,PASS,"umask grep on /root/.profile and /root/.bashrc: no output; neither file sets a umask, so root falls back to the system default, which 5.4.3.3 judges (FAIL); assumption: root's effective umask is 0022",2026-10-31
+5.4.2.7,Ensure system accounts do not have a valid login shell,L1,PASS,CIS script: no output; only root (bash) and aj (bash) have valid shells,2026-10-31
+5.4.2.8,Ensure accounts without a valid login shell are locked,L1,PASS,"CIS script: no output; every nologin/false account has shadow '*' or '!'",2026-10-31
+5.4.3.2,Ensure default user shell timeout is configured,L1,FAIL,"CIS script: TMOUT is not configured (no TMOUT in /etc/*bashrc, /etc/profile, /etc/profile.d/*.sh); value (<= 900) is site policy",2026-10-31
+5.4.3.3,Ensure default user umask is configured,L1,FAIL (manual),"both CIS greps empty only because no umask is set anywhere: no umask in /etc/profile or /etc/profile.d/, no UMASK line in /etc/login.defs (USERGROUPS_ENAB yes at line 192); pam_umask active (common-session:26, common-session-noninteractive:27); aj session umask 0002 (plain SSH and bash -lc), not 027 or stricter",2026-10-31
