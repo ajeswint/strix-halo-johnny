@@ -1,6 +1,6 @@
 # Johnny agent team
 
-Rev 4, 2026-10-31. Agreed by AJ and Grok. Wired: `.claude/agents/` holds one file per agent (9); the Brain is the main session and has no file. Rev 2 (AJ): the SLM has full function for now; architecture-logic questions deferred (§7). Rev 3: Grok review applied (quarantine cross-reference, `.gitignore` owner, Fast Path in PW.9). Rev 4: agent files created.
+Rev 5, 2026-10-31. Agreed by AJ and Grok. Rev 5: first skill file (`cis-audit`); skill folders owned by the agent that holds the skill; `docs/hosts/` → Architect (provisional). Wired: `.claude/agents/` holds one file per agent (9); the Brain is the main session and has no file. Rev 2 (AJ): the SLM has full function for now; architecture-logic questions deferred (§7). Rev 3: Grok review applied (quarantine cross-reference, `.gitignore` owner, Fast Path in PW.9). Rev 4: agent files created.
 
 What this is: the roster that says which agent owns which job, so no two agents do the same work. Inputs: role list `docs/Enterprise Security Software Team Roles.md` (127 titles); control model `docs/Distributed Neural Networks and Control Systems in Cephalopods.md` §1, §4–5; architecture `docs/JOHNNY_ Executive Architectural Summary.md`.
 
@@ -178,6 +178,7 @@ Places that look shared, and the split:
 | `docs/network-map.md`, `net/`\* (switch exports) | Network |
 | `tests/`\*, `bench/`\*, `formal/`\*, `docs/findings/`\* | Assurance |
 | `docs/cis-26.04-l1-results.csv`, `docs/compliance/`\*, local CIS PDF and `docs/cis-local/` | Governance |
+| `.claude/skills/<skill>/` | the agent that holds the skill (today: `cis-audit` → Governance) |
 
 Reference docs (everyone reads; one keeps them current):
 
@@ -292,6 +293,6 @@ PW.3 was deleted in v1.1 (merged into PW.4). Source: [NIST SP 800-218, SSDF v1.1
 ## 9. Next (not done)
 
 1. ~~AJ and Grok agree on this roster.~~ Done 2026-10-31.
-2. ~~Wire it: one `.claude/agents/<agent>.md` per agent (mission, owned paths, skills, report format).~~ Done 2026-10-31. Skills are lines in each agent file; a skill gets its own `SKILL.md` once its procedure is stable (first candidate: `cis-audit`, whose method is already in the handoff).
+2. ~~Wire it: one `.claude/agents/<agent>.md` per agent (mission, owned paths, skills, report format).~~ Done 2026-10-31. Skills are lines in each agent file; a skill gets its own `SKILL.md` once its procedure is stable. First: `.claude/skills/cis-audit/` (done 2026-10-31, preloaded by Governance). Next candidates as the work arrives: `ubuntu-2604-packages` (step 7), `throughput-soak` (step 8), `e810-capture-tuning` (step 11).
 3. Optional: a hook that blocks writes outside an agent's owned paths.
 4. Architecture pass: the deferred items in §7.
