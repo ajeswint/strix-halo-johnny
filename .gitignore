@@ -10,3 +10,5 @@ __pycache__/
 # CIS benchmark PDF and audit scripts copied from it: licensed, local only
 docs/CIS_*.pdf
 docs/cis-local/
+# Paperclip task worktrees (agent branches live here)
+.paperclip/
