@@ -1,5 +1,7 @@
 # Johnny handoff → new session: CIS section 7 (2026-10-31)
 
+> **Historical.** Section 7 done; CIS L1 pass complete, 274/274 (handoff rev 15). Current state: `docs/os-handoff.md` (latest rev); no next brief yet.
+
 Repo `ajeswint/strix-halo-johnny`; `git pull` first. Read `AGENTS.md`, `README.md`, `docs/os-handoff.md` (rev 14). The project is "Johnny", never "Sentinel". Reply to AJ as Detail → Relay (for Grok) → Outline.
 
 ## Task: CIS section 7, audit only (last L1 section)

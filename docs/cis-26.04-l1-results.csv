@@ -249,3 +249,27 @@ id,title,level,result,evidence,date
 6.1.3.1,Ensure access to all logfiles has been configured,L1,FAIL,"CIS script (root): 19 files over 0640: 18 at 0644 (alternatives.log, bootstrap.log, dpkg.log, ubuntu-advantage-apt-hook.log, landscape/sysinfo.log, sysstat/sa29 sa30 sa31 sar29 sar30, unattended-upgrades/*.log x3, installer/casper-md5check.json, block/discover.log, block/probe-data.json, curtin-install.log, device-map.json) and installer/media-info at 0444; owners/groups all OK; a one-time chmod will not hold: logrotate create 644 (alternatives, dpkg) or 0644 (ubuntu-pro-client), and sysstat, unattended-upgrades and landscape recreate their files at 0644",2026-10-31
 6.3.1,Ensure AIDE is installed,L1,FAIL,"aide and aide-common not installed (dpkg-query: no packages found); both CIS checks print nothing",2026-10-31
 6.3.2,Ensure filesystem integrity is regularly checked,L1,FAIL,"list-unit-files: no dailyaidecheck.timer or .service (AIDE not installed); is-active dailyaidecheck.timer: inactive",2026-10-31
+7.1.1,Ensure access to /etc/passwd is configured,L1,PASS,"stat: 0644/-rw-r--r-- Uid 0/root Gid 0/root",2026-11-01
+7.1.2,Ensure access to /etc/passwd- is configured,L1,PASS,"stat: 0644/-rw-r--r-- Uid 0/root Gid 0/root",2026-11-01
+7.1.3,Ensure access to /etc/group is configured,L1,PASS,"stat: 0644/-rw-r--r-- Uid 0/root Gid 0/root",2026-11-01
+7.1.4,Ensure access to /etc/group- is configured,L1,PASS,"stat: 0644/-rw-r--r-- Uid 0/root Gid 0/root",2026-11-01
+7.1.5,Ensure access to /etc/shadow is configured,L1,PASS,"stat: 0640/-rw-r----- Uid 0/root Gid 42/shadow",2026-11-01
+7.1.6,Ensure access to /etc/shadow- is configured,L1,PASS,"stat: 0640/-rw-r----- Uid 0/root Gid 42/shadow",2026-11-01
+7.1.7,Ensure access to /etc/gshadow is configured,L1,PASS,"file exists; stat: 0640/-rw-r----- Uid 0/root Gid 42/shadow",2026-11-01
+7.1.8,Ensure access to /etc/gshadow- is configured,L1,PASS,"file exists; stat: 0640/-rw-r----- Uid 0/root Gid 42/shadow",2026-11-01
+7.1.9,Ensure access to /etc/shells is configured,L1,PASS,"stat: 0644/-rw-r--r-- Uid 0/root Gid 0/root",2026-11-01
+7.1.10,Ensure access to /etc/security/opasswd is configured,L1,PASS,"root: /etc/security/opasswd exists 0600/-rw------- Uid 0/root Gid 0/root (0 bytes; pam_pwhistory not configured per 5.3.2.4); opasswd.old absent so nothing returned (CIS: passing state)",2026-11-01
+7.1.11,Ensure world writable files and directories are secured,L1,PASS,"CIS script (root) over / (xfs) /dev /dev/shm /boot: no world writable files; sticky bit set on all world writable directories",2026-11-01
+7.1.12,Ensure no files or directories without an owner and a group exist,L1,PASS,"CIS script (root) over / (xfs) /dev /dev/shm /boot: ** PASS **; no unowned and no ungrouped files or directories",2026-11-01
+7.1.13,Ensure SUID and SGID files are reviewed,L1,FAIL (manual),"CIS script (root) over / and /boot: 15 SUID + 6 SGID, all package-owned, dpkg --verify clean; AJ 2026-11-01 (option B): /usr/bin/ntfs-3g (ntfs-3g) and /usr/bin/fusermount3 (fuse3) NOT approved: apt auto via Recommends (rdepends --installed: ntfs-3g <- udisks2 and ubuntu-standard; fuse3 <- ntfs-3g); fix = remove with the ubuntu-standard removal job behind the gate (apt-get -s first; no blind autoremove); other 19 approved incl. /usr/bin/sudo.ws (classic sudo fallback; sudo alternative points to sudo-rs; revisit in the section 5 sudo fix)",2026-11-01
+7.2.1,Ensure accounts in /etc/passwd use shadowed passwords,L1,PASS,"awk on /etc/passwd: nothing returned (every password field is x)",2026-11-01
+7.2.2,Ensure /etc/shadow password fields are not empty,L1,PASS,"awk on /etc/shadow (root): nothing returned",2026-11-01
+7.2.3,Ensure all groups in /etc/passwd exist in /etc/group,L1,PASS,"CIS script: nothing returned",2026-11-01
+7.2.4,Ensure shadow group is empty,L1,PASS,"getent group shadow = shadow:x:42: ; command 1 printed an empty member field (no members); command 2: no user has primary GID 42",2026-11-01
+7.2.5,Ensure no duplicate UIDs exist,L1,PASS,"CIS script: nothing returned",2026-11-01
+7.2.6,Ensure no duplicate GIDs exist,L1,PASS,"CIS script: nothing returned",2026-11-01
+7.2.7,Ensure no duplicate user names exist,L1,PASS,"CIS script: nothing returned",2026-11-01
+7.2.8,Ensure no duplicate group names exist,L1,PASS,"CIS script: nothing returned",2026-11-01
+7.2.9,Ensure local interactive user home directories are configured,L1,PASS,"CIS script: ** PASS **; interactive users root (/root) and aj (/home/aj): homes exist, owned by the user, mode 750 or more restrictive",2026-11-01
+7.2.10,Ensure local interactive user dot files access is configured,L1,PASS,"CIS script (root) over /root and /home/aj: ** PASS ** with no WARNING (no .forward/.rhosts/.netrc; dot files within mode and ownership)",2026-11-01
+7.2.11,Ensure local interactive user dot directories access is configured,L1,PASS,"CIS script (root) over /root and /home/aj: ** PASS ** (dot dirs 0750 or stricter, .ssh 0700 or stricter, owned by user and primary group)",2026-11-01
