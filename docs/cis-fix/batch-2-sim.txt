@@ -3,6 +3,10 @@
 # SIM5-SIM9: run on rock-box against a read-only copy of Johnny's /var/lib/dpkg/status, /var/lib/apt/extended_states, /var/lib/apt/lists/*_Packages + *Release,
 #   /etc/apt/sources.list.d and /etc/apt/preferences.d (scp'd 2026-11-03 ~05:45 UTC), using an isolated APT_CONFIG. SIM5 reproduces SIM3 exactly (parity check).
 #   apt-mark and the post-removal state were applied to the COPY only, to preview what AJ's commands will do. Nothing was written on Johnny.
+# Rev 2 (F9): SIM1-SIM4 ran apt 3.2.0 on Johnny (its own /etc/apt config). SIM5-SIM9 ran apt 3.3.3 on rock-box (aj-rock-box), not Johnny's 3.2.0.
+#   The isolated APT_CONFIG pointed Dir at the copy; Johnny's /etc/apt/apt.conf.d was NOT in the copy (only sources.list.d and preferences.d, listed above),
+#   so any Johnny-specific apt.conf.d option was not applied. [Assumption] none changes the solver result: SIM5 = SIM3 line for line, and Assurance's rerun
+#   (apt 3.3.3, with apt.conf.d copied) matched SIM6-SIM9. These sims predict apt's package choices only, not maintainer-script effects (initrd rebuild, see batch-2.md F1).
 
 2026-11-03T05:37:36Z
 === SIM1 apt-get -s purge ftp tnftp

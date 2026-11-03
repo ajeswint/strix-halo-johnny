@@ -1,3 +1,5 @@
+> **Historical.** Batch 2 was applied 2026-11-03 (rev 19). Current brief: `docs/sessions/2026-11-03-cis-fix-batch3-handoff.md`.
+
 # Johnny handoff → new session: CIS L1 fix pass, Batch 2 onward (2026-11-03)
 
 Repo `ajeswint/strix-halo-johnny`; `git pull` first. Read `AGENTS.md`, `README.md`, `docs/os-handoff.md` (rev 18 or later). The project is "Johnny", never "Sentinel". Reply to AJ as Detail → Relay (for Grok) → Outline.
