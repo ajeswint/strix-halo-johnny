@@ -1,3 +1,5 @@
+> Method reference for the fix pass. Current state and next batch: `docs/sessions/2026-11-03-cis-fix-batch2-handoff.md`.
+
 # Johnny handoff → new session: CIS L1 fix pass (2026-10-31)
 
 Repo `ajeswint/strix-halo-johnny`; `git pull` first. Read `AGENTS.md`, `README.md`, `docs/os-handoff.md` (rev 15 or later; step 10 holds every fail grouped by fix type, with the site-policy values). The project is "Johnny", never "Sentinel". Reply to AJ as Detail → Relay (for Grok) → Outline.

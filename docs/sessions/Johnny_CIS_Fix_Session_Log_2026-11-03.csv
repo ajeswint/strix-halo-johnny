@@ -1,0 +1,17 @@
+Seq,Time_UTC,Step,Issue,Actor,Action,Command,Result,Files_Changed,Status
+1,~03:59,10,Session start,Claude (Brain),Read fix brief; check gate and SSH,read-only,"Gate met (rev 16: HDMI dummy + KVM verified); SSH OK, Johnny up 4 days",,Done
+2,~04:01,10,Batch 1 draft,Platform,"Draft 1.6.6, 2.4.1.2-2.4.1.9, 6.1.3.1 (read-only SSH)",,"Live re-read: cron/motd unchanged; /var/log files over 0640 19 -> 30 (rotation); writers same",docs/cis-fix/batch-1.md,Done
+3,~04:12,10,Batch 1 review,Assurance,Independent review + acceptance gates,,"Approve with changes: F1-F4 Medium (false-fail checks, adm blocks, conffile-prompt check)",docs/findings/cis-batch-1-review.md,Done
+4,~04:20,10,Batch 1 rev 2,Platform,Fix F1-F10,,"F2: cron does log CMD hourly; pass marker = pam_unix session line. A sudo -n probe in one read was blocked, never ran",docs/cis-fix/batch-1.md,Done
+5,~04:23,10,Rev 2 spot-check,Assurance,Addendum,,Approve; F2 Platform right,docs/findings/cis-batch-1-review.md,Done
+6,~05:00,10,Push for Grok,Claude (AJ asked),Commit draft + review,git push origin main,d10a1da..6d914d9,docs/cis-fix/batch-1.md; docs/findings/cis-batch-1-review.md,Done
+7,~05:02,10,Batch 1 decisions,AJ,All 8 Brain recs,,"crontab override only; cron.allow empty; motd-news.timer off; log group root adm; accept 4 residuals; mode-only as Config rows; keep CIS quotes; CSV edit in place",,Done
+8,~05:05,10,Group A (2.4.1.2-.8),AJ (sudo),chown/chmod og-rwx crontab + 6 cron dirs; statoverride /etc/crontab,A1 + one dpkg-statoverride,"Verified 05:07: 600/700 root:root, 1 override, cron active; 05:18 hourly run OK, 0 errors",,Done
+9,~05:22,10,Group B (2.4.1.9),AJ (sudo),Create empty /etc/cron.allow root:crontab 0640,"touch; chmod u-x,g-wx,o-rwx; chown root:crontab","640 root:crontab, 0 bytes; aj denied crontab; root OK",,Done
+10,~05:26,10,Group C (1.6.6),AJ (sudo),motd scripts + landscape wrapper 0644; 13 overrides; disable motd-news.timer,C1 + C2 + C3,"14 lines 644; run-parts empty; motd-news.service failed once (timer fired before disable), reset-failed; no Welcome block",,Done
+11,~05:29,10,Group D (6.1.3.1),AJ (sudo),logrotate create 640 root adm x3; sysstat UMASK=0027; chmod + chgrp adm existing logs,D0 + D1-adm + D2 + D2-adm,"dpkg --verify: 4 intended conffiles; logrotate errors 0, warnings 1 = baseline; find /0137 only CIS-allowed",,Done
+12,~05:30,10,Re-audit,Governance + AJ (2 root reads),Same section scripts; CSV rows edited in place,cis-1.6-1.7 / cis-2 / cis-6-root.sh / sshd -T,"10/10 PASS + 1.6.4 side effect; no regressions; 147 pass 104 fail 23 N/A",docs/cis-26.04-l1-results.csv,Done
+13,~05:34,10,Batch 1 record,Claude (AJ asked push),etc/ mirrors (hashes match); handoff Config rows + step 10 + GR1-GR3,git push origin main,6d914d9..9a5e200,etc/cron.allow; etc/logrotate.d/*; etc/sysstat/sysstat; docs/os-handoff.md; CSV,Done
+14,~05:37,10,Batch 2 draft,Platform (AJ: include nftables),Package removal draft + apt-get -s,,"43 manual marks then remove 9, install 0; autoremove would take 38 incl. sysstat; nftables only recommended by iptables",docs/cis-fix/batch-2.md; docs/cis-fix/batch-2-sim.txt,Done
+15,~05:42,10,Batch 2 review,Assurance,Review batch-2.md,,Stopped by AJ before writing,,Stopped
+16,~05:45,10,Session close,Claude (Brain),Handoff rev 18 + next brief + this log,git commit,Batch 1 is the only change on Johnny; Batch 2 not run,docs/os-handoff.md; docs/sessions/2026-11-03-cis-fix-batch2-handoff.md; this file,Done

@@ -1,0 +1,349 @@
+# CIS L1 Batch 2: apt-get simulations (read-only). Platform, 2026-11-03.
+# SIM1-SIM4: run on Johnny as aj (apt-get -s, no root), 2026-11-03 05:37 UTC. Lists: update-success-stamp 2026-11-03 04:57:44 UTC.
+# SIM5-SIM9: run on rock-box against a read-only copy of Johnny's /var/lib/dpkg/status, /var/lib/apt/extended_states, /var/lib/apt/lists/*_Packages + *Release,
+#   /etc/apt/sources.list.d and /etc/apt/preferences.d (scp'd 2026-11-03 ~05:45 UTC), using an isolated APT_CONFIG. SIM5 reproduces SIM3 exactly (parity check).
+#   apt-mark and the post-removal state were applied to the COPY only, to preview what AJ's commands will do. Nothing was written on Johnny.
+
+2026-11-03T05:37:36Z
+=== SIM1 apt-get -s purge ftp tnftp
+NOTE: This is only a simulation!
+      apt-get needs root privileges for real execution.
+      Keep also in mind that locking is deactivated,
+      so don't depend on the relevance to the real current situation!
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Solving dependencies...
+The following additional packages will be installed:
+  ftp-ssl
+The following packages will be REMOVED:
+  ftp* tnftp*
+The following NEW packages will be installed:
+  ftp-ssl
+0 upgraded, 1 newly installed, 2 to remove and 0 not upgraded.
+Inst ftp-ssl (0.17.34+really0.17-3 Ubuntu:26.04/resolute [amd64])
+Purg ftp [20260211-1]
+Purg tnftp [20260211-1]
+Conf ftp-ssl (0.17.34+really0.17-3 Ubuntu:26.04/resolute [amd64])
+=== SIM2 careless: apt-get -s purge --autoremove ubuntu-standard ftp tnftp telnet inetutils-telnet rsync ntfs-3g fuse3 nftables
+NOTE: This is only a simulation!
+      apt-get needs root privileges for real execution.
+      Keep also in mind that locking is deactivated,
+      so don't depend on the relevance to the real current situation!
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Solving dependencies...
+The following packages will be REMOVED:
+  command-not-found* friendly-recovery* ftp* fuse3* hdparm* ibverbs-providers*
+  inetutils-telnet* info* install-info* iputils-tracepath* libibverbs1*
+  libncurses6* libnftables1* libnl-route-3-200* libntfs-3g89t64*
+  libpcap0.8t64* libplymouth5* libsensors-config* libsensors5*
+  libtraceevent1-plugin* libtracefs1* libxkbcommon0* mtr-tiny* nano* nftables*
+  ntfs-3g* numactl* plymouth* plymouth-theme-ubuntu-text*
+  python3-commandnotfound* rsync* sysstat* tcpdump* telnet* time* tnftp*
+  trace-cmd* ubuntu-standard*
+0 upgraded, 0 newly installed, 38 to remove and 0 not upgraded.
+Purg command-not-found [23.04.0build1]
+Purg friendly-recovery [0.2.42build1]
+Purg ubuntu-standard [1.570.4]
+Purg ftp [20260211-1]
+Purg ntfs-3g [1:2022.10.3-5ubuntu1.1]
+Purg fuse3 [3.18.2-1]
+Purg hdparm [9.65+ds-1.1build1]
+Purg ibverbs-providers [61.0-2ubuntu3]
+Purg telnet [0.17+2.7-2ubuntu1.1]
+Purg inetutils-telnet [2:2.7-2ubuntu1.1]
+Purg info [7.2-5ubuntu2]
+Purg install-info [7.2-5ubuntu2]
+Purg iputils-tracepath [3:20250605-1ubuntu1]
+Purg tcpdump [4.99.6-1]
+Purg libpcap0.8t64 [1.10.6-1ubuntu1.1]
+Purg libibverbs1 [61.0-2ubuntu3]
+Purg mtr-tiny [0.95-1.1ubuntu2]
+Purg libncurses6 [6.6+20251231-1]
+Purg nftables [1.1.6-1]
+Purg libnftables1 [1.1.6-1]
+Purg libnl-route-3-200 [3.12.0-2]
+Purg libntfs-3g89t64 [1:2022.10.3-5ubuntu1.1]
+Purg plymouth-theme-ubuntu-text [24.004.60+git20250831.4a3c171d-0ubuntu8]
+Purg plymouth [24.004.60+git20250831.4a3c171d-0ubuntu8]
+Purg libplymouth5 [24.004.60+git20250831.4a3c171d-0ubuntu8]
+Purg sysstat [12.7.7-0ubuntu2]
+Purg libsensors5 [1:3.6.2-2build1]
+Purg libsensors-config [1:3.6.2-2build1]
+Purg trace-cmd [3.3.3-1ubuntu2]
+Purg libtraceevent1-plugin [1:1.8.7-1]
+Purg libtracefs1 [1.8.2-1ubuntu1]
+Purg libxkbcommon0 [1.13.1-1]
+Purg nano [8.7.1-1ubuntu0.1]
+Purg numactl [2.0.19-1build1]
+Purg python3-commandnotfound [23.04.0build1]
+Purg rsync [3.4.1+ds1-7ubuntu0.3]
+Purg time [1.9-0.4]
+Purg tnftp [20260211-1]
+
+=== SIM3 apt-get -s remove ubuntu-standard ftp tnftp telnet inetutils-telnet rsync ntfs-3g fuse3 nftables
+NOTE: This is only a simulation!
+      apt-get needs root privileges for real execution.
+      Keep also in mind that locking is deactivated,
+      so don't depend on the relevance to the real current situation!
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Solving dependencies...
+The following packages were automatically installed and are no longer required:
+  command-not-found friendly-recovery hdparm ibverbs-providers info
+  install-info iputils-tracepath libibverbs1 libncurses6 libnftables1
+  libnl-route-3-200 libntfs-3g89t64 libpcap0.8t64 libplymouth5
+  libsensors-config libsensors5 libtraceevent1-plugin libtracefs1
+  libxkbcommon0 mtr-tiny nano numactl plymouth plymouth-theme-ubuntu-text
+  python3-commandnotfound sysstat tcpdump time trace-cmd
+Use 'apt autoremove' to remove them.
+The following packages will be REMOVED:
+  ftp fuse3 inetutils-telnet nftables ntfs-3g rsync telnet tnftp
+  ubuntu-standard
+0 upgraded, 0 newly installed, 9 to remove and 0 not upgraded.
+Remv ubuntu-standard [1.570.4]
+Remv ftp [20260211-1]
+Remv ntfs-3g [1:2022.10.3-5ubuntu1.1]
+Remv fuse3 [3.18.2-1]
+Remv telnet [0.17+2.7-2ubuntu1.1]
+Remv inetutils-telnet [2:2.7-2ubuntu1.1]
+Remv nftables [1.1.6-1]
+Remv rsync [3.4.1+ds1-7ubuntu0.3]
+Remv tnftp [20260211-1]
+=== SIM4 apt-get -s purge with CIS full lists
+NOTE: This is only a simulation!
+      apt-get needs root privileges for real execution.
+      Keep also in mind that locking is deactivated,
+      so don't depend on the relevance to the real current situation!
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Package 'atftp' is not installed, so not removed
+Package 'inetutils-ftp' is not installed, so not removed
+Package 'ftp-ssl' is not installed, so not removed
+Package 'telnet-ssl' is not installed, so not removed
+Solving dependencies...
+The following packages were automatically installed and are no longer required:
+  command-not-found friendly-recovery hdparm ibverbs-providers info
+  install-info iputils-tracepath libibverbs1 libncurses6 libnftables1
+  libnl-route-3-200 libntfs-3g89t64 libpcap0.8t64 libplymouth5
+  libsensors-config libsensors5 libtraceevent1-plugin libtracefs1
+  libxkbcommon0 mtr-tiny nano numactl plymouth plymouth-theme-ubuntu-text
+  python3-commandnotfound sysstat tcpdump time trace-cmd
+Use 'apt autoremove' to remove them.
+The following packages will be REMOVED:
+  ftp* fuse3* inetutils-telnet* nftables* ntfs-3g* rsync* telnet* tnftp*
+  ubuntu-standard*
+0 upgraded, 0 newly installed, 9 to remove and 0 not upgraded.
+Purg ubuntu-standard [1.570.4]
+Purg ftp [20260211-1]
+Purg ntfs-3g [1:2022.10.3-5ubuntu1.1]
+Purg fuse3 [3.18.2-1]
+Purg telnet [0.17+2.7-2ubuntu1.1]
+Purg inetutils-telnet [2:2.7-2ubuntu1.1]
+Purg nftables [1.1.6-1]
+Purg rsync [3.4.1+ds1-7ubuntu0.3]
+Purg tnftp [20260211-1]
+
+=== SIM5 (copy, parity with SIM3) apt-get -s remove ubuntu-standard ftp tnftp telnet inetutils-telnet rsync ntfs-3g fuse3 nftables
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Solving dependencies...
+The following packages were automatically installed and are no longer required:
+  command-not-found friendly-recovery hdparm ibverbs-providers info
+  install-info iputils-tracepath libibverbs1 libncurses6 libnftables1
+  libnl-route-3-200 libntfs-3g89t64 libpcap0.8t64 libplymouth5
+  libsensors-config libsensors5 libtraceevent1-plugin libtracefs1
+  libxkbcommon0 mtr-tiny nano numactl plymouth plymouth-theme-ubuntu-text
+  python3-commandnotfound sysstat tcpdump time trace-cmd
+Use 'apt autoremove' to remove them.
+The following packages will be REMOVED:
+  ftp fuse3 inetutils-telnet nftables ntfs-3g rsync telnet tnftp
+  ubuntu-standard
+0 upgraded, 0 newly installed, 9 to remove and 0 not upgraded.
+Remv ubuntu-standard [1.570.4]
+Remv ftp [20260211-1]
+Remv ntfs-3g [1:2022.10.3-5ubuntu1.1]
+Remv fuse3 [3.18.2-1]
+Remv telnet [0.17+2.7-2ubuntu1.1]
+Remv inetutils-telnet [2:2.7-2ubuntu1.1]
+Remv nftables [1.1.6-1]
+Remv rsync [3.4.1+ds1-7ubuntu0.3]
+Remv tnftp [20260211-1]
+
+=== (copy) apt-mark manual bash-completion bind9-dnsutils busybox-static command-not-found cpio cron dmidecode dosfstools ed ethtool file friendly-recovery hdparm info iptables iputils-tracepath libpam-systemd logrotate lshw lsof man-db manpages media-types mtr-tiny nano numactl openssh-client parted pciutils plymouth plymouth-theme-ubuntu-text psmisc strace sysstat tcpdump time trace-cmd ufw update-manager-core usbutils uuid-runtime wget xz-utils
+bash-completion set to manually installed.
+bind9-dnsutils set to manually installed.
+busybox-static set to manually installed.
+command-not-found set to manually installed.
+cpio set to manually installed.
+cron set to manually installed.
+dmidecode set to manually installed.
+dosfstools set to manually installed.
+ed set to manually installed.
+ethtool set to manually installed.
+file set to manually installed.
+friendly-recovery set to manually installed.
+hdparm set to manually installed.
+info set to manually installed.
+iptables set to manually installed.
+iputils-tracepath set to manually installed.
+libpam-systemd set to manually installed.
+logrotate set to manually installed.
+lshw set to manually installed.
+lsof set to manually installed.
+man-db set to manually installed.
+manpages set to manually installed.
+media-types set to manually installed.
+mtr-tiny set to manually installed.
+nano set to manually installed.
+numactl set to manually installed.
+openssh-client set to manually installed.
+parted set to manually installed.
+pciutils set to manually installed.
+plymouth set to manually installed.
+plymouth-theme-ubuntu-text set to manually installed.
+psmisc set to manually installed.
+strace set to manually installed.
+sysstat set to manually installed.
+tcpdump set to manually installed.
+time set to manually installed.
+trace-cmd set to manually installed.
+ufw set to manually installed.
+update-manager-core set to manually installed.
+usbutils set to manually installed.
+uuid-runtime set to manually installed.
+wget set to manually installed.
+xz-utils set to manually installed.
+
+=== SIM6 (copy, after apt-mark manual) apt-get -s remove ubuntu-standard ftp tnftp telnet inetutils-telnet rsync ntfs-3g fuse3 nftables
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Solving dependencies...
+The following packages were automatically installed and are no longer required:
+  libnftables1 libntfs-3g89t64
+Use 'apt autoremove' to remove them.
+The following packages will be REMOVED:
+  ftp fuse3 inetutils-telnet nftables ntfs-3g rsync telnet tnftp
+  ubuntu-standard
+0 upgraded, 0 newly installed, 9 to remove and 0 not upgraded.
+Remv ubuntu-standard [1.570.4]
+Remv ftp [20260211-1]
+Remv ntfs-3g [1:2022.10.3-5ubuntu1.1]
+Remv fuse3 [3.18.2-1]
+Remv telnet [0.17+2.7-2ubuntu1.1]
+Remv inetutils-telnet [2:2.7-2ubuntu1.1]
+Remv nftables [1.1.6-1]
+Remv rsync [3.4.1+ds1-7ubuntu0.3]
+Remv tnftp [20260211-1]
+
+=== SIM7 (copy, after apt-mark manual) careless check: apt-get -s purge --autoremove ubuntu-standard ftp tnftp telnet inetutils-telnet rsync ntfs-3g fuse3 nftables
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Solving dependencies...
+The following packages will be REMOVED:
+  ftp* fuse3* inetutils-telnet* libnftables1* libntfs-3g89t64* nftables*
+  ntfs-3g* rsync* telnet* tnftp* ubuntu-standard*
+0 upgraded, 0 newly installed, 11 to remove and 0 not upgraded.
+Purg ubuntu-standard [1.570.4]
+Purg ftp [20260211-1]
+Purg ntfs-3g [1:2022.10.3-5ubuntu1.1]
+Purg fuse3 [3.18.2-1]
+Purg telnet [0.17+2.7-2ubuntu1.1]
+Purg inetutils-telnet [2:2.7-2ubuntu1.1]
+Purg nftables [1.1.6-1]
+Purg libnftables1 [1.1.6-1]
+Purg libntfs-3g89t64 [1:2022.10.3-5ubuntu1.1]
+Purg rsync [3.4.1+ds1-7ubuntu0.3]
+Purg tnftp [20260211-1]
+
+# Emulated post-step state (copy only): packages without conffiles dropped from status (dpkg removes them fully);
+#   rsync, fuse3, nftables set to 'deinstall ok config-files' (they have conffiles).
+
+=== SIM8a (copy, post-remove) apt-get -s purge rsync
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Solving dependencies...
+The following packages were automatically installed and are no longer required:
+  libnftables1 libntfs-3g89t64
+Use 'apt autoremove' to remove them.
+The following packages will be REMOVED:
+  rsync*
+0 upgraded, 0 newly installed, 1 to remove and 0 not upgraded.
+Purg rsync
+
+=== SIM8b (copy, post-remove) apt-get -s purge telnet inetutils-telnet telnet-ssl
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Package 'telnet' is not installed, so not removed
+Package 'inetutils-telnet' is not installed, so not removed
+Package 'telnet-ssl' is not installed, so not removed
+Solving dependencies...
+The following packages were automatically installed and are no longer required:
+  libnftables1 libntfs-3g89t64
+Use 'apt autoremove' to remove them.
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+
+=== SIM8c (copy, post-remove) apt-get -s purge ftp tnftp atftp inetutils-ftp ftp-ssl
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Package 'ftp' is not installed, so not removed
+Package 'tnftp' is not installed, so not removed
+Package 'atftp' is not installed, so not removed
+Package 'inetutils-ftp' is not installed, so not removed
+Package 'ftp-ssl' is not installed, so not removed
+Solving dependencies...
+The following packages were automatically installed and are no longer required:
+  libnftables1 libntfs-3g89t64
+Use 'apt autoremove' to remove them.
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+
+=== SIM8d (copy, post-remove) apt-get -s autoremove
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Solving dependencies...
+The following packages will be REMOVED:
+  libnftables1 libntfs-3g89t64
+0 upgraded, 0 newly installed, 2 to remove and 0 not upgraded.
+Remv libnftables1 [1.1.6-1]
+Remv libntfs-3g89t64 [1:2022.10.3-5ubuntu1.1]
+
+=== SIM9 (copy, post-batch incl. rsync purged) rollback: apt-get -s install ubuntu-standard=1.570.4 ftp=20260211-1 tnftp=20260211-1 telnet=0.17+2.7-2ubuntu1.1 inetutils-telnet=2:2.7-2ubuntu1.1 rsync=3.4.1+ds1-7ubuntu0.3 ntfs-3g=1:2022.10.3-5ubuntu1.1 fuse3=3.18.2-1 nftables=1.1.6-1
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Solving dependencies...
+Suggested packages:
+  firewalld python3-braceexpand
+The following NEW packages will be installed:
+  ftp fuse3 inetutils-telnet nftables ntfs-3g rsync telnet tnftp
+  ubuntu-standard
+0 upgraded, 9 newly installed, 0 to remove and 0 not upgraded.
+Inst tnftp (20260211-1 Ubuntu:26.04/resolute [amd64])
+Inst ftp (20260211-1 Ubuntu:26.04/resolute [all])
+Inst fuse3 (3.18.2-1 Ubuntu:26.04/resolute [amd64])
+Inst inetutils-telnet (2:2.7-2ubuntu1.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst nftables (1.1.6-1 Ubuntu:26.04/resolute [amd64])
+Inst ntfs-3g (1:2022.10.3-5ubuntu1.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst rsync (3.4.1+ds1-7ubuntu0.3 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Inst telnet (0.17+2.7-2ubuntu1.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [all])
+Inst ubuntu-standard (1.570.4 Ubuntu:26.04/resolute-updates [amd64])
+Conf tnftp (20260211-1 Ubuntu:26.04/resolute [amd64])
+Conf ftp (20260211-1 Ubuntu:26.04/resolute [all])
+Conf fuse3 (3.18.2-1 Ubuntu:26.04/resolute [amd64])
+Conf inetutils-telnet (2:2.7-2ubuntu1.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf nftables (1.1.6-1 Ubuntu:26.04/resolute [amd64])
+Conf ntfs-3g (1:2022.10.3-5ubuntu1.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf rsync (3.4.1+ds1-7ubuntu0.3 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [amd64])
+Conf telnet (0.17+2.7-2ubuntu1.1 Ubuntu:26.04/resolute-updates, Ubuntu:26.04/resolute-security [all])
+Conf ubuntu-standard (1.570.4 Ubuntu:26.04/resolute-updates [amd64])
