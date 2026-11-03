@@ -1,6 +1,6 @@
 # CIS L1 fix pass, Batch 3: logging (journald rotation, logrotate) and AIDE
 
-**Status:** DRAFT rev 3 (Platform, 2026-11-03). Nothing below has run on Johnny. S1 (2026-11-03, Grok, after the rev 3 spot-check): assumption 9 now says 20 to 60 minutes. No command changed. Assurance asked for no re-review. Spelling check (2026-11-03, Grok): `adeinit.still-running` matches the package script, so C3's `ls` stays. Rev 1 drafted Groups A and B (6.1.1.1.5, 6.1.2.7). Rev 2 added Group C (AIDE: 6.3.1, 6.3.2) after AJ's `sudo apt update` (~06:45 UTC) and Governance's vetting (`docs/findings/aide-vetting.md`, APPROVE WITH CONDITIONS). Assurance reviewed rev 2 and approved it with changes (`docs/findings/cis-batch-3-review.md`, F1-F12); rev 3 applies F1-F10 (F11 and F12 need no change beyond one line). **AJ's decisions (2026-11-03): accept R-AIDE-1 (option A), install resolute's 0.19.2-3 inside this batch with `--no-install-recommends` (no Postfix), use multiple hash functions, hold the timer until the database exists.** Open questions Q1-Q5 and Q7-Q10 are still unanswered by AJ. Next: the Brain shows AJ each block.
+**Status:** DRAFT rev 3 (Platform, 2026-11-03). Nothing below has run on Johnny. S1 (2026-11-03, Grok, after the rev 3 spot-check): assumption 9 now says 20 to 60 minutes. No command changed. Assurance asked for no re-review. Spelling check (2026-11-03, Grok): `adeinit.still-running` matches the package script, so C3's `ls` stays. Rev 1 drafted Groups A and B (6.1.1.1.5, 6.1.2.7). Rev 2 added Group C (AIDE: 6.3.1, 6.3.2) after AJ's `sudo apt update` (~06:45 UTC) and Governance's vetting (`docs/findings/aide-vetting.md`, APPROVE WITH CONDITIONS). Assurance reviewed rev 2 and approved it with changes (`docs/findings/cis-batch-3-review.md`, F1-F12); rev 3 applies F1-F10 (F11 and F12 need no change beyond one line). **AJ's decisions (2026-11-03): accept R-AIDE-1 (option A), install resolute's 0.19.2-3 inside this batch with `--no-install-recommends` (no Postfix), use multiple hash functions, hold the timer until the database exists.** **AJ (2026-11-03), all recs:** Q1 keep `maxage 90`; Q2 run B2; Q3 accept the conffile residual; Q4 keep the recorded journal caps; Q5 run `journalctl --rotate`; Q7 statoverride `dotlockfile` to 0755; Q8 read `aide.log` by hand; Q9 `RandomizedDelaySec=0` when C6 is under 50 minutes; Q10 run C6 before C7. Nothing below has run. Next: apply one block at a time from a host on the LAN.
 
 ### Change log (rev 2 to rev 3, Assurance findings)
 | # | Sev | Change in this doc |
@@ -99,6 +99,14 @@ The `60-` prefix sorts after the vendor file, which sets only `ForwardToSyslog`,
 
 **What the reload does.** `systemd-journald.service` is `Type=notify-reload`, so `reload-or-restart` sends the reload signal, and per systemd-journald.service(8) journald on SIGHUP "will reload its configuration values and update the kernel log buffer and journals" (https://manpages.ubuntu.com/manpages/resolute/en/man8/systemd-journald.service.8.html). The service is not stopped. Even a full restart would keep the log sockets (`systemd-journald.socket`, `syslog.socket` are separate units) and its stored file descriptors (`FileDescriptorStorePreserve=yes`). Nothing else reads `journald.conf`.
 
+### A1b. Rotate once (decided, Q5)
+Run after A2. SIGUSR2 rotates the active journal files. It does not delete them.
+```
+sudo journalctl --rotate
+stat -c '%a %U:%G %n' /var/log/journal/*/*.journal
+```
+Expected: no error. Every journal file, including the new active one, is `640 root:systemd-journal`.
+
 ### A2. Verification (read-only, no sudo)
 ```
 grep -Prsi -- '\b(SystemMaxUse|SystemKeepFree|RuntimeMaxUse|RuntimeKeepFree|MaxFileSec)=' /etc/systemd/journald.conf /etc/systemd/journald.conf.d/
@@ -113,7 +121,7 @@ Expected:
 - Line 1: 10 lines. Five are the inert commented defaults from `/etc/systemd/journald.conf` (for example `/etc/systemd/journald.conf:#SystemMaxUse=`); the CIS regex matches them too. The other five are the drop-in: `/etc/systemd/journald.conf.d/60-rotation.conf:SystemMaxUse=1G`, `…:SystemKeepFree=500M`, `…:RuntimeMaxUse=200M`, `…:RuntimeKeepFree=50M`, `…:MaxFileSec=1month`.
 - Line 2: `755 root:root /etc/systemd/journald.conf.d` and `644 root:root /etc/systemd/journald.conf.d/60-rotation.conf`.
 - Line 3: two lines, `active` and `active`.
-- Line 4: no `Failed`, no `error`. **[Assumption]** On reload journald may log a line like `System Journal (/var/log/journal/…) is 133.5M, max 1.0G, … free.`; this depends on systemd 259's reload path and was not checked in source. If it does not appear, the `grep` in line 1 and the next steps are still the pass proof. For an explicit runtime proof, an optional `sudo journalctl --rotate` (SIGUSR2, rotates the current journal files into archives, harmless) forces that message and creates a fresh `system.journal`.
+- Line 4: no `Failed`, no `error`. **[Assumption]** On reload journald may log a line like `System Journal (/var/log/journal/…) is 133.5M, max 1.0G, … free.`; this depends on systemd 259's reload path and was not checked in source. If it does not appear, the `grep` in line 1 and the next steps are still the pass proof. Q5 is decided: run A1b after this check. That rotate forces the `max 1.0G` line if the reload did not, and it creates a fresh `system.journal`.
 - Line 5: same size as A0 (a small increase); nothing is vacuumed because 133.5M is far under 1G.
 - Line 6: every journal file still `640 root:systemd-journal` (Batch 1 6.1.3.1 depends on this; a rotation makes journald create the new file the same way).
 - Line 7: `1` or more: the test line went through journald, the syslog forward (`ForwardToSyslog=yes`) and rsyslog into `/var/log/syslog`. This proves the reload did not break the rsyslog path (CIS 6.1.2.x depends on it).
@@ -159,7 +167,7 @@ sudo sed -i -e 's/^rotate 4$/rotate 13\nmaxage 90/' -e 's/^# keep 4 weeks worth 
 ```
 Result: lines 12-14 read `# keep 13 weeks worth of backlogs`, `rotate 13`, `maxage 90`. GNU `sed -i` keeps mode 0644 and owner.
 
-### B2. Commands, package stanzas (Platform recommendation; Open Q2)
+### B2. Commands, package stanzas (decided, Q2: run)
 Without this, syslog, auth.log, kern.log and ufw.log stay at 4 weeks. `/etc/logrotate.d/rsyslog` (package `rsyslog`, md5 `3f26282a…`) and `/etc/logrotate.d/ufw` (package `ufw`, md5 `969308e0…`) are conffiles. Pattern checked with `cat -A`: `^Irotate 4$` (a tab) in both.
 ```
 sudo sed -i 's/^\trotate 4$/\trotate 13/' /etc/logrotate.d/rsyslog /etc/logrotate.d/ufw
@@ -220,7 +228,7 @@ sudo dpkg --verify rsyslog ufw
 ```
 Each `dpkg --verify` printing nothing means the conffile matches the package md5 again. Rotated files that logrotate keeps because of `rotate 13` are never deleted by a rollback; the lower `rotate 4` removes the surplus at the next rotation of that log.
 
-### Residual (conffile prompts; AJ to accept, Open Q3)
+### Residual (conffile prompts; accepted, Q3)
 `/etc/logrotate.conf` (and, with B2, `rsyslog` and `ufw`) are now locally modified conffiles. If a later `logrotate`, `rsyslog` or `ufw` update ships a changed version of one of them, unattended-upgrades **skips that package** and logs `Package … has conffile prompt and needs to be upgraded manually` (same mechanism as Batch 1; `/usr/bin/unattended-upgrade` 2.12ubuntu9; https://manpages.ubuntu.com/manpages/resolute/en/man8/unattended-upgrade.8.html). The skip is silent now that the login notice is gone. **GR3 covers it**, and it needs no sudo: `grep -h 'conffile prompt' /var/log/unattended-upgrades/unattended-upgrades.log` works for `aj` because the log is 640 root:adm and `aj` is in adm. A skipped `rsyslog` update is the one to watch (it is the log pipeline). The `journald.conf.d` drop-in is not a conffile and has no such risk.
 
 ---
@@ -252,8 +260,8 @@ This confirms Governance's finding (no initramfs or boot hook), with the two add
 1. Install (C1). The postinst enables the timer silently, then starts the check and buildcache units several times; with no database the check fails (expected, C3), and one failed unit or two is normal.
 2. Hold the timer at once (C2): `disable --now` stops it from ever firing before the database exists.
 3. Clear the failed units and rebuild the AIDE LVM root cache by hand (C3a), so the database is built with the cache in place.
-4. Set the `dotlockfile` mode (C4, if AJ agrees), so the database records the final mode.
-5. Build the database (C5), run one manual check (C6), then add the 05:00 UTC drop-in and enable the timer (C7) if C6 took under 50 minutes. Until C7, 6.3.2 fails by design.
+4. Set the `dotlockfile` mode (C4, decided, Q7), so the database records 0755.
+5. Build the database (C5), run one manual check (C6, decided, Q10), then add the 05:00 UTC drop-in and enable the timer (C7) if C6 took under 50 minutes (Q9). At 50 minutes or more, stop before C7. Until C7, 6.3.2 fails by design.
 
 ### C0. Pre-check (read-only, no sudo; run at apply time, not only now)
 ```
@@ -329,14 +337,14 @@ sudo head -3 /var/lib/aide/10_aide_rootrules_cache
 ```
 Expected: `reset-failed` prints nothing; the start returns after a second or so; `0 loaded units listed.`; the cache file exists, is non-empty and is owned by `_aide`; the first line starts with `# output from /etc/aide/aide.conf.d/10_aide_lvm_needsroot on johnny at` (this is the header the script writes). If the start is refused with `start-limit-hit`, wait 60 seconds and repeat. If the file is missing or empty, stop and tell the Brain: do not run C5. Do not start `dailyaidecheck.service` here; that is C6.
 
-### C4. `/usr/bin/dotlockfile` (new SGID binary; AJ decides, Open Q7)
+### C4. `/usr/bin/dotlockfile` (new SGID binary; decided, Q7: statoverride)
 `liblockfile-bin` ships `/usr/bin/dotlockfile` as **2755 root:mail** (setgid mail; it exists so mail programs can lock `/var/mail` files). Johnny has no mail spool. That makes **7.1.13 go from 13 SUID / 6 SGID to 13 SUID / 7 SGID**, a new item to review and approve, and the strict-CIS policy earlier refused `ntfs-3g` and `fusermount3` for the same reason. aide's own script only uses `dotlockfile` to lock `/run/aide/dailyaidecheck.lock`, a directory `_aide` owns, where setgid is not needed. **[Assumption]** (from dotlockfile(1) and the script; C6 tests it) the lock works without the setgid bit. Platform recommendation: remove the bit with a dpkg override, as in Batch 1, so a package upgrade does not put it back:
 ```
 sudo dpkg-statoverride --update --add root root 0755 /usr/bin/dotlockfile
 stat -c '%a %U:%G %n' /usr/bin/dotlockfile
 dpkg-statoverride --list | grep dotlockfile
 ```
-Expected: `755 root:root /usr/bin/dotlockfile` and `root root 755 /usr/bin/dotlockfile`. Run this before C5, so the database records 0755. If AJ prefers to approve the SGID file instead, skip it and expect 13/7 in C9. Rollback: `sudo dpkg-statoverride --remove /usr/bin/dotlockfile` and `sudo chmod 2755 /usr/bin/dotlockfile`.
+Expected: `755 root:root /usr/bin/dotlockfile` and `root root 755 /usr/bin/dotlockfile`. Run this before C5, so the database records 0755. Q7 is decided: do not skip this, and do not approve the SGID bit. Rollback: `sudo dpkg-statoverride --remove /usr/bin/dotlockfile` and `sudo chmod 2755 /usr/bin/dotlockfile`.
 
 ### C5. Initialise the database (AJ, sudo; about the heaviest read on Johnny, run it in `tmux`)
 Multiple hash functions (R-AIDE-1, mitigates only GHSA-6wc9-4w69-5jc5): the packaged `/etc/aide/aide.conf` already sets `Checksums = H`, and `H` is "all compiled in (and not deprecated) hashsums" (aide.conf(5), 0.19.2-3, shipped in the `aide` package; upstream manual https://aide.github.io). Rules that carry checksums (`Full`, `StaticFile`, `VarTime`, and so on) use that group, so **no rule override and no hand edit is needed, and nothing to mirror under `etc/`** (`/etc/aide/aide.conf` stays the package's ucf-managed copy). I did not enumerate which paths carry checksums; many stock rules (`VarFile`, `VarDir`, logs) are metadata-only. The check below proves what the database holds.
@@ -366,7 +374,7 @@ Expected (the gate is the return code):
 - `aideinit.errors` is usually empty. AIDE can write warnings there on a live system (a file that vanished during the walk, an unreadable entry) even when the return code is 0. **Text in it is not an automatic stop:** show it to the Brain before C7; harmless warnings are judged by the Brain.
 - **A real failure looks like:** a non-zero code in `aideinit.log` (the same line is also appended to `aideinit.errors`), no `aide.db.new`, or `aideinit` asking `Overwrite existing /var/lib/aide/aide.db.new [Yn]?` or `Overwrite /var/lib/aide/aide.db [yN]?` because an earlier run left files. Stop, show the output to the Brain, and answer `Y`/`y` only when the Brain agrees. Do not run C7.
 
-### C6. First manual check (AJ, sudo; recommended, Open Q10; its duration gates C7)
+### C6. First manual check (AJ, sudo; decided, Q10; its duration gates C7)
 ```
 sudo systemctl reset-failed dailyaidecheck.service dailyaidecheck-buildcache.service
 time sudo systemctl start dailyaidecheck.service
@@ -530,13 +538,13 @@ Already mirrored and unchanged by this batch: `etc/logrotate.d/{dpkg,alternative
 12. **[Assumption]** The 6.1.3.1 owner rule accepts `_aide` because `/usr/sbin/nologin` is not in `/etc/shells` (read on Johnny; CIS script p. 808); Governance's re-audit decides.
 
 ## Open questions for AJ
-1. **`maxage 90` is global and cuts the longer stanzas.** It shortens `dpkg`, `alternatives`, `apt`, `dracut-core` (now 12 months) and `ubuntu-pro-client`, `unattended-upgrades`, `cloud-init-base` (6 months) to about 90 days. Nothing is deleted before 2027-02-01. Keep `maxage 90` as recorded (Platform: yes, it is your policy value), or choose a larger value such as 400 so those package logs keep their year (then `maxage` rarely binds for the weekly logs, which Grok already noted)?
-2. **Make `rotate 13` real for syslog/auth.log/kern.log/ufw.log (B2)?** Global `rotate 13` alone leaves them at 4 weeks. Platform recommends B2 (edit the `rsyslog` and `ufw` stanzas). It adds two locally modified conffiles (Residual). Choose B1 only, or B1 + B2.
-3. **Accept the conffile residual** (`logrotate.conf`, plus `rsyslog` and `ufw` with B2): a future update to one of them is skipped by unattended-upgrades until AJ upgrades it by hand; GR3 catches it weekly.
-4. **journald retention is shorter than the 13-week logs.** At about 26 MB/day the 1G cap holds roughly 5-6 weeks of journal; the text logs keep 13 weeks (with B2). Keep AJ's CIS-example values as recorded (Platform: yes; auth and sudo lines also live in `/var/log/auth.log`), or raise `SystemMaxUse` (for example 4G, still under 1% of the volume)? Changing it needs AJ's call and a note in the handoff.
-5. **Optional `sudo journalctl --rotate` after A1** to force the journal's `max 1.0G` log line and prove new journal files keep mode 640. Harmless; include it or skip it?
+1. **ANSWERED (AJ, 2026-11-03): keep `maxage 90`.** It is global and cuts the longer stanzas. It shortens `dpkg`, `alternatives`, `apt`, `dracut-core` (now 12 months) and `ubuntu-pro-client`, `unattended-upgrades`, `cloud-init-base` (6 months) to about 90 days. Nothing is deleted before 2027-02-01. Keep `maxage 90` as recorded (Platform: yes, it is your policy value), or choose a larger value such as 400 so those package logs keep their year (then `maxage` rarely binds for the weekly logs, which Grok already noted)?
+2. **ANSWERED (AJ, 2026-11-03): run B1 and B2.** Make `rotate 13` real for syslog/auth.log/kern.log/ufw.log. Global `rotate 13` alone leaves them at 4 weeks. Platform recommends B2 (edit the `rsyslog` and `ufw` stanzas). It adds two locally modified conffiles (Residual). Choose B1 only, or B1 + B2.
+3. **ANSWERED (AJ, 2026-11-03): accept.** The conffile residual (`logrotate.conf`, plus `rsyslog` and `ufw` with B2): a future update to one of them is skipped by unattended-upgrades until AJ upgrades it by hand; GR3 catches it weekly.
+4. **ANSWERED (AJ, 2026-11-03): keep the recorded caps, including `SystemMaxUse=1G`.** Journal retention is shorter than the 13-week logs. At about 26 MB/day the 1G cap holds roughly 5-6 weeks of journal; the text logs keep 13 weeks (with B2). Keep AJ's CIS-example values as recorded (Platform: yes; auth and sudo lines also live in `/var/log/auth.log`), or raise `SystemMaxUse` (for example 4G, still under 1% of the volume)? Changing it needs AJ's call and a note in the handoff.
+5. **ANSWERED (AJ, 2026-11-03): include it (A1b).** Optional `sudo journalctl --rotate` after A1 to force the journal's `max 1.0G` log line and prove new journal files keep mode 640. Harmless; include it or skip it?
 6. **ANSWERED (AJ, 2026-11-03): R-AIDE-1 accepted, option A.** Install 0.19.2-3 now with `--no-install-recommends`, multiple hashes, track Ubuntu for 0.19.5. Recorded here; the Brain files the risk-register entry. The invalid-UTF-8 bypass stays open until the fix lands (Risk line).
-7. **`/usr/bin/dotlockfile` (C4): remove its setgid bit with a dpkg override (Platform: yes) or approve it as a 7th SGID file in 7.1.13?** The override keeps 7.1.13 at 13/6 and costs one `dpkg-statoverride` line. Approving instead means 13/7 and one more reviewed binary.
-8. **Reading the AIDE report (operating notes).** There is no mail, and the daily unit exits 0 even when AIDE finds changes, so a report sits in `/var/log/aide/aide.log` and nothing alerts. Accept a weekly manual read (GR5) until report delivery is decided (separate, later decision per Governance), and accept that `aide.db` is only refreshed by AJ's deliberate `cp` after review? Platform: yes to both.
-9. **Timer randomization:** `RandomizedDelaySec=0` so the check starts at 05:00 UTC (it can slip up to the 1-minute `AccuracySec` default, so 05:00:00 to 05:01:00) (Platform and Assurance: fine, one host, nothing to spread), or keep the package's 2 h spread (05:00-07:00 UTC, overlapping `apt-daily-upgrade` at about 06:05)? The C6 scan time decides: under 50 minutes, 05:00 is safe; otherwise AJ chooses a new time before C7.
-10. **First manual check before enabling the timer (C6):** run it (Platform: yes; it proves `dotlockfile`, `_aide` and the capabilities before the first unattended run), or go straight to C7?
+7. **ANSWERED (AJ, 2026-11-03): statoverride to 0755.** `/usr/bin/dotlockfile` (C4): remove its setgid bit with a dpkg override, rather than approve it as a 7th SGID file in 7.1.13. The override keeps 7.1.13 at 13/6 and costs one `dpkg-statoverride` line. Approving instead means 13/7 and one more reviewed binary.
+8. **ANSWERED (AJ, 2026-11-03): accept both.** Reading the AIDE report by hand, and refreshing `aide.db` only by a deliberate copy. There is no mail, and the daily unit exits 0 even when AIDE finds changes, so a report sits in `/var/log/aide/aide.log` and nothing alerts. Accept a weekly manual read (GR5) until report delivery is decided (separate, later decision per Governance), and accept that `aide.db` is only refreshed by AJ's deliberate `cp` after review? Platform: yes to both.
+9. **ANSWERED (AJ, 2026-11-03): `RandomizedDelaySec=0` when C6 is under 50 minutes.** Timer randomization: `RandomizedDelaySec=0` so the check starts at 05:00 UTC (it can slip up to the 1-minute `AccuracySec` default, so 05:00:00 to 05:01:00) (Platform and Assurance: fine, one host, nothing to spread), or keep the package's 2 h spread (05:00-07:00 UTC, overlapping `apt-daily-upgrade` at about 06:05)? The C6 scan time decides: under 50 minutes, 05:00 is safe; otherwise AJ chooses a new time before C7.
+10. **ANSWERED (AJ, 2026-11-03): run C6 before C7.** First manual check before enabling the timer: run it (Platform: yes; it proves `dotlockfile`, `_aide` and the capabilities before the first unattended run), or go straight to C7?
