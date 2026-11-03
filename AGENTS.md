@@ -4,7 +4,7 @@
 - Team: `docs/agent-team.md` (roster, file ownership); agent files in `.claude/agents/`. The main session is the Brain. Agent reports to the Brain use that doc's §6 format.
 - Reply to AJ in three parts, in this order (one-line answers excepted):
   1. **Detail**: the full write-up. Long is fine; this is the record.
-  2. **Relay**: Grok writes it; Claude reads it. Short, pasteable as-is.
+  2. **Relay**: the seat that is replying writes it. Grok's Relay is for Claude to read. Claude's Relay is for Grok to read. Short, pasteable as-is.
   3. **Outline**: a nested outline of the Detail.
 - Model seats (AJ, 2026-11-03): Grok writes the drafts, commands, and repo edits. Claude reviews and does not edit the draft. The writer does not review their own work. AJ still decides and runs sudo. Domain ownership in `docs/agent-team.md` is unchanged.
 - One step at a time. Show commands before running them.

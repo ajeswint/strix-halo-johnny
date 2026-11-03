@@ -1,6 +1,6 @@
 # Johnny agent team
 
-Rev 6, 2026-11-03. Rev 6: model seats (AJ). Grok writes; Claude reviews and does not edit the draft. Domain ownership unchanged. Rev 5, 2026-10-31, agreed by AJ and Grok: first skill file (`cis-audit`); skill folders owned by the agent that holds the skill; `docs/hosts/` → Architect (provisional). Wired: `.claude/agents/` holds one file per agent (9); the Brain is the main session and has no file. Rev 2 (AJ): the SLM has full function for now; architecture-logic questions deferred (§7). Rev 3: Grok review applied (quarantine cross-reference, `.gitignore` owner, Fast Path in PW.9). Rev 4: agent files created.
+Rev 7, 2026-11-03. Rev 7: reviewer label is Claude, as Assurance (AJ). Each seat writes its own Relay for the other to read. The writer does not add to a findings file after the review. Rev 6: model seats (AJ). Grok writes; Claude reviews and does not edit the draft. Domain ownership unchanged. Rev 5, 2026-10-31, agreed by AJ and Grok: first skill file (`cis-audit`); skill folders owned by the agent that holds the skill; `docs/hosts/` → Architect (provisional). Wired: `.claude/agents/` holds one file per agent (9); the Brain is the main session and has no file. Rev 2 (AJ): the SLM has full function for now; architecture-logic questions deferred (§7). Rev 3: Grok review applied (quarantine cross-reference, `.gitignore` owner, Fast Path in PW.9). Rev 4: agent files created.
 
 What this is: the roster that says which agent owns which job, so no two agents do the same work. Inputs: role list `docs/Enterprise Security Software Team Roles.md` (127 titles); control model `docs/Distributed Neural Networks and Control Systems in Cephalopods.md` §1, §4–5; architecture `docs/JOHNNY_ Executive Architectural Summary.md`.
 
@@ -224,7 +224,8 @@ Why:
 Model seats (AJ, 2026-11-03). These name who holds the pen. They do not move §4 ownership.
 
 - **Writer: Grok.** Drafts, exact commands, and repo edits, inside the owning agent's paths (Platform for OS fixes, and so on).
-- **Reviewer: Claude.** Independent review only. Findings go in `docs/findings/` for a fix-batch review. Claude does not edit the draft.
+- **Reviewer: Claude, as Assurance** (AJ, 2026-11-03). Claude is the model. Assurance is the role. Independent review only. Findings go in `docs/findings/` for a fix-batch review. Claude does not edit the draft. The writer does not add to that file after the review.
+- **Relay:** the seat replying to AJ writes it. Grok's Relay is for Claude. Claude's Relay is for Grok.
 - The writer does not review their own draft. AJ decides and runs sudo.
 - Batch 3 rev 3 (`docs/cis-fix/batch-3.md`) was written before this rule. Further edits to it are Grok's.
 
