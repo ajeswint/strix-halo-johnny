@@ -1,6 +1,8 @@
 # Johnny handoff → new session: CIS L1 fix pass, Batch 3 onward (2026-11-03)
 
-Repo `ajeswint/strix-halo-johnny`; `git pull` first. Read `AGENTS.md`, `README.md`, `docs/os-handoff.md` (rev 19 or later). The project is "Johnny", never "Sentinel". Reply to AJ as Detail → Relay (for Grok) → Outline.
+Repo `ajeswint/strix-halo-johnny`; `git pull` first. Read `AGENTS.md`, `README.md`, `docs/os-handoff.md` (rev 21 or later). The project is "Johnny", never "Sentinel". Reply to AJ as Detail → Relay (for the Claude reviewer) → Outline.
+
+**Model seats (AJ, 2026-11-03):** Grok writes. Claude reviews and does not edit the draft. `docs/cis-fix/batch-3.md` rev 3 was written before this rule. Further edits are Grok's. The rev 3 spot-check is Claude's review.
 
 **Method, batch table, owed decisions, "every change" steps and the Don't list:** `docs/sessions/2026-10-31-cis-fix-handoff.md`. That brief still holds, except where this one and `2026-11-03-cis-fix-batch2-handoff.md` update it (re-check verdicts edited in place; mode-only changes as Config changes rows; log group `root adm` 0640).
 

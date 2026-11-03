@@ -2,7 +2,7 @@
 
 # Johnny handoff → new session: CIS L1 fix pass (2026-10-31)
 
-Repo `ajeswint/strix-halo-johnny`; `git pull` first. Read `AGENTS.md`, `README.md`, `docs/os-handoff.md` (rev 15 or later; step 10 holds every fail grouped by fix type, with the site-policy values). The project is "Johnny", never "Sentinel". Reply to AJ as Detail → Relay (for Grok) → Outline.
+Repo `ajeswint/strix-halo-johnny`; `git pull` first. Read `AGENTS.md`, `README.md`, `docs/os-handoff.md` (rev 15 or later; step 10 holds every fail grouped by fix type, with the site-policy values). The project is "Johnny", never "Sentinel". Reply to AJ as Detail → Relay (for the Claude reviewer) → Outline.
 
 ## Task: fix the 115 CIS L1 fails, in batches, lowest lockout risk first
 - **Source:** `docs/cis-26.04-l1-results.csv` (274 L1 rows: 136 pass, 115 fail, 23 N/A) and handoff step 10. Fails by section: 1 = 25, 2 = 11, 3 = 31, 4 = 3, 5 = 38, 6 = 6, 7 = 1. This pass **changes Johnny**, unlike the audit.
@@ -15,7 +15,8 @@ Repo `ajeswint/strix-halo-johnny`; `git pull` first. Read `AGENTS.md`, `README.m
 - **If the gate is not met:** do only the no-change prep below (Platform drafts files and scripts, Governance writes risk entries, Assurance writes acceptance checks). All of it stays in the repo; nothing goes to Johnny.
 
 ## Who does what (`docs/agent-team.md` §4–§6)
-- **Platform** (`cis-remediation`) writes each fix: exact files, exact commands, a rollback for each, and a URL for any Ubuntu 26.04 claim. The skill exists only as a line in `docs/agent-team.md`, not yet as a file in `.claude/skills/`. Writing `.claude/skills/cis-remediation/SKILL.md` is a reasonable first job; Platform proposes it, AJ approves.
+- **Model seats (AJ, 2026-11-03):** Grok writes the draft. Claude reviews it and does not edit it. Domain jobs below stay as written.
+- **Platform** (`cis-remediation`) writes each fix: exact files, exact commands, a rollback for each, and a URL for any Ubuntu 26.04 claim. The skill exists only as a line in `docs/agent-team.md`, not yet as a file in `.claude/skills/`. Writing `.claude/skills/cis-remediation/SKILL.md` is a reasonable first job; Platform proposes it, AJ approves. The writer seat (Grok) produces that draft.
 - **Assurance** reviews each batch's files and commands before anything runs (`independent-review`; nobody checks their own work) and sets the pass criteria (`acceptance-gates`).
 - **Governance** writes risk-register entries for the lockout-risk batches **before** they run (handoff step 10, section 5) and re-audits each fixed rule afterwards with `cis-audit` (same scripts, same CSV method).
 - **Detection** confirms capture still works on `eno1np0` after ufw, sysctl and IPv6 changes.

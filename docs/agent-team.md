@@ -1,6 +1,6 @@
 # Johnny agent team
 
-Rev 5, 2026-10-31. Agreed by AJ and Grok. Rev 5: first skill file (`cis-audit`); skill folders owned by the agent that holds the skill; `docs/hosts/` → Architect (provisional). Wired: `.claude/agents/` holds one file per agent (9); the Brain is the main session and has no file. Rev 2 (AJ): the SLM has full function for now; architecture-logic questions deferred (§7). Rev 3: Grok review applied (quarantine cross-reference, `.gitignore` owner, Fast Path in PW.9). Rev 4: agent files created.
+Rev 6, 2026-11-03. Rev 6: model seats (AJ). Grok writes; Claude reviews and does not edit the draft. Domain ownership unchanged. Rev 5, 2026-10-31, agreed by AJ and Grok: first skill file (`cis-audit`); skill folders owned by the agent that holds the skill; `docs/hosts/` → Architect (provisional). Wired: `.claude/agents/` holds one file per agent (9); the Brain is the main session and has no file. Rev 2 (AJ): the SLM has full function for now; architecture-logic questions deferred (§7). Rev 3: Grok review applied (quarantine cross-reference, `.gitignore` owner, Fast Path in PW.9). Rev 4: agent files created.
 
 What this is: the roster that says which agent owns which job, so no two agents do the same work. Inputs: role list `docs/Enterprise Security Software Team Roles.md` (127 titles); control model `docs/Distributed Neural Networks and Control Systems in Cephalopods.md` §1, §4–5; architecture `docs/JOHNNY_ Executive Architectural Summary.md`.
 
@@ -220,6 +220,13 @@ Why:
 - Title counts aren't workload. The source list is governance-heavy and thin on kernel, network and ML: Network gets one title but runs separate devices with their own OS and management path.
 
 ## 6. Operating protocol
+
+Model seats (AJ, 2026-11-03). These name who holds the pen. They do not move §4 ownership.
+
+- **Writer: Grok.** Drafts, exact commands, and repo edits, inside the owning agent's paths (Platform for OS fixes, and so on).
+- **Reviewer: Claude.** Independent review only. Findings go in `docs/findings/` for a fix-batch review. Claude does not edit the draft.
+- The writer does not review their own draft. AJ decides and runs sudo.
+- Batch 3 rev 3 (`docs/cis-fix/batch-3.md`) was written before this rule. Further edits to it are Grok's.
 
 Directive (Brain → agent):
 ```
