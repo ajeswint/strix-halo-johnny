@@ -98,10 +98,10 @@ MaxFileSec=1month
 EOF
 sudo chown root:root /etc/systemd/journald.conf.d/60-rotation.conf
 sudo chmod 0644 /etc/systemd/journald.conf.d/60-rotation.conf
-sudo systemd-analyze cat-config systemd/journald.conf
+sudo systemd-analyze cat-config systemd/journald.conf --no-pager
 sudo systemctl reload-or-restart systemd-journald
 ```
-The `60-` prefix sorts after the vendor file, which sets only `ForwardToSyslog`, so there is no conflict. The new directory and file belong to no package, so there is no dpkg override or conffile prompt. `systemd-analyze cat-config` (line 5) just prints the merged config so AJ can read it before the reload; it changes nothing.
+The `60-` prefix sorts after the vendor file, which sets only `ForwardToSyslog`, so there is no conflict. The new directory and file belong to no package, so there is no dpkg override or conffile prompt. `systemd-analyze cat-config` prints the merged config so AJ can read it before the reload; it changes nothing. `--no-pager` is required. Without it, `systemd-analyze` opens a pager and the reload line does not run (seen on Johnny 2026-11-03 09:19 UTC; the reload then ran on its own at 09:22:46 UTC).
 
 **What the reload does.** `systemd-journald.service` is `Type=notify-reload`, so `reload-or-restart` sends the reload signal, and per systemd-journald.service(8) journald on SIGHUP "will reload its configuration values and update the kernel log buffer and journals" (https://manpages.ubuntu.com/manpages/resolute/en/man8/systemd-journald.service.8.html). The service is not stopped. Even a full restart would keep the log sockets (`systemd-journald.socket`, `syslog.socket` are separate units) and its stored file descriptors (`FileDescriptorStorePreserve=yes`). Nothing else reads `journald.conf`.
 
