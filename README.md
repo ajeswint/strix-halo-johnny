@@ -1,6 +1,6 @@
 # strix-halo-johnny
 
-Johnny: defensive network-security platform (monitoring, threat detection, response). First deployment is a 24/7 sensor watching the home LAN. AJ designs, Claude builds.
+Johnny: defensive network-security platform (monitoring, threat detection, response). First deployment is a 24/7 sensor watching the home LAN. AJ designs, Grok builds, Claude reviews.
 
 ## Hardware
 | Item | Detail |

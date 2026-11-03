@@ -128,3 +128,46 @@ Run on Johnny. Lines marked **(sudo, read-only)** are AJ's. A gate fails if outp
 - **[Assumption]** F5: 20-60 minutes for the init is an estimate from the hash set and 20 GB, not a measurement.
 - **[Assumption]** F6/C8: with no stamp file a `Persistent=true` timer does not catch up on first start; the man page does not say.
 - **[Assumption]** C13: Governance's re-audit will agree that `_aide` passes 6.1.3.1 through the catch-all branch; from reading the script, not running it.
+
+---
+
+## Addendum: rev 3 spot-check (2026-11-03)
+
+**Reviewer:** Assurance (independent; did not write the draft; the writer is Grok/Platform).
+**Scope:** the rev 3 delta only, `docs/cis-fix/batch-3.md` DRAFT rev 3 against F1-F12 above. Read from the two files; no `.deb` re-fetched. Groups A and B were read only where rev 3 touched them (F4, F8). AJ's accepted decisions were not re-opened.
+**Verdict for applying rev 3 as written: APPROVE WITH CHANGES.** All of F1-F12 landed in the text. One Low, documentation-only finding (S1) is left; it does not change any command or expected output AJ sees, so it needs one edit and no re-review.
+**Nothing was run on Johnny.** No ssh, sudo, apt or contact with 192.168.50.152 in this pass. The C3a timer and cache steps, the C3 start-limit behaviour and the C9 audit-script diffs are untested on the machine; they remain paper claims, as the draft itself says.
+
+### F1-F12 status
+
+| # | Status | Rev 3 location and evidence |
+|---|---|---|
+| F1 | Landed | C3 line 9: "**one or two failed units**: `dailyaidecheck.service` for certain, and possibly `dailyaidecheck-buildcache.service`". New C3a: `reset-failed`, `start dailyaidecheck-buildcache.service`, `sudo ls -l /var/lib/aide/10_aide_rootrules_cache`, "do not run C5" if missing or empty. Sequence overview step 3 puts C3a before C5. C6 line 1: `reset-failed dailyaidecheck.service dailyaidecheck-buildcache.service`. The "hides the failed first check" claim is gone (only the change-log row quotes it). |
+| F2 | Landed | "**If C1 fails** ... stop. Do not run C2 to C7, and do not run the C10 rollback" with `dpkg --audit; echo rc=$?` and `dpkg -l ...`. C3 line 1 is `dpkg --audit; echo rc=$?`, "only `rc=0`". C10 opens with "If C1 failed and left a half-configured install, this rollback is not for that state". |
+| F3 | Landed | C1: "**No `Created symlink` line appears**"; "If asked `Initialize AIDE database?` ... answer **No**". C3 line 8: `ps -eo pid,args \| grep -c '[a]ideinit'` expects `0`. The "Created symlink" text remains only at C7 (a real `systemctl enable`), which is correct. |
+| F4 | Landed | B3 line 2: `grep -nP '^\trotate ' /etc/logrotate.d/rsyslog /etc/logrotate.d/ufw`; expected "exactly two lines, `/etc/logrotate.d/rsyslog:8:` and `/etc/logrotate.d/ufw:3:`". B3 line numbers 1-8 still match their expected bullets. |
+| F5 | Landed | C5: "Text in it is not an automatic stop: show it to the Brain before C7"; "(the gate is the return code)"; "A real failure looks like" lists a non-zero code, no `aide.db.new`, and both `Overwrite ...` prompts; "allow **20 to 60 minutes**"; tmux reattach note. (S1 is a stale leftover elsewhere.) |
+| F6 | Landed | C10: `sudo rm -f /var/lib/systemd/timers/stamp-dailyaidecheck.timer`; "`rm -r` of the drop-in directory errors with `No such file or directory` if C7 was never applied; that is harmless"; "no `Remv` of anything else"; pointer to the C1-failure branch. |
+| F7 | Landed | C3 line 5: "`stat` of a directory needs only search permission on its parent, so it works as `aj`: `2755 _aide:adm /var/log/aide`, `700 _aide:root /var/lib/aide`, `700 _aide:root /run/aide`. Only listing their contents needs sudo." Output order matches the `stat` argument order. |
+| F8 | Landed | Live state and the Group B "In practice" item 3 both say 2027-02-01 with "the first monthly rotation after the file passes 90 whole days"; Open Q1 says "Nothing is deleted before 2027-02-01". No `2027-01-27` remains outside the change-log row that records the correction. Arithmetic checks: 64 days at 2027-01-01, 95 at 2027-02-01. |
+| F9 | Landed | C6: "**Gate for C7 (time):** ... **Under 50 minutes: keep 05:00 UTC** ... **50 minutes or more:** stop, tell the Brain". C7 and Q9 name `AccuracySec` ("05:00:00 to 05:01:00"). C9: "after 05:00 plus the C6 duration plus 15 minutes, or at 06:30 UTC at the latest"; no `05:30` remains. C7 ends "Run C7 only if the C6 gate was met". |
+| F10 | Landed | C9 line 14 (`sed -n '/^== 6.1.3.1/,$p'`) with the expected output stated ("prints only the header line ... and nothing after it"); `cis-5.4-root.sh` re-run and a `diff` against `5.4-root.txt` at lines 15-16, with the expected diff described and marked **[Assumption]**. C9 line numbers 1-16 match the expected bullets. Two small differences from my F10 wording, both acceptable: one header line, not two (Platform says the section is last in the file, as in `6-root-batch1.txt`); and Platform wrote the diff itself and "Governance reads the diff". Both rest on files I could not read from here (see notes). |
+| F11 | Landed | Operating notes: "A later upgrade of `aide-common` re-runs its postinst, which restarts `dailyaidecheck.service`; for a oneshot that means 'run a check now' ... Expect it in GR5's 'Finished' count." |
+| F12 | Landed (no change needed) | Q8 and the first operating note: "The daily check **never fails on differences**: the script exits 0 whenever AIDE ran". |
+
+Counts: Landed 12, Partial 0, Missing 0.
+
+### Contradictions introduced by rev 3
+
+| # | Sev | Location | Finding (root cause) | Fix requested of Grok |
+|---|---|---|---|---|
+| S1 | Low | Assumptions list, item 9 (line 527) vs C5 and C6 | **A stale assumption contradicts the F5 and F9 edits.** Assumption 9 still reads "AIDE's database init takes minutes, at most about 30". Rev 3 changed C5 to "allow **20 to 60 minutes**" and made the C6 duration a 50-minute gate for C7. The Assumptions list was not updated with them. A reader who takes the list as the summary would expect a 30-minute ceiling, which is below both the C5 range and the C6 gate. No command or expected screen output is wrong, so AJ is not false-stopped. | Reword assumption 9 to match C5: "the database init and the first check each take 20 to 60 minutes (estimate from 20 GB, about 110 000 files and the full `H` hash set; not measured); C6's measured time gates C7". |
+
+No other contradiction found. Specifically checked and clean: C3a does not undo C2 (the timer stays held) or C4 (the C3a start does not touch `dotlockfile` or the database); C3a's buildcache start happens well over 60 s before C6, so the buildcache unit's start limit cannot refuse the C6 start; C6's `reset-failed` on two non-failed units is harmless; the C3 `dpkg --audit` gate is worded as "only `rc=0`" so it holds whether or not `dpkg --audit` returns non-zero for problems; no `<placeholders>` in any command block (the `<pid>` and `<uid>`-style text appears only in expected-output prose); no "Created symlink" expectation remains at C1 or C2.
+
+### Notes (not findings)
+
+- **Spelling `adeinit.still-running`** (C3 lines 6 and 8, change log F3) is carried over from my own rev 2 text and may be a typo for `aideinit.still-running`. I could not settle it without re-fetching the `.deb`, which the brief rules out. The `ps` check on the same line is the real gate and the `ls` prints "No such file" either way, so nothing breaks. Platform can confirm the spelling against the `aide-common` postinst when it next has it open.
+- **Untested on Johnny, by design of this pass:** the C3a header string `# output from /etc/aide/aide.conf.d/10_aide_lvm_needsroot on johnny at` (it is inferred from the script and is not a stop condition; only a missing or empty file stops C5); the claim that the postinst's repeated starts hit the start limits (marked inferred in the draft); the existence and shape of `~/cis-audit/5.4-root.txt` and the `== helper: johnny` prefix that the C9 diff filters; the 6.1.3.1 header line text quoted at C9. If the C9 diff or `sed` output differs on the machine, treat it as an expected-output correction for the writer, not a rev 3 failure.
+- GR5's "7 or 8" `Finished` count (Config rows) does not mention the extra run that an `aide-common` upgrade adds; the operating note covers it in words, so I am not raising it.
+

@@ -2,7 +2,7 @@
 
 # Johnny handoff → new session: CIS L1 fix pass (2026-10-31)
 
-Repo `ajeswint/strix-halo-johnny`; `git pull` first. Read `AGENTS.md`, `README.md`, `docs/os-handoff.md` (rev 15 or later; step 10 holds every fail grouped by fix type, with the site-policy values). The project is "Johnny", never "Sentinel". Reply to AJ as Detail → Relay (for the Claude reviewer) → Outline.
+Repo `ajeswint/strix-halo-johnny`; `git pull` first. Read `AGENTS.md`, `README.md`, `docs/os-handoff.md` (rev 15 or later; step 10 holds every fail grouped by fix type, with the site-policy values). The project is "Johnny", never "Sentinel". Reply to AJ as Detail → Relay (Grok writes it, Claude reads it) → Outline.
 
 ## Task: fix the 115 CIS L1 fails, in batches, lowest lockout risk first
 - **Source:** `docs/cis-26.04-l1-results.csv` (274 L1 rows: 136 pass, 115 fail, 23 N/A) and handoff step 10. Fails by section: 1 = 25, 2 = 11, 3 = 31, 4 = 3, 5 = 38, 6 = 6, 7 = 1. This pass **changes Johnny**, unlike the audit.
