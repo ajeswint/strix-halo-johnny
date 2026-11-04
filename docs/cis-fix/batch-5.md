@@ -570,9 +570,9 @@ EOF
 
 Each output line is prefixed with `# ` so it is not a shell command. Times are 2026-11-04 UTC.
 
-**Paste 1.** AJ ran it before the mount paste. The later reads match what it writes: both issue files are `Authorized use only. Activity is monitored.`, `Acquire::Check-Date "true";`, the motd timer is `disabled` and `inactive`, and `ubuntu.sources` has the two https URI lines. The Paste 1 transcript itself was not pasted here.
+**Paste 1.** This Grok session has no Paste 1 stdout. The post-boot reads are the record of what that paste left behind: both issue files are `Authorized use only. Activity is monitored.`, `Acquire::Check-Date "true";`, the motd timer is `disabled` and `inactive`, and `ubuntu.sources` has the two https URI lines and sha256 `cabf1ceb160f86f80bfdd51c828445a76f4f094e40bf81f341ab3937d11e36a8`.
 
-**Paste 2.** The transcript shows the opening hash and the `findmnt --verify` warning, then `^C`. The warning is the one the script prints before `systemctl daemon-reload`. After the interrupt, both mounts had `noexec` and the test files were gone, so the remounts and the exec checks had finished. `OK-paste-2` was not in the transcript. A later `sha256sum -c` of the live initrd printed `OK`.
+**Paste 2.** The transcript shows the opening hash and the `findmnt --verify` warning, then `^C`. There is no `OK-paste-2` line. Paste 3 was started anyway. The warning is the one the script prints before `systemctl daemon-reload`. **Inference, not a transcript line:** the remounts and the exec checks had finished, because a later read found `noexec` on both mounts and the test files gone. The compensating evidence is Paste 3's gates, which require those `noexec` flags and the drop-in line before `systemctl reboot`, and the post-boot reads below. A later `sha256sum -c` of the live initrd printed `OK`.
 
 ```
 # /boot/initrd.img-7.0.0-42-generic: OK
@@ -605,7 +605,7 @@ Each output line is prefixed with `# ` so it is not a shell command. Times are 2
 
 Twelve packages. None is a kernel, a modules package, dracut, or an initramfs package. They were left uninstalled.
 
-**Paste 3.** The script's stdout, including `OK-to-reboot`, was not pasted. AJ watched the KVM: the login prompt came up with no passphrase, the console showed the authorized-use line, and no Ubuntu release name. SSH came back. The after-login block then ran on that boot.
+**Paste 3.** The script's stdout was not captured, including `OK-to-reboot`. The basis for treating the gates as passed is that `systemctl reboot` is the last command in the script, and the machine did reboot: SSH came back on a new boot (uptime 2 minutes). A failed gate would have exited before that command. AJ watched the KVM on that boot: the login prompt came up with no passphrase, the console showed the authorized-use line, and no Ubuntu release name. The after-login block then ran on that same boot.
 
 **After login** (uptime 2 minutes in the paste; 3 minutes on the read-back). `OK-boot-gate`. Own-`.ko` is 60 zeros and `1 ksmbd`. No `STOP-lsmod`. No module diff. Initrd `sha256sum -c` printed `OK`. Read-back: `7.0.0-42-generic`, `0 loaded units listed.`, modules-load `success` / `0`, cryptsetup `success` / `0`, `systemd-ask-password-console` `inactive`. `own-ko-batch5.txt` is 61 lines, 60 zeros, `ksmbd` 1. Mounts:
 
@@ -625,6 +625,8 @@ Both initrd files are still `42618411` bytes, mtime `2026-11-03 06:13:32.8406462
 
 `ubuntu.sources` sha256 is `cabf1ceb160f86f80bfdd51c828445a76f4f094e40bf81f341ab3937d11e36a8`. The URI lines are `https://us.archive.ubuntu.com/ubuntu/` and `https://security.ubuntu.com/ubuntu/`. `dpkg -S` still finds no owner. The hash before the `sed` was `077ad25a51b484eae9bebddd027b18e11d85ec7b69aa0d817e7960b631fa5c8a`.
 
+**Conffile residual.** AJ accepts it (2026-11-04). `base-files` 14ubuntu6.3 is pending in `apt list --upgradable`, and the installed files `/etc/issue` and `/etc/issue.net` are local edits of that package's conffiles. A later manual upgrade of `base-files` can stop and ask which copy to keep. Keep the local file, the one that reads `Authorized use only. Activity is monitored.` Do not take the package copy, which puts the Ubuntu release line back. After the upgrade, `dpkg --verify base-files` should still show only those two `??5?????? c` lines, and `cat` of both files should still be the one warning sentence. `motd-news-config` 14ubuntu6.3 is on the same pending list and is not part of this residual.
+
 ## After the boot gate
 
-Governance re-audits 1.1.2.1.4, 1.1.2.2.4, 1.2.1.11, 1.2.1.15, 1.3.1.1, 1.6.2, 1.6.3, and 1.6.12. 1.3.1.1 stays FAIL. The install block is still the apt-under-noexec test, and it waits on Governance's vet plus SBOM rows for `apparmor-utils`, `python3-apparmor`, and `python3-libapparmor`. AJ (2026-11-04): the batch closes after that install, not before it. Mirrors under `etc/` and the handoff bump wait until this session ends. The files to mirror then: `etc/fstab`, `etc/issue`, `etc/issue.net`, `etc/apt/sources.list.d/ubuntu.sources`, `etc/apt/apt.conf.d/60-johnny-cis-check-date.conf`, `etc/systemd/system/tmp.mount.d/60-johnny-cis-noexec.conf`. The timer change is the removal of `/etc/systemd/system/timers.target.wants/update-notifier-motd.timer`.
+Governance re-audits 1.1.2.1.4, 1.1.2.2.4, 1.2.1.11, 1.2.1.15, 1.3.1.1, 1.6.2, 1.6.3, and 1.6.12. 1.3.1.1 stays FAIL. The install block is still the apt-under-noexec test, and it waits on Governance's vet plus SBOM rows for `apparmor-utils`, `python3-apparmor`, and `python3-libapparmor`. AJ (2026-11-04): the batch closes after that install, not before it. The close review covers `5a018b0` through the last commit after the install. Mirrors under `etc/` and the handoff bump wait until this session ends. The files to mirror then: `etc/fstab`, `etc/issue`, `etc/issue.net`, `etc/apt/sources.list.d/ubuntu.sources`, `etc/apt/apt.conf.d/60-johnny-cis-check-date.conf`, `etc/systemd/system/tmp.mount.d/60-johnny-cis-noexec.conf`. The timer change is the removal of `/etc/systemd/system/timers.target.wants/update-notifier-motd.timer`.
