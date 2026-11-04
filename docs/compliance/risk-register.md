@@ -25,3 +25,7 @@ Fleet option D (signed UKI and a signed PCR 11 policy) is research, not a lab ac
 `ksmbd` stays loadable. `modprobe.d(5)` gives its built-in softdep precedence over `install /bin/false`, so the blacklist and install lines were removed rather than left as a block the dry-run disproves. `modprobe -n` still inserts `ksmbd.ko.zst`. The CIS 1.1.1.11 script does not list it, because the file is under `kernel/fs/smb/server/`.
 
 Read-only checks, 2026-11-04T07:26:18Z, before this entry is finalized: `dpkg-query -W ksmbd-tools` found no package. `ss` found no listener on 139 or 445. Those facts are also in the 1.1.1.11 row of `docs/cis-26.04-l1-results.csv`. The manual pass records the keep set and this exception. It is not an acceptance of this entry.
+
+- Options: (A) leave `ksmbd` loadable, as it is now; (B) divert or remove `ksmbd.ko.zst`, which is a package file and can return on a kernel upgrade; (C) put `install ksmbd /bin/false` back. C is not a block: the softdep still wins, and showconfig would claim a block the dry-run disproves.
+- Recommendation: **A**. Nothing listens on 139 or 445, and `ksmbd-tools` is not installed. B fights the kernel package. C is a false block.
+- AJ acceptance: pending.
