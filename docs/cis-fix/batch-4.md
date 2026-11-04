@@ -1,6 +1,6 @@
 # CIS L1 fix pass, Batch 4: kernel modules, kernel parameters, core dumps and apport
 
-**Status:** DRAFT rev 1 (Platform, 2026-11-04). **Nothing below has run on Johnny and nothing was read from Johnny while drafting** (this session has no route to `192.168.50.152`). Every "current state" below comes from `docs/cis-26.04-l1-results.csv` (audit 2026-10-30 and 2026-10-31) and the repo docs, so the P-blocks re-read it at apply time and stop on any difference. Not reviewed yet. Per the handoff, Batch 4 starts after Batch 3's second C9 and Governance's re-audits of 6.1.1.1.5, 6.1.2.7, 6.3.1 and 6.3.2. AJ runs every `sudo` block, shown first, with a second SSH session open (fix gate met, handoff rev 16). Stop on any error.
+**Status:** DRAFT rev 2 (Claude, 2026-11-04, after Assurance's review `docs/findings/cis-batch-4-review.md`, approve with changes; applies F1, F2, F3, F4, F5, F6, F7, F8; F9-F11 are residuals for Governance). Rev 1 was drafted by Platform. Still nothing run on Johnny. **Nothing below has run on Johnny and nothing was read from Johnny while drafting** (this session has no route to `192.168.50.152`). Every "current state" below comes from `docs/cis-26.04-l1-results.csv` (audit 2026-10-30 and 2026-10-31) and the repo docs, so the P-blocks re-read it at apply time and stop on any difference. Not reviewed yet. Per the handoff, Batch 4 starts after Batch 3's second C9 and Governance's re-audits of 6.1.1.1.5, 6.1.2.7, 6.3.1 and 6.3.2. AJ runs every `sudo` block, shown first, with a second SSH session open (fix gate met, handoff rev 16). Stop on any error.
 
 **Rules in scope (32):** 1.1.1.1, .2, .3, .4, .5, .9, .10, .11 (8) · 3.2.1, .2, .4, .5, .6 (5) · 3.3.1.1, .2, .3, .4, .5, .8, .9, .10, .11, .12, .13, .14, .18, .19 (14) · 1.5.4, 1.5.5, 1.5.7, 1.5.9, 1.5.10 (5).
 **Not in this batch, on purpose:** 3.3.1.16 and 3.3.1.17 (`log_martians`; Batch 6, because `/etc/ufw/sysctl.conf` sets them to 0 when ufw is enabled; this batch does not touch that file). 3.2.7 (FAIL (manual), waits for Governance's module list). 3.1.1 and 3.3.2.x (IPv6, Batch 7). 3.2.3 dccp is already PASS (no dccp module in the kernel). 3.3.1.6, .7 and .15 pass today; Group C optionally pins them (Q8).
@@ -9,10 +9,10 @@
 
 ## Open questions for AJ (recommendation marked)
 1. **Initrd and reboot.** The batch table said "rebuild the initramfs if modprobe.d changes". Reading dracut's source says that is not needed (see "Boot-path facts"). **Rec: do not rebuild; take the baseline and a `.pre-batch4` copy anyway; one attended console reboot at the end (Group D) to prove sysctl persistence and TPM unlock.** Alternatives: (b) skip the reboot until the next planned one; (c) rebuild now (Group R, not recommended).
-2. **1.1.1.11 unused filesystems (manual).** (a) **Rec: block 60 unused filesystem modules (A2); the keep set is xfs, autofs4, binfmt_misc, ramoops, pstore_blk, pstore_zone and the 51 `nls_*` encodings; Governance then judges the manual rule.** (b) Do only 1.1.1.1 to .10 and leave 1.1.1.11 FAIL (manual) until a site list exists.
+2. **1.1.1.11 unused filesystems (manual).** (a) **Rec: block 60 unused filesystem modules (A2); the keep set is xfs, autofs4, binfmt_misc, ramoops, pstore_blk, pstore_zone and the 51 `nls_*` encodings; Governance then judges the manual rule.** (b) Do only 1.1.1.1 to .10 and leave 1.1.1.11 FAIL (manual) until a site list exists. (c) Block the pstore trio too (`ramoops`, `pstore_blk`, `pstore_zone`): the keep set shrinks to xfs, autofs4, binfmt_misc and the `nls_*` encodings; they load only with a RAM or block backend that is not configured, and none is loaded now (Assurance F5). (d) Keep `nfs*`, `cifs`, `9p`, `virtiofs`, `isofs`, `udf` and `exfat` off the blocklist if a NAS or NFS/SMB backup target, pcap datasets or an installer ISO mount is planned (Data Services, Assurance and SLM should say). Unblocking any of them is one file deleted, no rebuild.
 3. **`overlay` (container filesystem).** **Rec: block it with A2b** (nothing on Johnny uses it; strict CIS, loosen later by deleting one file). Alternative: keep it if an on-box container runtime for the SLM is planned.
 4. **1.1.1.10 `usb-storage`.** Blocking means no USB flash drives or disks can be mounted on Johnny (keyboards and other HID still work). **Rec: block**; copy files over the network. Alternative: leave 1.1.1.10 FAIL.
-5. **3.3.1.12 and 3.3.1.13 `rp_filter` (strict = 1).** **Rec: defer both to Batch 6**, where `ufw enable` applies the same value anyway and `log_martians` is decided and Detection checks capture once. Alternatives: apply now (Group C line is provided, commented out); skip for good (accept FAIL).
+5. **3.3.1.12 and 3.3.1.13 `rp_filter` (strict = 1).** **Rec: defer both to Batch 6**, where `ufw enable` applies the same value anyway and `log_martians` is decided and Detection checks capture once. Alternatives: apply now (Group C line is provided, commented out; it takes effect on `eno1np0` at once); skip for good (accept FAIL).
 6. **3.3.1.1 to .5 (`ip_forward`, `forwarding`, `send_redirects`).** The file values equal today's running values, so nothing changes at runtime. **Rec: apply.** Alternative: defer if an on-box container network (NAT) or inline forwarding is planned, because any later `ip_forward=1` would fight these lines.
 7. **1.5.7 apport.** **Rec A: `enabled=0` in `/etc/default/apport` plus `systemctl mask --now apport.service`** (minimal, reversible, the CIS remediation shape). B: purge the two apport packages (apt-get simulation first). C: leave FAIL.
 8. **Pin the three rules that already pass (3.3.1.6, .7, .15) in the same file?** **Rec: yes** (same values, so they keep passing if `/etc/ufw/sysctl.conf` or `50-default.conf` ever change).
@@ -24,7 +24,7 @@ None for access or boot in the recommended path. **No step touches SSH, PAM, sud
 ## Capture and mirror impact (flag, Constraint 4)
 The kernel's receive path hands every frame to AF_PACKET taps (`ptype_all` in `__netif_receive_skb_core`) and runs native XDP before the IPv4 stack, and `ip_rcv_core` drops `PACKET_OTHERHOST` frames (a mirrored unicast frame for another host's MAC) before routing or source validation. Sources: https://raw.githubusercontent.com/torvalds/linux/master/net/core/dev.c and https://raw.githubusercontent.com/torvalds/linux/master/net/ipv4/ip_input.c (`master`; Johnny runs 7.0.0-42, **[Assumption]** same logic). So none of the sysctls here can drop a frame that AF_PACKET, XDP or AF_XDP would see. Per rule:
 - **`ip_forward`, `forwarding` (3.3.1.1 to .3):** pinned at the running value 0. Per https://docs.kernel.org/networking/ip-sysctl.html, a change of `ip_forward` "resets all configuration parameters to their default state"; writing the same value changes nothing. Do not turn forwarding on later on this box: it also disables LRO on every NIC, the E810 included (kernel `inet_forward_change`; **[Assumption]** from memory of the source).
-- **`send_redirects`, `accept_redirects`, `secure_redirects` (3.3.1.4, .5, .8 to .11):** apply only to hosts that route or receive redirects over IP. Johnny is a single-homed host with no forwarding. The kernel doc: send/secure redirects are enabled if "at least one of conf/{all,interface}" is TRUE, so already-existing interfaces keep their old per-interface value until the next boot; the CIS audit reads `all` and `default` only.
+- **`send_redirects`, `accept_redirects`, `secure_redirects` (3.3.1.4, .5, .8 to .11):** apply only to hosts that route or receive redirects over IP. Johnny is a single-homed host with no forwarding. The kernel doc: send/secure redirects are enabled if "at least one of conf/{all,interface}" is TRUE, and writing a `default` key also updates existing interfaces that were never set by name (kernel `devinet_copy_dflt_conf`, Assurance F3), so the new values reach `eno3` and `eno1np0` at once; the CIS audit reads `all` and `default` only.
 - **`rp_filter` (3.3.1.12, .13): the one that could matter.** Strict mode would fail broadcast and multicast frames that reach the IPv4 stack on `eno1np0` (no address; mirrored hosts' source IPs are best reached via `eno3`). That does not hide anything from capture, but with `log_martians=1` (Batch 6) it can flood the kernel log (Governance's untested reasoning, handoff step 10 section 3). The kernel doc also says "The max value from conf/{all,interface}/rp_filter is used", so `all=1` cannot be relaxed per interface later. Hence Q5.
 - **`/etc/ufw/sysctl.conf`:** see Group C. It is applied only when ufw is enabled, so none of this interacts with it in this batch.
 
@@ -48,6 +48,7 @@ lsmod | awk '$1=="xfs"||$1=="autofs4"{print $1}'
 modprobe --showconfig | grep -E '^(blacklist|install) (cramfs|freevxfs|hfs|hfsplus|jffs2|firewire_core|usb_storage|atm|can|rds|sctp|tipc)( |$)'
 ls /etc/modprobe.d/ /etc/sysctl.d/ /etc/security/limits.d/
 ls -l /etc/sysctl.conf /run/sysctl.d /usr/local/lib/sysctl.d
+cat /etc/modules-load.d/*.conf /usr/lib/modules-load.d/*.conf /etc/modules 2>/dev/null | grep -vE '^[[:space:]]*(#|;|$)'
 ```
 Expected, **stop and tell the Brain on any difference**:
 - Line 1 `OK-kernel`. Line 2 `0 loaded units listed.`
@@ -55,6 +56,7 @@ Expected, **stop and tell the Brain on any difference**:
 - Line 5 prints nothing (CSV: "no blacklist/install in modprobe --showconfig"). `modprobe --showconfig` prints names with underscores, which is why `firewire_core` and `usb_storage` are written that way.
 - Line 6: `/etc/modprobe.d/` holds `johnny-no-bluetooth.conf` and `johnny-no-thunderbolt.conf` (plus any vendor files) and **no** `johnny-cis-*` file; `/etc/sysctl.d/` has **no** `60-johnny-cis-*` file; `/etc/security/limits.d/` has no `60-johnny-cis-core.conf`.
 - Line 7: `/etc/sysctl.conf` absent or all comments; `/run/sysctl.d` and `/usr/local/lib/sysctl.d` absent or empty. systemd 259's `systemd-sysctl` does **not** read `/etc/sysctl.conf` (https://manpages.ubuntu.com/manpages/resolute/en/man5/sysctl.conf.5.html), but procps `sysctl --system` and a CIS scan might; an active line there for any key in this batch would be a stop.
+- Line 8 (Assurance F6): no name from A1, A2 or A2b (netfilter-style names such as `ip_tables` are fine). A blocked name here would fail `systemd-modules-load.service` at boot: **stop**, tell the Brain.
 
 ### P2. Sysctl and ufw state (no sudo)
 ```
@@ -85,6 +87,7 @@ ulimit -Hc
 Expected: `active`; `enabled`; `ExecStart=/usr/share/apport/apport --start` and `ExecStop=/usr/share/apport/apport --stop`; `ii` rows for `apport`, `apport-core-dump-handler`, `python3-apport` and `dpkg-query: no packages found matching systemd-coredump` (CSV: systemd-coredump not installed); `enabled=1` on one line (the `cat -A` line ends in `$`); count `1`; the vendor file shows `* hard core infinity` (CSV); `limits.conf` prints nothing (no active line); `dpkg -S` says `systemd: /etc/security/limits.d/10-coredump-debian.conf` (https://packages.ubuntu.com/search?suite=resolute&arch=any&searchon=contents&keywords=etc%2Fsecurity%2Flimits.d%2F10-coredump-debian.conf); `ulimit -Hc` prints `unlimited`. **Stop if the unit text or the `enabled=1` line differs**: B1's `sed` and the whole apport reasoning rest on them.
 
 ### P4. Boot-path baseline and required initrd copy (AJ, sudo; before any apply block)
+Run `sudo -v` on its own line first (enter the password), then paste the block (Assurance F7).
 ```
 mkdir -p ~/cis-audit
 sudo lsinitrd -m /boot/initrd.img-7.0.0-42-generic | sed -n '/^dracut modules:/,/^=====/p' > ~/cis-audit/initrd-mods-pre-batch4.txt
@@ -112,7 +115,7 @@ Expected: the first `ls` shows size `42618411` and mtime `2026-11-03 06:13:32` (
 | 1.1.1.9 | "Ensure firewire-core kernel module is not available" | under `kernel/drivers`, not loaded, no blacklist or install | `johnny-cis-drivers.conf` |
 | 1.1.1.10 | "Ensure usb-storage kernel module is not available" | same | `johnny-cis-drivers.conf` |
 | 3.2.1, 3.2.2, 3.2.4, 3.2.5, 3.2.6 | "Ensure atm / can / rds / sctp / tipc kernel module is not available" | under `kernel/net`, not loaded, no blacklist or install | `johnny-cis-net.conf` |
-| 1.1.1.11 | "Ensure unused filesystems kernel modules are not available" (manual) | xfs mounted, autofs4 loaded, 60 loadable and not blocked; ext4, fat, vfat built in | A2, `johnny-cis-fs-unused.conf` (Q2) |
+| 1.1.1.11 | "Ensure unused filesystems kernel modules are not available" (manual) | xfs mounted, autofs4 loaded, CIS script counts 60 loadable; composition to be diffed (F4); ext4, fat, vfat built in | A2, `johnny-cis-fs-unused.conf` (Q2) |
 
 Change: for each module, one `blacklist` line and one `install NAME /bin/false` line, the same pair Johnny already uses for thunderbolt and bluetooth (modprobe.d(5), resolute: `blacklist` ignores a module's internal aliases; `install` runs the given command instead of inserting the module: https://manpages.ubuntu.com/manpages/resolute/en/man5/modprobe.d.5.html). Nothing is loaded, so no `rmmod`. **Kept on purpose, and not in any file:** `xfs`, `autofs4`, and every netfilter module ufw needs (`nf_tables`, `nft_*`, `x_tables`, `xt_*`, `ip_tables`, `ip6_tables`, `nf_conntrack*`, `nf_reject_*`); the `nf_tables` module already survived Batch 2. `ext4`, `fat`, `vfat` are built in and cannot be blocked.
 
@@ -122,6 +125,7 @@ Change: for each module, one `blacklist` line and one `install NAME /bin/false` 
 Re-run P1 lines 1 to 5 at apply time. Nothing else.
 
 ### A1. Apply the CIS 1.1.1.1 to .10 and 3.2.x files (AJ, sudo)
+Run `sudo -v` on its own line first (enter the password), then paste the block (Assurance F7).
 ```
 sudo tee /etc/modprobe.d/johnny-cis-fs.conf <<'EOF'
 # Johnny: CIS 1.1.1.1 to 1.1.1.5 filesystem kernel modules not available (Batch 4)
@@ -162,6 +166,7 @@ sudo chmod 0644 /etc/modprobe.d/johnny-cis-fs.conf /etc/modprobe.d/johnny-cis-dr
 (Q4 = no: delete the `usb-storage` pair from the second file before running. The hyphens in `firewire-core` and `usb-storage` are fine: kmod treats `-` and `_` as the same in module names, and `--showconfig` prints underscores.)
 
 ### A2. Optional: 1.1.1.11 unused filesystems (Q2 = a; AJ, sudo)
+**Gate (Assurance F4):** before AJ runs A2, Governance diffs the raw 60-name list from the 1.1.1.11 audit output against this file's blocked names plus the keep set. CIS's 60 and A2's 60 are different sets. Any name in neither goes to AJ as a Q2 addendum.
 The list is every module under `kernel/fs` of linux-modules-7.0.0-42-generic except: the five A1 modules, the keep set (`xfs`, `autofs4`, `binfmt_misc`, `ramoops`, `pstore_blk`, `pstore_zone`), `overlay` (A2b), and the 51 `nls/*` encodings. Source for the module names: https://packages.ubuntu.com/resolute-updates/amd64/linux-modules-7.0.0-42-generic/filelist (123 files under `kernel/fs`; 72 outside `nls`). Why the keeps: `binfmt_misc` is mounted at boot by systemd (an automount, so it needs the module), the pstore trio keeps crash records, `nls_iso8859-1` and `nls_utf8` are what a FAT mount such as `/boot/efi` may load **[Assumption]**, so all `nls_*` stay. The support modules in the block list (`netfs`, `lockd`, `grace`, `nfs_acl`, `dlm`, `cifs_md4`, `quota_*`) are only used by filesystems that are also blocked.
 
 **A2 pre-check (read-only). Stops if Johnny's kernel has a module this draft did not classify, or lacks one it names:**
@@ -208,7 +213,7 @@ Expected:
 - Line 1: twelve lines, each the module name then `install /bin/false` (kmod's dry-run print of the install command). A line starting `insmod` means that file is not read: stop.
 - Line 2: `24` (12 blacklist plus 12 install). Lines 3 and 4: nothing, then `xfs` and `autofs4`.
 - ufw line: `UFW-MODULES-CLEAR`. Not a stop if some names print `FATAL: Module ... not found` (they are not in the filter's output). A hit means a ufw module depends on a blocked one: **stop, remove that pair, tell the Brain.**
-- `can_raw` and `uas` lines are observation only: they show whether kmod applies the parent's `install /bin/false` when a dependent (here `can`, `usb-storage`) is requested. **[Assumption]** unknown; CIS audits only the named modules. Record what prints. If `insmod .../can.ko.zst` appears, dependents can still pull the named module in; adding the dependents to the files is then an AJ choice, not required for the rules.
+- `can_raw` and `uas` lines (Assurance F2, from kmod source: a blocked parent's `install /bin/false` also refuses its dependents): the correct dry-run output is two lines each, first `install /bin/false` (for the parent), then `insmod .../can_raw.ko.zst` (or the `uas` file). That **is** the blocked case; the real load stops at the first line. **[Assumption]** Ubuntu's kmod 34.2 matches the source read. If `install /bin/false` does not appear first, record it and tell the Brain.
 - With A2: `awk '/^install /{print $2}' /etc/modprobe.d/johnny-cis-fs-unused.conf | while read m; do modprobe -n -v "$m" 2>&1 | head -1; done | sort | uniq -c` prints `60 install /bin/false`. Run it as shown (read-only).
 - Then Governance's re-audit with the local scripts (verdict). Initrd unchanged: `ls -l --time-style=full-iso /boot/initrd.img-7.0.0-42-generic` still `42618411` and `2026-11-03 06:13:32`.
 
@@ -239,6 +244,7 @@ After the change `kernel.core_pattern` is the kernel default `core` and nothing 
 P3 and P4 already ran. Re-run P3 lines 1 to 6 right before B1 (stop on a difference).
 
 ### B1. Apport off (AJ, sudo)
+Run `sudo -v` on its own line first (enter the password), then paste the block (Assurance F7).
 ```
 sudo cp -a /etc/default/apport /root/apport.default.pre-batch4
 sudo sed -i 's/^enabled=1$/enabled=0/' /etc/default/apport
@@ -247,6 +253,7 @@ sudo systemctl mask --now apport.service
 Expected: `Created symlink '/etc/systemd/system/apport.service' → '/dev/null'.` (wording may differ slightly). `sed` prints nothing. The `--now` runs `ExecStop`, so `suid_dumpable` becomes 0 and `core_pattern` becomes `core` at once. `/etc/default/apport` becomes a locally modified conffile (residual below).
 
 ### B2. Kernel parameters file (AJ, sudo)
+Run `sudo -v` on its own line first (enter the password), then paste the block (Assurance F7).
 ```
 sudo tee /etc/sysctl.d/60-johnny-cis-kernel.conf <<'EOF'
 # Johnny: CIS 1.5.4, 1.5.5, 1.5.9 kernel parameters (Batch 4)
@@ -262,6 +269,7 @@ systemctl is-failed systemd-sysctl.service
 The `60-` name sorts after every vendor file (`50-default`, `55-*`); sysctl.d(5): "the entry in the file with the lexicographically latest name will take precedence" and files in `/etc` are the administrator's (https://manpages.ubuntu.com/manpages/resolute/en/man5/sysctl.d.5.html). `systemd-sysctl.service` is a oneshot; `is-failed` prints `inactive` (exit 1) when healthy, the same reading as Batch 3 B5.
 
 ### B3. Core limit (AJ, sudo)
+Run `sudo -v` on its own line first (enter the password), then paste the block (Assurance F7).
 ```
 sudo tee /etc/security/limits.d/60-johnny-cis-core.conf <<'EOF'
 # Johnny: CIS 1.5.10 core file size (Batch 4). Sorts after the vendor 10-coredump-debian.conf.
@@ -346,6 +354,7 @@ nstat -az IPReversePathFilter
 Expected: `eno1np0` is `UP` with RX counters rising from mirrored traffic; `IPReversePathFilter` is a counter (0 or small). **[Assumption]** `IPReversePathFilter` is the `TcpExt` counter for `rp_filter` drops (kernel `proc.c`); if `nstat` is missing or names it differently, skip that line, it is only for the Q5 apply-now option.
 
 ### C1. Apply (AJ, sudo)
+Run `sudo -v` on its own line first (enter the password), then paste the block (Assurance F7).
 ```
 sudo tee /etc/sysctl.d/60-johnny-cis-network.conf <<'EOF'
 # Johnny: CIS 3.3.1 IPv4 network parameters (Batch 4). Sorts after the vendor /usr/lib/sysctl.d/55-network-security.conf.
@@ -386,7 +395,7 @@ nstat -az IPReversePathFilter
 ls -l --time-style=full-iso /boot/initrd.img-7.0.0-42-generic
 ```
 Expected: `ip_forward`, both `forwarding`, `send_redirects` (both), `accept_redirects` (both), `secure_redirects` (both), `accept_source_route` (both), `route_localnet` = 0; `icmp_*` and `tcp_syncookies` = 1; `rp_filter` still 2 and 2 (deferred) or 1 and 1 (if applied); **`log_martians` still 0 and 0 (this batch must not change it)**. In the `--tldr` listing, the last occurrence of every key except `rp_filter` and `log_martians` is under `/etc/sysctl.d/60-johnny-cis-network.conf`; the `rp_filter` last occurrence is `55-network-security.conf` (deferred). `is-failed` prints `inactive`. `eno1np0` still UP and its RX counter still rising; `IPReversePathFilter` unchanged. Initrd unchanged.
-- Existing interfaces keep the per-interface values they were created with until the next boot (the kernel doc says the effective value combines `all` and the interface). CIS audits `all` and `default`; Group D prints the per-interface values after the reboot as information.
+- Writing `default` also updates existing interfaces that were never set by name; `all` is combined with the interface (OR for the redirect keys on a non-forwarding host, `max` for `rp_filter`). CIS audits `all` and `default`; Group D prints the per-interface values as information (Assurance F3).
 - Governance re-audits 3.3.1.x with `cis-3-audit.sh`; the verdict is theirs.
 
 ### C3. Rollback
@@ -403,7 +412,17 @@ Expected: three lines `= 1` (the pre-batch runtime values). Deleting the file al
 
 Why: the fix is only proven if the values survive a boot. In particular `fs.suid_dumpable` must stay 0 with apport masked, the per-interface sysctl values come from `default` at boot, and TPM unlock must still work. Nothing here changes the boot chain; the initrd is the same file (hash check). **Prerequisites (same as Batch 2 Q5-A):** A, B and C verified; AMT KVM session open (the **Johnny KVM** icon on rock-box, handoff step 5); LUKS recovery passphrase at hand; a second SSH session. No `/run/reboot-required` surprise: run `cat /run/reboot-required` first (expect "No such file").
 
-### D1. Reboot (AJ)
+### D0. Kernel pin gate (read-only; run right before D1; Assurance F1)
+```
+ls /boot/vmlinuz-* /boot/initrd.img-*
+dpkg -l 'linux-image-*' | awk '/^ii/{print $2,$3}'
+systemctl is-active apt-daily-upgrade.service unattended-upgrades.service
+ls -l --time-style=full-iso /boot/initrd.img-7.0.0-42-generic
+cat /run/reboot-required
+```
+Expected: only the `7.0.0-42-generic` kernel and initrd (plus the `.pre-batch4` initrd copy); one `ii` line, `linux-image-7.0.0-42-generic`; `inactive` twice; initrd size `42618411` and mtime `2026-11-03 06:13:32` (as in P4); `cat: /run/reboot-required: No such file or directory`. If a second kernel appears, either service is `active`, or the initrd size or time differs, **stop**: a security update landed, so the reboot would first-boot an unproven kernel with no fallback kernel. Tell the Brain; re-run P4 to re-baseline, or reboot only when nothing else changed.
+
+### D1. Reboot (AJ; only after D0 passes)
 ```
 sudo systemctl reboot
 ```
@@ -413,14 +432,14 @@ Watch the KVM. **Expected:** no LUKS passphrase prompt (TPM2 unlock), then the l
 ```
 ssh aj@192.168.50.152 'uname -r; uptime -p; systemctl --failed --no-pager --plain | tail -1; dpkg --audit; echo rc=$?; cat /run/reboot-required; systemctl is-enabled apport.service; sysctl fs.suid_dumpable kernel.core_pattern kernel.dmesg_restrict kernel.randomize_va_space net.ipv4.conf.all.send_redirects net.ipv4.conf.default.accept_redirects net.ipv4.conf.all.rp_filter; ulimit -Hc'
 ssh aj@192.168.50.152 'lsmod | awk "\$1==\"xfs\"||\$1==\"autofs4\"{print \$1}"; modprobe -n -v can | head -1; ls -l --time-style=full-iso /boot/initrd.img-7.0.0-42-generic'
-ssh aj@192.168.50.152 'journalctl -b --no-pager | grep -E "modprobe|/bin/false" | grep -Ew "cramfs|freevxfs|hfs|hfsplus|jffs2|firewire[-_]core|usb[-_]storage|atm|can|rds|sctp|tipc"; ip -s link show eno1np0 | head -4; kdump-config status 2>&1 | head -2'
+ssh aj@192.168.50.152 'journalctl -b --no-pager | grep -E "Error running install command"; ip -s link show eno1np0 | head -4; kdump-config status 2>&1 | head -2'
 ```
 Expected:
 - `7.0.0-42-generic`; a short uptime; `0 loaded units listed.`; `rc=0`; `cat: /run/reboot-required: No such file or directory`; `masked`; `fs.suid_dumpable = 0`; `kernel.core_pattern = core`; `dmesg_restrict = 1`; `randomize_va_space = 2`; `send_redirects = 0`; `default.accept_redirects = 0`; `all.rp_filter = 2` (deferred) or 1; `ulimit -Hc` `0`.
 - `xfs` and `autofs4`; `install /bin/false`; the initrd line identical to P4 (`42618411`, `2026-11-03 06:13:32`).
 - The journal grep prints nothing (no blocked module was tried at boot); `eno1np0` UP with a rising counter; `kdump-config status` informational (**[Assumption]** it reports ready as before; the kdump crash-kernel initrd is not examined or touched by this batch).
 - AJ, sudo: `sudo sha256sum -c ~/cis-audit/initrd-sha256-pre-batch4.txt` prints `OK`, and `sudo lsinitrd -m /boot/initrd.img-7.0.0-42-generic | sed -n '/^dracut modules:/,/^=====/p' | diff ~/cis-audit/initrd-mods-pre-batch4.txt -` prints nothing.
-- Information only: `ssh aj@192.168.50.152 'sysctl -a 2>/dev/null | grep -E "^net\.ipv4\.conf\.(eno3|eno1np0|eno4)\.(send_redirects|accept_redirects|secure_redirects|rp_filter) "'`. Values 0 mean the new `default` reached the NICs at creation; values left at the old 1 or 2 are harmless here (single-homed host, no forwarding) but are worth recording for Batch 6.
+- Information only: `ssh aj@192.168.50.152 'sysctl -a 2>/dev/null | grep -E "^net\.ipv4\.conf\.(eno3|eno1np0|eno4)\.(send_redirects|accept_redirects|secure_redirects|rp_filter) "'`. Expect 0 on every NIC for the three redirect keys (the `default` write reached them at C1); a surviving 1 means something wrote that interface by name: tell the Brain. `rp_filter` per NIC is information for Batch 6.
 
 ### D3. Cleanup (after D2 passes; or at AJ's word)
 ```
