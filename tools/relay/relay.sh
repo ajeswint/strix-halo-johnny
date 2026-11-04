@@ -12,6 +12,7 @@ while [ $# -gt 0 ]; do case $1 in
 
 REPO=${RELAY_REPO:-$(cd "$(dirname "$0")/../.." && pwd)}
 GROK_MODEL=${GROK_MODEL:-grok-4.7-high}
+AGENT_TIMEOUT=${AGENT_TIMEOUT:-600}   # seconds per agent call; kills hung CLIs
 CLAUDE_MODEL=${CLAUDE_MODEL:-}          # empty = claude default
 CURSOR_BIN=${RELAY_CURSOR_BIN:-$HOME/.local/bin/cursor-agent}  # CURSOR_AGENT is set to 1 by Cursor itself
 JOHNNY=${JOHNNY:-aj@192.168.50.152}
@@ -39,10 +40,10 @@ else SAFETY+="You MAY run read-only, non-sudo audit commands on Johnny via: ssh 
 grok(){ # $1 prompt
   local out=$LOGDIR/$BATCH-$TS-grok-$2.json
   log "Grok ($GROK_MODEL) round $2 ..."
-  "$CURSOR_BIN" -p --model "$GROK_MODEL" --output-format json --force --trust --workspace "$REPO" "$SAFETY
+  timeout -k 10 "$AGENT_TIMEOUT" "$CURSOR_BIN" -p --model "$GROK_MODEL" --output-format json --force --trust --workspace "$REPO" "$SAFETY
 $CONV
 ${EXTRA:+ONE-OFF REQUIREMENTS FOR THIS RUN: $EXTRA}
-$1" > "$out" 2>>"$LOG" || { log "Grok CLI failed (see $out / $LOG)"; exit 4; }
+$1" > "$out" 2>>"$LOG" || { log "Grok CLI failed or timed out after ${AGENT_TIMEOUT}s (see $out / $LOG)"; exit 4; }
   python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print((d.get("result") or "")[:1500])' "$out" | tee -a "$LOG" >&2
   check_paths
 }
@@ -52,10 +53,10 @@ claude_review(){ # $1 round -> prints verdict JSON
   local out=$LOGDIR/$BATCH-$TS-claude-$1.json base; base=$(cat "$STATE/$BATCH.base")
   log "Claude review round $1 (diff vs $base) ..."
   { git diff "$base" -- docs; git ls-files -o --exclude-standard docs | while read -r f; do echo "=== NEW FILE $f"; cat "$f"; done; } > "$LOGDIR/$BATCH-$TS-diff-$1.patch"
-  claude -p ${CLAUDE_MODEL:+--model "$CLAUDE_MODEL"} --output-format json --json-schema "$SCHEMA" \
+  timeout -k 10 "$AGENT_TIMEOUT" claude -p ${CLAUDE_MODEL:+--model "$CLAUDE_MODEL"} --output-format json --json-schema "$SCHEMA" \
     --allowedTools "Read" "Grep" "Glob" --permission-mode dontAsk --no-session-persistence --max-budget-usd "${CLAUDE_BUDGET:-3}" \
     "You are the reviewer for CIS Ubuntu 26.04 L1 fix $BATCH on host Johnny. Review the diff on stdin (and read repo files if needed) for: correctness vs CIS, safety (rollback, backups, set -euo pipefail, STOP guards), each paste's first line saying SSH or KVM, one numbered script $SH only. $CONV ${EXTRA:+ONE-OFF REQUIREMENTS (reject with BLOCKER if any is missing): $EXTRA} Return verdict approve if AJ can safely run it as is; cosmetic or style nits go in issues but do NOT block approval. Return changes only for correctness, safety, or rollback problems, each issue prefixed BLOCKER:." \
-    < "$LOGDIR/$BATCH-$TS-diff-$1.patch" > "$out" 2>>"$LOG" || { log "Claude CLI failed (see $out)"; exit 4; }
+    < "$LOGDIR/$BATCH-$TS-diff-$1.patch" > "$out" 2>>"$LOG" || { log "Claude CLI failed or timed out after ${AGENT_TIMEOUT}s (see $out)"; exit 4; }
   python3 - "$out" <<'PY'
 import json,sys
 d=json.load(open(sys.argv[1]))
@@ -114,7 +115,7 @@ else
   cp "$RESULTS" "$LOGDIR/$BATCH-$TS-results.txt"
   fix_csv | tee -a "$LOG"
   log "Claude scoring results into $CSV ..."
-  claude -p ${CLAUDE_MODEL:+--model "$CLAUDE_MODEL"} --output-format json --allowedTools "Read" "Grep" "Edit($CSV)" \
+  timeout -k 10 "$AGENT_TIMEOUT" claude -p ${CLAUDE_MODEL:+--model "$CLAUDE_MODEL"} --output-format json --allowedTools "Read" "Grep" "Edit($CSV)" \
     --permission-mode acceptEdits --no-session-persistence --max-budget-usd "${CLAUDE_BUDGET:-3}" \
     "Johnny output for CIS $BATCH is on stdin. Update ONLY the rows of $CSV for rules this batch re-checked: result PASS/FAIL/N/A, evidence short, date $(date +%F). Keep 6 columns; quote any field containing a comma. Edit no other file. Then reply with a one-paragraph summary of changed rows." \
     < "$RESULTS" > "$LOGDIR/$BATCH-$TS-claude-score.json" 2>>"$LOG"
