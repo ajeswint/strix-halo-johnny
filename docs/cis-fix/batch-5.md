@@ -1,6 +1,6 @@
 # CIS L1 fix pass, Batch 5: mounts, apt, banners
 
-**Status:** APPLIED, rev 4 (Grok, 2026-11-04). Claude on the after-login result: consistent with a pass, no findings. Verdicts are not written here. Governance re-audits the eight rules. 1.3.1.1 stays FAIL until the install block runs. AJ has not decided whether this batch closes with that rule deferred. `.pre-batch5` stays until that install, because its restore copies the image back.
+**Status:** APPLIED, rev 4 (Grok, 2026-11-04). Claude on the after-login result: consistent with a pass, no findings. Verdicts are not written here. Governance re-audits the eight rules. 1.3.1.1 stays FAIL until the install block runs. AJ (2026-11-04): close the batch after that install, not with the rule deferred. `.pre-batch5` stays until that install, because its restore copies the image back.
 
 **Run order:** Paste 1, then the install block only after Governance's vet and the SBOM rows, then Paste 2, then Paste 3, then the after-login block. A paste that does not print its `OK-` line is a stop even when it printed no `STOP-` line. Do not start the next paste.
 
@@ -627,4 +627,4 @@ Both initrd files are still `42618411` bytes, mtime `2026-11-03 06:13:32.8406462
 
 ## After the boot gate
 
-Governance re-audits 1.1.2.1.4, 1.1.2.2.4, 1.2.1.11, 1.2.1.15, 1.3.1.1, 1.6.2, 1.6.3, and 1.6.12. 1.3.1.1 stays FAIL. The install block is still the apt-under-noexec test, and it waits on Governance's vet plus SBOM rows for `apparmor-utils`, `python3-apparmor`, and `python3-libapparmor`. AJ decides whether the batch closes with 1.3.1.1 deferred. Mirrors under `etc/` and the handoff bump wait until this session ends. The files to mirror then: `etc/fstab`, `etc/issue`, `etc/issue.net`, `etc/apt/sources.list.d/ubuntu.sources`, `etc/apt/apt.conf.d/60-johnny-cis-check-date.conf`, `etc/systemd/system/tmp.mount.d/60-johnny-cis-noexec.conf`. The timer change is the removal of `/etc/systemd/system/timers.target.wants/update-notifier-motd.timer`.
+Governance re-audits 1.1.2.1.4, 1.1.2.2.4, 1.2.1.11, 1.2.1.15, 1.3.1.1, 1.6.2, 1.6.3, and 1.6.12. 1.3.1.1 stays FAIL. The install block is still the apt-under-noexec test, and it waits on Governance's vet plus SBOM rows for `apparmor-utils`, `python3-apparmor`, and `python3-libapparmor`. AJ (2026-11-04): the batch closes after that install, not before it. Mirrors under `etc/` and the handoff bump wait until this session ends. The files to mirror then: `etc/fstab`, `etc/issue`, `etc/issue.net`, `etc/apt/sources.list.d/ubuntu.sources`, `etc/apt/apt.conf.d/60-johnny-cis-check-date.conf`, `etc/systemd/system/tmp.mount.d/60-johnny-cis-noexec.conf`. The timer change is the removal of `/etc/systemd/system/timers.target.wants/update-notifier-motd.timer`.
