@@ -1,17 +1,17 @@
 # CIS L1 fix pass, Batch 5: mounts, apt, banners
 
-**Status:** DRAFT rev 1 (Grok, 2026-11-04). Nothing in this file has been run. The three pastes are the recommended path. They wait on AJ's answers to Q1–Q3 and on Claude's review of the exact paste. AJ runs sudo. A second SSH session stays open for Paste 1 and Paste 2. Paste 3 needs the AMT KVM (the Johnny KVM icon on rock-box, handoff step 5) and the LUKS recovery passphrase at hand.
+**Status:** DRAFT rev 2 (Grok, 2026-11-04). Claude on `825bf6d` (rev 1): approve with changes. Those changes are in this rev. Nothing in this file has been run. AJ runs sudo. A second SSH session stays open for Paste 1 and Paste 2. Paste 3 needs the AMT KVM (the Johnny KVM icon on rock-box, handoff step 5) and the LUKS recovery passphrase at hand.
 
 **Rules in scope (8):** 1.1.2.1.4 `/tmp` noexec, 1.1.2.2.4 `/dev/shm` noexec, 1.2.1.11 https repositories, 1.2.1.15 `Acquire::Check-Date`, 1.3.1.1 `apparmor-utils`, 1.6.2 `/etc/issue`, 1.6.3 `/etc/issue.net`, 1.6.12 `update-notifier-motd.timer`.
 
 **Not in this batch:** 1.6.4 is already PASS (Batch 1). 1.6.5 is Batch 8 (sshd `Banner`). 1.4.1 GRUB password stays out. No `update-initramfs` is called. A package trigger that rebuilds the image is a stop: Paste 1 restores the `.pre-batch5` copy and exits.
 
-## Open questions (recommendation marked)
+## Decisions (AJ, 2026-11-04, with the rev 1 review)
 
-1. **1.6.2 and 1.6.3 banner text.** (a) **Rec: one line, `Authorized use only. Activity is monitored.`** This is the section 5 SSH warning AJ already accepted. It replaces the Ubuntu release line in both files. (b) Same warning, and keep a second `\n \l` line in `/etc/issue` so the console still shows the hostname. (c) Leave both rules FAIL.
-2. **1.2.1.11 https.** (a) **Rec: change only the scheme.** `http://us.archive.ubuntu.com/ubuntu/` and `http://security.ubuntu.com/ubuntu/` become `https://` on the same hosts. Suites and components stay. `ubuntu.sources.curtin.orig` is not an apt source (the name does not end in `.sources`). (b) Leave the rule FAIL.
-3. **1.3.1.1 `apparmor-utils`.** (a) **Rec: install it** with `--no-install-recommends` from the current cache, before the https change. The simulation on Johnny (2026-11-04, no sudo) is `0 upgraded, 3 newly installed, 0 to remove and 0 not upgraded`: `apparmor-utils`, `python3-apparmor`, `python3-libapparmor`, all `5.0.2-0ubuntu1~26.04.1`. `apparmor` is already that version and stays. Governance has not vetted the package. (b) Leave the rule FAIL.
-4. **1.2.1.15 and 1.6.12.** **Rec: include both in Paste 1.** `Acquire::Check-Date "true"` (the compiled-in default, written down so the audit can see it) and `systemctl disable --now update-notifier-motd.timer`. Alternative for either: leave that rule FAIL and delete its lines before the paste is run.
+1. **1.6.2 and 1.6.3.** (a) One line, `Authorized use only. Activity is monitored.`
+2. **1.2.1.11.** (a) Change only the scheme, on the same two hosts. `ubuntu.sources.curtin.orig` is not an apt source.
+3. **1.3.1.1.** (a) Install `apparmor-utils`, **behind a Governance gate.** The install is not in Paste 1. It waits until Governance's vet is in the repo and the handoff SBOM has rows for `apparmor-utils`, `python3-apparmor`, and `python3-libapparmor`. Until that gate, 1.3.1.1 stays FAIL. The simulation (2026-11-04, no sudo) is still `0 upgraded, 3 newly installed, 0 to remove and 0 not upgraded`, all `5.0.2-0ubuntu1~26.04.1`. `apparmor` is already that version.
+4. **1.2.1.15 and 1.6.12.** Both stay in Paste 1: `Acquire::Check-Date "true"` and `systemctl disable --now update-notifier-motd.timer`.
 
 ## Live state (read-only SSH, 2026-11-04)
 
@@ -37,7 +37,7 @@ Options=mode=1777,strictatime,nosuid,nodev,size=50%%,nr_inodes=1m,x-systemd.grac
 
 `/dev/shm` has no unit file (`systemctl cat dev-shm.mount` prints `No files found`). `findmnt -kn /dev/shm` prints `rw,nosuid,nodev,inode64,usrquota`.
 
-`/etc/issue` is `Ubuntu 26.04.1 LTS \n \l` plus a blank line. `/etc/issue.net` is `Ubuntu 26.04.1 LTS`. Both are `base-files` conffiles. `/etc/apt/sources.list.d/ubuntu.sources` is the deb822 file quoted under Paste 1, with `http://`. `apt-config dump` has no `Check-Date` line. `apparmor` `5.0.2-0ubuntu1~26.04.1` is installed and `apparmor.service` is active. `apparmor-utils` is not installed. `update-notifier-motd.timer` is enabled and active via `/etc/systemd/system/timers.target.wants/update-notifier-motd.timer` (package `update-notifier-common`, unit file under `/lib/systemd/system/`). `ssh.socket` is active. `ca-certificates` `20260816ubuntu0.26.04.1` and `apt` `3.2.0` are installed.
+`/etc/issue` is `Ubuntu 26.04.1 LTS \n \l` plus a blank line. `/etc/issue.net` is `Ubuntu 26.04.1 LTS`. Both are `base-files` conffiles. `dpkg --verify base-files` will flag those two after Paste 1. That is the intended conffile edit. `/etc/apt/sources.list.d/ubuntu.sources` is 398 bytes, ends in a newline, sha256 `077ad25a51b484eae9bebddd027b18e11d85ec7b69aa0d817e7960b631fa5c8a`. It has exactly two `URIs:` lines, both `http://` (`us.archive.ubuntu.com` and `security.ubuntu.com`). `dpkg -S` on that path prints `no path found matching pattern`. It is not a package conffile, so an upgrade will not prompt for it and will not put the http lines back. `apt-config dump` has no `Check-Date` line. `apparmor` `5.0.2-0ubuntu1~26.04.1` is installed and `apparmor.service` is active. `apparmor-utils` is not installed. `update-notifier-motd.timer` is enabled and active via `/etc/systemd/system/timers.target.wants/update-notifier-motd.timer` (package `update-notifier-common`, unit file under `/lib/systemd/system/`). `ssh.socket` is active. `ca-certificates` `20260816ubuntu0.26.04.1` and `apt` `3.2.0` are installed.
 
 `systemd-modules-load.service`: `Result=success`, `ExecMainStatus=0`, `ActiveState=active`. `systemctl is-failed` prints `active` for this oneshot when it succeeded. That print is a pass. The non-root journal for the 2026-11-04 06:05:45 UTC boot shows `Deactivated successfully` and `Stopped`, and no `Failed` line.
 
@@ -86,33 +86,48 @@ systemctl default
 
 dracut's only trigger is `interest-await update-initramfs`: https://git.launchpad.net/ubuntu/+source/dracut/plain/debian/dracut.triggers?h=applied/ubuntu/resolute . Editing fstab or a unit drop-in does not run it. The initrd keeps today's fstab until some later rebuild. `/tmp` and `/dev/shm` are mounted by the real root's systemd after switch-root. **[Assumption]** the initrd's own `/tmp` and `/dev/shm` are discarded at switch-root and do not keep the host options.
 
-`noexec` stops the kernel from executing a file on that mount. `sh /tmp/x` still runs, because `sh` is on `/usr`. dpkg's maintainer-script directory was not re-read this session. **[Assumption]** those scripts run from `/var/lib/dpkg`, so the apparmor install in Paste 1 is unaffected. Paste 1 runs before Paste 2, while `/tmp` still allows execution. The first later `apt-get install` is the real apt-under-noexec test. Rollback of the mounts does not need a reboot while SSH is up.
+`noexec` stops the kernel from executing a file on that mount. `sh /tmp/x` still runs, because `sh` is on `/usr`. dpkg's maintainer-script directory was not re-read this session. **[Assumption]** those scripts run from `/var/lib/dpkg`. Paste 1 does not install a package. The gated install, once it is allowed to run, runs while `/tmp` still allows execution. The first later `apt-get install` after Paste 2 is the real apt-under-noexec test. Rollback of the mounts does not need a reboot while SSH is up.
 
 A2 and A2b have not been through a boot. Paste 3 is that boot. The after-login block is the A2/A2b gate plus the TPM re-check.
 
 ## Paste 1 — recoverable steps
 
-One block. `sudo -v` is the first line. The initrd copy and both hashes happen before the banner, the timer, apt, and the package install.
+One block. `sudo -v` is the first line. The initrd copy and both hashes happen before the banner, the timer, and apt. There is no package install in this block. `apt-get` is given `</dev/null` so it cannot read the rest of the script. `NEEDRESTART_MODE=l` is list-only: https://manpages.ubuntu.com/manpages/resolute/man1/needrestart.1.html (`NEEDRESTART_MODE` overrides the restart mode; `l` is list only).
+
+A second run keeps an existing `/boot/initrd.img-7.0.0-42-generic.pre-batch5` when its hash is `f0a42b98383cce09397c4fa998a518a1452ed303701a732e390e5433137618a7`. It does not overwrite `/root/issue.pre-batch5`, `/root/issue.net.pre-batch5`, or `/root/ubuntu.sources.pre-batch5` when those files already exist.
 
 ```
 sudo -v
 sudo bash <<'EOF'
 set -euo pipefail
 export LC_ALL=C
+known=f0a42b98383cce09397c4fa998a518a1452ed303701a732e390e5433137618a7
+src_sha=077ad25a51b484eae9bebddd027b18e11d85ec7b69aa0d817e7960b631fa5c8a
 [ "$(uname -r)" = "7.0.0-42-generic" ]
 [ "$(systemctl --failed --no-pager --plain | tail -1)" = "0 loaded units listed." ]
 [ "$(stat -c '%s %y' /boot/initrd.img-7.0.0-42-generic)" = "42618411 2026-11-03 06:13:32.840646209 +0000" ]
 [ ! -e /run/reboot-required ]
-[ ! -e /boot/initrd.img-7.0.0-42-generic.pre-batch5 ]
 [ "$(ls /boot/vmlinuz-*)" = "/boot/vmlinuz-7.0.0-42-generic" ]
-avail=$(df -P /boot | awk 'NR==2 {print $4}')
-[ "$avail" -gt 100000 ]
-install -d -o aj -g "$(id -gn aj)" -m 0755 /home/aj/cis-audit
-cp -a /boot/initrd.img-7.0.0-42-generic /boot/initrd.img-7.0.0-42-generic.pre-batch5
 h1=$(sha256sum /boot/initrd.img-7.0.0-42-generic | awk '{print $1}')
-h2=$(sha256sum /boot/initrd.img-7.0.0-42-generic.pre-batch5 | awk '{print $1}')
-[ "$h1" = "$h2" ]
-[ "$h1" = "f0a42b98383cce09397c4fa998a518a1452ed303701a732e390e5433137618a7" ]
+if [ "$h1" != "$known" ]; then
+  echo STOP-initrd-live
+  exit 1
+fi
+install -d -o aj -g "$(id -gn aj)" -m 0755 /home/aj/cis-audit
+if [ -e /boot/initrd.img-7.0.0-42-generic.pre-batch5 ]; then
+  h2=$(sha256sum /boot/initrd.img-7.0.0-42-generic.pre-batch5 | awk '{print $1}')
+  if [ "$h2" != "$known" ]; then
+    echo STOP-initrd-copy
+    exit 1
+  fi
+  echo initrd-copy-kept
+else
+  avail=$(df -P /boot | awk 'NR==2 {print $4}')
+  [ "$avail" -gt 100000 ]
+  cp -a /boot/initrd.img-7.0.0-42-generic /boot/initrd.img-7.0.0-42-generic.pre-batch5
+  h2=$(sha256sum /boot/initrd.img-7.0.0-42-generic.pre-batch5 | awk '{print $1}')
+  [ "$h2" = "$known" ]
+fi
 sha256sum /boot/initrd.img-7.0.0-42-generic > /home/aj/cis-audit/initrd-sha256-pre-batch5.txt
 sha256sum /boot/initrd.img-7.0.0-42-generic.pre-batch5 > /home/aj/cis-audit/initrd-copy-sha256-pre-batch5.txt
 chown aj:"$(id -gn aj)" /home/aj/cis-audit/initrd-sha256-pre-batch5.txt /home/aj/cis-audit/initrd-copy-sha256-pre-batch5.txt
@@ -121,13 +136,23 @@ grep -qx crypt /home/aj/cis-audit/initrd-mods-pre-batch5.txt
 grep -qx systemd-cryptsetup /home/aj/cis-audit/initrd-mods-pre-batch5.txt
 grep -qx tpm2-tss /home/aj/cis-audit/initrd-mods-pre-batch5.txt
 chown aj:"$(id -gn aj)" /home/aj/cis-audit/initrd-mods-pre-batch5.txt
-cp -a /etc/issue /root/issue.pre-batch5
-cp -a /etc/issue.net /root/issue.net.pre-batch5
+if [ -e /root/issue.pre-batch5 ]; then
+  echo keep /root/issue.pre-batch5
+else
+  cp -a /etc/issue /root/issue.pre-batch5
+fi
+if [ -e /root/issue.net.pre-batch5 ]; then
+  echo keep /root/issue.net.pre-batch5
+else
+  cp -a /etc/issue.net /root/issue.net.pre-batch5
+fi
 printf '%s\n' 'Authorized use only. Activity is monitored.' > /etc/issue
 printf '%s\n' 'Authorized use only. Activity is monitored.' > /etc/issue.net
 chown root:root /etc/issue /etc/issue.net
 chmod 0644 /etc/issue /etc/issue.net
 if grep -q Ubuntu /etc/issue /etc/issue.net; then
+  cp -a /root/issue.pre-batch5 /etc/issue
+  cp -a /root/issue.net.pre-batch5 /etc/issue.net
   echo STOP-banner
   exit 1
 fi
@@ -138,43 +163,53 @@ out=$(apt-config dump Acquire::Check-Date)
 printf '%s\n' "$out"
 case "$out" in
   *true*) ;;
-  *) echo STOP-check-date; exit 1 ;;
+  *) rm -f /etc/apt/apt.conf.d/60-johnny-cis-check-date.conf; echo STOP-check-date; exit 1 ;;
 esac
 systemctl disable --now update-notifier-motd.timer
 en=$(systemctl is-enabled update-notifier-motd.timer || true)
 ac=$(systemctl is-active update-notifier-motd.timer || true)
 [ "$en" = disabled ]
 [ "$ac" = inactive ]
-sim=$(apt-get -s install --no-install-recommends apparmor-utils)
-printf '%s\n' "$sim"
-printf '%s\n' "$sim" | grep -qx '0 upgraded, 3 newly installed, 0 to remove and 0 not upgraded.'
-DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends apparmor-utils
-got=$(dpkg-query -W -f '${Version}\n' apparmor apparmor-utils python3-apparmor python3-libapparmor | sort -u)
-[ "$got" = "5.0.2-0ubuntu1~26.04.1" ]
-if ! sha256sum -c /home/aj/cis-audit/initrd-sha256-pre-batch5.txt; then
-  cp -a /boot/initrd.img-7.0.0-42-generic.pre-batch5 /boot/initrd.img-7.0.0-42-generic
-  sha256sum -c /home/aj/cis-audit/initrd-sha256-pre-batch5.txt
-  echo STOP-initrd-restored
-  exit 1
+src=/etc/apt/sources.list.d/ubuntu.sources
+bak=/root/ubuntu.sources.pre-batch5
+http_n=$(grep -cE '^URIs: http://' "$src" || true)
+https_n=$(grep -cE '^URIs: https://' "$src" || true)
+if [ -e "$bak" ] && [ "$https_n" = 2 ] && [ "$http_n" = 0 ]; then
+  bak_h=$(sha256sum "$bak" | awk '{print $1}')
+  if [ "$bak_h" != "$src_sha" ]; then
+    echo STOP-sources-backup
+    exit 1
+  fi
+  echo sources-already-https
+else
+  if [ "$(sha256sum "$src" | awk '{print $1}')" != "$src_sha" ] || [ "$http_n" != 2 ] || [ "$https_n" != 0 ]; then
+    echo STOP-sources-pre
+    exit 1
+  fi
+  if [ -e "$bak" ]; then
+    bak_h=$(sha256sum "$bak" | awk '{print $1}')
+    if [ "$bak_h" != "$src_sha" ]; then
+      echo STOP-sources-backup
+      exit 1
+    fi
+    echo keep "$bak"
+  else
+    cp -a "$src" "$bak"
+  fi
+  sed -i 's|^URIs: http://|URIs: https://|' "$src"
+  http_n=$(grep -cE '^URIs: http://' "$src" || true)
+  https_n=$(grep -cE '^URIs: https://' "$src" || true)
+  uri_n=$(grep -cE '^URIs: ' "$src" || true)
+  if [ "$http_n" != 0 ] || [ "$https_n" != 2 ] || [ "$uri_n" != 2 ] \
+    || ! grep -qx 'URIs: https://us.archive.ubuntu.com/ubuntu/' "$src" \
+    || ! grep -qx 'URIs: https://security.ubuntu.com/ubuntu/' "$src"; then
+    cp -a "$bak" "$src"
+    echo STOP-sources-result
+    exit 1
+  fi
 fi
-cp -a /etc/apt/sources.list.d/ubuntu.sources /root/ubuntu.sources.pre-batch5
-cat > /etc/apt/sources.list.d/ubuntu.sources <<'SOURCES'
-Types: deb
-URIs: https://us.archive.ubuntu.com/ubuntu/
-Suites: resolute resolute-updates resolute-backports
-Components: main restricted universe multiverse
-Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-
-Types: deb
-URIs: https://security.ubuntu.com/ubuntu/
-Suites: resolute-security
-Components: main restricted universe multiverse
-Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-SOURCES
-chown root:root /etc/apt/sources.list.d/ubuntu.sources
-chmod 0644 /etc/apt/sources.list.d/ubuntu.sources
-if ! apt-get update; then
-  cp -a /root/ubuntu.sources.pre-batch5 /etc/apt/sources.list.d/ubuntu.sources
+if ! NEEDRESTART_MODE=l apt-get update </dev/null; then
+  cp -a "$bak" "$src"
   echo STOP-apt-update
   exit 1
 fi
@@ -190,13 +225,54 @@ echo OK-paste-1
 EOF
 ```
 
-Expected: both initrd hashes equal `f0a42b98383cce09397c4fa998a518a1452ed303701a732e390e5433137618a7`, `sha256sum -c` prints `OK` twice, the three dracut module names are present, `apt-config` prints a line containing `true`, the timer is `disabled` and `inactive`, the simulation line matches, four package versions match, `apt-get update` exits 0, `ssh.socket` stays `active`, and the last line is `OK-paste-1`. `dpkg --verify base-files` will flag `/etc/issue` and `/etc/issue.net`. That is the intended conffile edit.
+Expected: the live initrd hash and the copy hash are both `f0a42b98383cce09397c4fa998a518a1452ed303701a732e390e5433137618a7`. A second run prints `initrd-copy-kept` and does not copy again. The three dracut module names are present. `apt-config` prints a line containing `true`. The timer is `disabled` and `inactive`. After `sed`, the file has two `URIs:` lines and no `http://` URI line: `https://us.archive.ubuntu.com/ubuntu/` and `https://security.ubuntu.com/ubuntu/`. `apt-get update` exits 0. `ssh.socket` stays `active`. The last line is `OK-paste-1`.
 
-`needrestart` on this host is Ubuntu mode (`-m u` in `/etc/apt/apt.conf.d/99needrestart`). Its README says that from Ubuntu 24.04 the default does not show a Debconf prompt and restarts affected services. **[Assumption]** the three new packages are not mapped into a running process, so nothing restarts. A failed unit or a dead `ssh.socket` is a stop.
+`dpkg --verify base-files` will flag `/etc/issue` and `/etc/issue.net`. `dpkg -S /etc/apt/sources.list.d/ubuntu.sources` still finds no package. That file is not a conffile residual. resolute `sources.list(5)` documents the `https` scheme: https://manpages.ubuntu.com/manpages/resolute/man5/sources.list.5.html . `Acquire::Check-Date` defaults to true: https://manpages.ubuntu.com/manpages/resolute/man5/apt.conf.5.html . HTTPS for both InRelease files was fetched from this session, not from Johnny. Johnny's `apt-get update` is the proof on the host.
 
-`apparmor-utils` has no initramfs hook in its installed file list (https://packages.ubuntu.com/resolute-updates/all/apparmor-utils/filelist). A dpkg `triggers` control member would not show in that list. **[Assumption]** none of the three packages activates `update-initramfs`. The hash check is the stop if that is wrong. Restoring the image does not remove the packages.
+### After a STOP
 
-HTTPS was fetched from this session, not from Johnny: `https://us.archive.ubuntu.com/ubuntu/dists/resolute/InRelease` (Origin Ubuntu, Suite resolute) and `https://security.ubuntu.com/ubuntu/dists/resolute-security/InRelease` (Origin Ubuntu, Suite resolute-security, Date Tue, 03 Nov 2026). resolute `sources.list(5)` documents the `https` scheme: https://manpages.ubuntu.com/manpages/resolute/man5/sources.list.5.html . `Acquire::Check-Date` defaults to true: https://manpages.ubuntu.com/manpages/resolute/man5/apt.conf.5.html . Johnny's `apt-get update` is the proof that this host can use the new URIs. A failure restores `ubuntu.sources` and exits. The packages and the Check-Date file stay; the rollback block removes them.
+The script exits before `OK-paste-1`. Do not start Paste 2. Do not reboot. Leave every `.pre-batch5` file in place.
+
+| Line | What is true | What to do |
+|---|---|---|
+| `STOP-initrd-live` | The live initrd hash is not the Batch 4 hash. No copy was made by this run. | Stop. Tell the Brain the live hash. If `.pre-batch5` is already the known hash, the recovery copy under Recovery is the way back. |
+| `STOP-initrd-copy` | `.pre-batch5` exists and its hash is not the known hash. The script did not overwrite it. | Stop. Tell the Brain both hashes. Do not delete the copy. |
+| `STOP-banner` | The script put the issue backups back. | Read `/etc/issue` and `/etc/issue.net`. Tell the Brain. |
+| `STOP-check-date` | The script removed `60-johnny-cis-check-date.conf`. The banner and the timer change from this run stay. | Tell the Brain the `apt-config` line. |
+| `STOP-sources-pre` | `ubuntu.sources` is not the recorded file (hash `077ad25a…`, two `^URIs: http://` lines, no `https` URI). Nothing was edited. | Stop. Tell the Brain. |
+| `STOP-sources-backup` | `/root/ubuntu.sources.pre-batch5` exists and is not that recorded hash. The live file was not edited by this run. | Stop. Do not delete the backup. Tell the Brain. |
+| `STOP-sources-result` | `sed` did not leave exactly the two https URI lines. The script copied the backup back. | Tell the Brain. A later run can try again. |
+| `STOP-apt-update` | `apt-get update` failed. The script copied the backup back, so the URI lines are `http://` again. The banner, the Check-Date file, and the timer change stay. | Read the apt output. Tell the Brain. A later run of Paste 1 is safe: the initrd copy and the three `/root` backups are kept, and `sed` runs again. |
+| `STOP-initrd-restored` | Something rebuilt the live initrd. The script copied `.pre-batch5` back and `sha256sum -c` printed `OK`. | Stop. Tell the Brain what apt printed. Do not reboot. |
+
+### Install block (not part of Paste 1)
+
+This block stays out of Paste 1 until both of these are true: Governance's vet of `apparmor-utils`, `python3-apparmor`, and `python3-libapparmor` is in the repo, and the handoff SBOM has a row for each. The simulation gate is the same one read on 2026-11-04. `NEEDRESTART_MODE=l` and `</dev/null` apply here too. **[Assumption]** none of the three packages activates `update-initramfs`. The file list of `apparmor-utils` has no initramfs hook (https://packages.ubuntu.com/resolute-updates/all/apparmor-utils/filelist). A dpkg `triggers` member would not show in that list. The hash check is the stop if the assumption is wrong.
+
+```
+sudo -v
+sudo bash <<'EOF'
+set -euo pipefail
+export LC_ALL=C
+sim=$(NEEDRESTART_MODE=l apt-get -s install --no-install-recommends apparmor-utils </dev/null)
+printf '%s\n' "$sim"
+printf '%s\n' "$sim" | grep -qx '0 upgraded, 3 newly installed, 0 to remove and 0 not upgraded.'
+NEEDRESTART_MODE=l DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends apparmor-utils </dev/null
+got=$(dpkg-query -W -f '${Version}\n' apparmor apparmor-utils python3-apparmor python3-libapparmor | sort -u)
+[ "$got" = "5.0.2-0ubuntu1~26.04.1" ]
+if ! sha256sum -c /home/aj/cis-audit/initrd-sha256-pre-batch5.txt; then
+  cp -a /boot/initrd.img-7.0.0-42-generic.pre-batch5 /boot/initrd.img-7.0.0-42-generic
+  sha256sum -c /home/aj/cis-audit/initrd-sha256-pre-batch5.txt
+  echo STOP-initrd-restored
+  exit 1
+fi
+[ "$(systemctl --failed --no-pager --plain | tail -1)" = "0 loaded units listed." ]
+[ "$(systemctl is-active ssh.socket)" = active ]
+echo OK-apparmor-utils
+EOF
+```
+
+`STOP-initrd-restored` here means the same thing as in Paste 1: the image was put back, the packages stay installed, and the reboot is not next.
 
 ## Paste 2 — mount steps
 
@@ -215,6 +291,7 @@ if grep -E '[[:space:]]/dev/shm[[:space:]]' /etc/fstab; then
 fi
 h0=$(sha256sum /etc/fstab | awk '{print $1}')
 [ "$h0" = "065034aa079d9d208683d9b977e8b34b167ddac39ca85809d02776cfb835ce69" ]
+[ "$(tail -c1 /etc/fstab | wc -l)" -eq 1 ]
 cp -a /etc/fstab /root/fstab.pre-batch5
 h1=$(sha256sum /etc/fstab | awk '{print $1}')
 h2=$(sha256sum /root/fstab.pre-batch5 | awk '{print $1}')
@@ -261,12 +338,12 @@ tmp_opts=$(findmnt -kn -o OPTIONS /tmp)
 shm_opts=$(findmnt -kn -o OPTIONS /dev/shm)
 printf '%s\n' "$tmp_opts" "$shm_opts"
 for flag in nosuid nodev noexec; do
-  case "$tmp_opts" in
-    *"$flag"*) ;;
+  case ",$tmp_opts," in
+    *,"$flag",*) ;;
     *) echo "STOP-tmp-$flag"; false ;;
   esac
-  case "$shm_opts" in
-    *"$flag"*) ;;
+  case ",$shm_opts," in
+    *,"$flag",*) ;;
     *) echo "STOP-shm-$flag"; false ;;
   esac
 done
@@ -290,7 +367,7 @@ echo OK-paste-2
 EOF
 ```
 
-Expected: `sha256sum -c` prints `OK` at the start and again at the end. `findmnt --verify` still contains `0 parse errors, 0 errors`. The existing `/swap.img` warning may remain. Both `findmnt` lines contain `nosuid`, `nodev`, and `noexec`. Both test binaries are refused. The last line is `OK-paste-2`. A `STOP-mount-restore` line means the backup is back in place and the reboot paste is not next.
+Expected: `sha256sum -c` prints `OK` at the start and again at the end. `findmnt --verify` still contains `0 parse errors, 0 errors`. The existing `/swap.img` warning may remain. The fstab already ends in a newline (`tail -c1 | wc -l` is 1; checked on Johnny 2026-11-04), so the appended `/dev/shm` line does not glue to `/swap.img`. Each of `nosuid`, `nodev`, and `noexec` is matched as its own comma-separated field. Both test binaries are refused. The last line is `OK-paste-2`. A `STOP-mount-restore` line means the backup is back in place and the reboot paste is not next.
 
 `findmnt --verify` as non-root this session was `0 parse errors, 0 errors, 5 warnings` (permission denied on filesystem type, plus the swap-file warning). Root may print fewer warnings. An error count other than 0 restores.
 
@@ -319,15 +396,18 @@ if pgrep -a -x unattended-upgrade || pgrep -a -x apt-get || pgrep -a -x apt; the
   echo STOP-upgrade
   exit 1
 fi
+grep -qx 'tmpfs /dev/shm tmpfs rw,nosuid,nodev,noexec,inode64,usrquota 0 0' /etc/fstab
+grep -qx 'Options=mode=1777,strictatime,nosuid,nodev,noexec,size=50%%,nr_inodes=1m,x-systemd.graceful-option=usrquota' /etc/systemd/system/tmp.mount.d/60-johnny-cis-noexec.conf
+[ "$(stat -c '%a %U:%G' /etc/systemd/system/tmp.mount.d/60-johnny-cis-noexec.conf)" = "644 root:root" ]
 tmp_opts=$(findmnt -kn -o OPTIONS /tmp)
 shm_opts=$(findmnt -kn -o OPTIONS /dev/shm)
 for flag in nosuid nodev noexec; do
-  case "$tmp_opts" in
-    *"$flag"*) ;;
+  case ",$tmp_opts," in
+    *,"$flag",*) ;;
     *) echo "STOP-tmp-$flag"; exit 1 ;;
   esac
-  case "$shm_opts" in
-    *"$flag"*) ;;
+  case ",$shm_opts," in
+    *,"$flag",*) ;;
     *) echo "STOP-shm-$flag"; exit 1 ;;
   esac
 done
@@ -336,7 +416,7 @@ systemctl reboot
 EOF
 ```
 
-`unattended-upgrades.service` may stay active. Its process is the shutdown helper, and the name check above does not treat that helper as an upgrade. `sha256sum -c` on `fstab-sha256-pre-batch5.txt` checks `/root/fstab.pre-batch5`, the copy taken before the edit, so the live fstab can already contain the `/dev/shm` line.
+`unattended-upgrades.service` may stay active. Its process is the shutdown helper, and the name check above does not treat that helper as an upgrade. `sha256sum -c` on `fstab-sha256-pre-batch5.txt` checks `/root/fstab.pre-batch5`, the copy taken before the edit, so the live fstab can already contain the `/dev/shm` line. Before the reboot the script also requires that live line, the drop-in `Options=` line, and mode `644 root:root` on the drop-in. The three mount flags are matched as comma-separated fields, same as Paste 2.
 
 The KVM watch is the TPM check. A passphrase prompt is a stop, as written under Recovery.
 
@@ -354,7 +434,7 @@ uptime -p
 [ "$(systemctl --failed --no-pager --plain | tail -1)" = "0 loaded units listed." ]
 [ "$(systemctl show systemd-modules-load.service -p Result --value)" = success ]
 [ "$(systemctl show systemd-modules-load.service -p ExecMainStatus --value)" = 0 ]
-if journalctl -b -u systemd-modules-load.service -p err --no-pager | grep -q .; then
+if journalctl -q -b -u systemd-modules-load.service -p err --no-pager | grep -q .; then
   echo STOP-modules-load-journal
   exit 1
 fi
@@ -366,12 +446,12 @@ tmp_opts=$(findmnt -kn -o OPTIONS /tmp)
 shm_opts=$(findmnt -kn -o OPTIONS /dev/shm)
 printf '%s\n' "$tmp_opts" "$shm_opts"
 for flag in nosuid nodev noexec; do
-  case "$tmp_opts" in
-    *"$flag"*) ;;
+  case ",$tmp_opts," in
+    *,"$flag",*) ;;
     *) echo "STOP-tmp-$flag"; exit 1 ;;
   esac
-  case "$shm_opts" in
-    *"$flag"*) ;;
+  case ",$shm_opts," in
+    *,"$flag",*) ;;
     *) echo "STOP-shm-$flag"; exit 1 ;;
   esac
 done
@@ -404,11 +484,11 @@ EOF
 Expected:
 
 - `0 loaded units listed.`
-- `systemd-modules-load`: `Result=success`, `ExecMainStatus=0`, and no priority-err journal line. `is-failed` printing `active` is the success state from before the reboot and is not a failure.
+- `systemd-modules-load`: `Result=success`, `ExecMainStatus=0`, and no priority-err journal line. `journalctl -q` is required. Without it, an empty filter prints `-- No entries --` and `grep -q .` stops a clean boot. Checked on Johnny 2026-11-04 (`systemd` 259.9-0ubuntu0.1): the plain command printed those 17 bytes and exited 0; `journalctl -q` printed nothing and exited 0. resolute `journalctl(1)` describes `-q` as suppressing informational messages: https://manpages.ubuntu.com/manpages/resolute/man1/journalctl.1.html . The man page's examples are `-- Journal begins at ...` and `-- Reboot --`. **[Assumption]** `-- No entries --` is in that class on 26.04. The Johnny check above is the evidence for this host. `is-failed` printing `active` is the success state from before the reboot and is not a failure.
 - The 59 filesystem names and `overlay` each print `0`. `ksmbd` prints `1`. A `0` on `ksmbd` means the check is blind. The awk requires 60 zeros and one `1`.
 - `diff` prints nothing. `crypt`, `systemd-cryptsetup`, and `tpm2-tss` are in the live module list.
 - `sha256sum -c` prints `/boot/initrd.img-7.0.0-42-generic: OK`.
-- `/tmp` and `/dev/shm` still contain `nosuid`, `nodev`, and `noexec`. The full option string may differ from the live remount, because the next boot applies the unit and the fstab line. The three flags are the pass.
+- `/tmp` and `/dev/shm` still have `nosuid`, `nodev`, and `noexec` as their own comma-separated fields. The full option string may differ from the live remount, because the next boot applies the unit and the fstab line. The three flags are the pass.
 - Cryptsetup `Result=success` and `ExecMainStatus=0`. `systemd-ask-password-console.service` is `inactive`. Those unit reads do not show whether a person typed the passphrase. The KVM watch is the TPM re-check.
 - Last line `OK-boot-gate`.
 
@@ -449,8 +529,8 @@ cp -a /root/issue.net.pre-batch5 /etc/issue.net
 rm -f /etc/apt/apt.conf.d/60-johnny-cis-check-date.conf
 cp -a /root/ubuntu.sources.pre-batch5 /etc/apt/sources.list.d/ubuntu.sources
 systemctl enable --now update-notifier-motd.timer
-DEBIAN_FRONTEND=noninteractive apt-get remove -y apparmor-utils python3-apparmor python3-libapparmor
-apt-get update
+NEEDRESTART_MODE=l DEBIAN_FRONTEND=noninteractive apt-get remove -y apparmor-utils python3-apparmor python3-libapparmor </dev/null
+NEEDRESTART_MODE=l apt-get update </dev/null
 if ! sha256sum -c /home/aj/cis-audit/initrd-sha256-pre-batch5.txt; then
   cp -a /boot/initrd.img-7.0.0-42-generic.pre-batch5 /boot/initrd.img-7.0.0-42-generic
   sha256sum -c /home/aj/cis-audit/initrd-sha256-pre-batch5.txt
