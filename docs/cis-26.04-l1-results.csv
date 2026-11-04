@@ -56,7 +56,7 @@ id,title,level,result,evidence,date
 1.5.7,Ensure Automatic Error Reporting is configured,L1,PASS,"enabled=0; apport.service inactive and masked; cis-1.5-audit.sh printed nothing for 1.5.7 (2026-11-04)",2026-11-04
 1.5.8,Ensure kernel.kptr_restrict is configured,L1,PASS,"running 1; set in /usr/lib/sysctl.d/55-kernel-hardening.conf (CIS recommends also an /etc/sysctl.d/ file)",2026-10-30
 1.5.9,Ensure kernel.randomize_va_space is configured,L1,PASS,"running 2; set to 2 in /etc/sysctl.d/60-johnny-cis-kernel.conf (cis-1.5-audit.sh 2026-11-04)",2026-11-04
-1.5.10,Ensure core file size is configured,L1,FAIL,"local divert of /etc/security/limits.d/10-coredump-debian.conf to the .distrib name in the same directory; that file still has * hard core infinity and the limits.d/* grep still prints it. 60-johnny-cis-core.conf has * hard core 0. Move outside limits.d not run yet.",2026-11-04
+1.5.10,Ensure core file size is configured,L1,PASS,"cis-1.5-audit.sh after the move prints only /etc/security/limits.d/60-johnny-cis-core.conf:* hard core 0. The vendor file is diverted to /root/10-coredump-debian.conf.distrib (182 bytes, 0644 root:root).",2026-11-04
 1.5.11,Ensure systemd-coredump ProcessSizeMax is configured,L1,PASS,"systemd-coredump not installed (CIS: passing state)",2026-10-30
 1.5.12,Ensure systemd-coredump Storage is configured,L1,PASS,"systemd-coredump not installed (CIS: passing state)",2026-10-30
 1.6.1,Ensure /etc/motd is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: /etc/motd and /etc/motd.d still absent; grep returned nothing (CIS: nothing returned)",2026-11-03
