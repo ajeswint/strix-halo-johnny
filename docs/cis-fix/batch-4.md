@@ -337,7 +337,7 @@ stat -c '%s %y' /boot/initrd.img-7.0.0-42-generic
 ```
 Ran with the delete and A2b. The 59 names and `overlay` each printed `0`. `ksmbd` printed `1`. Initrd printed `42618411 2026-11-03 06:13:32.840646209 +0000`.
 
-After A2/A2b, the CIS script will still list the keep set as loadable. That is the manual part: Governance judges 1.1.1.11 PASS (manual) if AJ accepts the keep set, or FAIL (manual) with the reason. `ksmbd` is part of that judgment. A module blocked here but needed later is unblocked by deleting its line or the file; no rebuild is needed.
+After A2/A2b, the CIS script will still list the keep set as loadable. Judgment (2026-11-04T07:26:18Z): PASS (manual). The script listed mounted `xfs`, loaded `autofs4`, and loadable `pstore_blk`, `pstore_zone`, and `ramoops`. `binfmt_misc` and `nls` stay kept and are outside what that script lists. `ksmbd` stays an exception: `modprobe -n` still inserts it. `dpkg-query` found no `ksmbd-tools`, and `ss` found no listener on 139 or 445. A module blocked here but needed later is unblocked by deleting its line or the file; no rebuild is needed.
 
 ### A3. Verification (read-only, no sudo)
 ```
