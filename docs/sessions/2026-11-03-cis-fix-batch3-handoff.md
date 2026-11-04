@@ -6,9 +6,9 @@ Repo `ajeswint/strix-halo-johnny`; `git pull` first. Read `AGENTS.md`, `README.m
 
 **Method, batch table, owed decisions, "every change" steps and the Don't list:** `docs/sessions/2026-10-31-cis-fix-handoff.md`. That brief still holds, except where this one and `2026-11-03-cis-fix-batch2-handoff.md` update it (re-check verdicts edited in place; mode-only changes as Config changes rows; log group `root adm` 0640).
 
-## Summary (2026-11-03 20:06 CT)
+## Summary (2026-11-03 20:20 CT)
 
-Batch 3 is applied and signed off. Johnny is otherwise unchanged since Batch 2. Full state is `docs/os-handoff.md` rev 34 (`0fa0ac9` and later). Claude reviewed C4, A1b, and the checkpoint results, not C1–C10 in full.
+Batch 3 is applied. Claude's sign-off is C4, A1b and the checkpoints only. B5 passed. The 05:00 UTC run, the second C9, and the re-audits are pending. Johnny is otherwise unchanged since Batch 2. Full state is `docs/os-handoff.md` rev 36. Rev 35's summary said rev 34 (`0fa0ac9` and later); that pointer is rev 35 (`1f917c8`). Claude reviewed C4, A1b, and the checkpoint results, not C1–C10 in full.
 
 **On Johnny**
 - Group A: journald cap `SystemMaxUse=1G` (was `max 4G`). Drop-in `/etc/systemd/journald.conf.d/60-rotation.conf`. Reload 09:22:46 UTC, same process. Seven journal files `640 root:systemd-journal`.
@@ -17,16 +17,19 @@ Batch 3 is applied and signed off. Johnny is otherwise unchanged since Batch 2. 
 - CIS totals are still **151 pass, 100 fail, 23 N/A** until Governance re-audits.
 
 **Who does what next**
-- Grok, read-only: B5 after 00:30 UTC Nov 4 (6:30 pm CT Nov 3). That window is open. Commands are in `docs/cis-fix/batch-3.md` B5. Not run yet.
+- B5 has run (Grok, read-only, ~02:08 UTC Nov 4). `Finished logrotate.service - Rotate log files.` at 00:00:47 UTC. `is-failed` printed `inactive` (exit 1). No `error:` line. The recorded next elapse was 00:23 UTC; that difference was not checked. Output is in `docs/cis-fix/batch-3.md` B5.
 - The AIDE timer fires at 05:00 UTC Nov 4 (11:00 pm CT Nov 3).
-- Grok, read-only, on the later Central morning of Nov 4: C8, the no-sudo C9 lines, and `journalctl -u dailyaidecheck.service --since today --no-pager | tail -5` (expect `Finished`). That window lasts until 00:00 UTC Nov 5 (6:00 pm CT Nov 4).
-- AJ: the sudo C9 lines, shown first.
+- Trigger for the second pass: **AJ says go**, on the later Central morning of Nov 4. **[Assumption]** no clock time was named. The window lasts until 00:00 UTC Nov 5 (6:00 pm CT Nov 4).
+- Timezone check first (Grok, read-only): `timedatectl show -p Timezone --value`. Confirmed 2026-11-04: `Etc/UTC`. `--since today` depends on it.
+- AJ, shown first, sudo C9 lines 2, 6, 7, 11, 13, 15.
+- Grok, no sudo: C8; C9 lines 1, 3, 5, 8–10; line 4 unless it returns permission denied (then AJ runs it with sudo); lines 12, 14, 16 once AJ's files exist; `journalctl -u dailyaidecheck.service --since today --no-pager | tail -5` (expect `Finished`); the 05:00 run's total, added, removed, and changed counts.
 - Governance: re-audit 6.1.1.1.5, 6.1.2.7, 6.3.1, and 6.3.2.
 - Batch 4 after those re-audits. Not started.
 
 **Still open**
-- Entry count: init 111497, C6 total 111499, added 1, removed 0. One short of the arithmetic. Not a stop.
+- Entry count: init 111497 + 1 added = 111498. C6's total line says 111499. Removed 0, changed 5. The added path, re-read by `aj` with no sudo, is `/run/systemd/journal/streams/10:47893`. The gap of 1 stays unreconciled. Not a stop.
 - B5 also on 2026-11-08 and 2026-12-01.
+- GR1 (after 00:10 UTC 2026-11-04) was not run this session.
 - DMT Console `jwtKey` and admin password are still not rotated.
 
 ## Where it stands
@@ -49,7 +52,7 @@ Batch 3 is applied and signed off. Johnny is otherwise unchanged since Batch 2. 
 - **Claude's review of `44efe85` (2026-11-03): approve with changes.** Scope Claude actually reviewed: C4 and A1b. C1–C10 were not reviewed beyond C4, per AJ. Two fixes, both applied by Grok in `docs/cis-fix/batch-3.md` rev 4. C4 (Medium): `--add root mail 0755` so the override changes the mode only; expected output is `755 root:mail` and `root mail 755`; the rollback `chmod 2755` then leaves group `mail`. A1b (Low): the block is below A2; it runs `journalctl -u systemd-journald -n 6 --no-pager` and `journalctl --disk-usage` after `journalctl --rotate`; the SIGUSR2 claim is dropped; the new file's `640` mode is **[Assumption]**. The rev 2 findings file still shows GC6 as `root root 755`. That line is not the current expected output. The writer does not edit the findings file.
 - **Apply path (AJ, 2026-11-03).** Grok is local and drives the apply. Grok runs the read-only SSH checks. AJ runs every sudo block, and Grok shows that block first. Claude reviews the rev 4 commit before Group A, then reviews at the end of each group and at the C6 gate. Stop on any error and paste it. No console needed, no reboot. Re-run `apt-get -s` at apply time and stop if `postfix` appears. Commands one block at a time. Group A, then B, then C.
 - **Files:** the rev 3 draft, AIDE vetting, and the rev 2 review were committed in `de05a74`. The rev 3 spot-check addendum and S1 are in `bca0b41` (handoff rev 23). The spelling confirmation in the draft is in `c34b4c5` (handoff rev 24). Handoff rev 25 takes the writer's sentence back out of the findings file. After install: record `_aide`, the 4 `.deb` hashes, R-AIDE-1 (accepted) in the SBOM, Config changes and risk register; re-run the three CIS 2.1.13/2.2.4/2.2.6 lines and GR1-GR4.
-- **Johnny:** Batch 3 Groups A, B, and C are applied through C9. Claude signed off `de0113e` and did not review C1–C10 in full. **Owners:** Grok (read-only) runs B5 after 00:30 UTC on 2026-11-04 (6:30 pm CT on 2026-11-03). The 05:00 UTC AIDE run is 11:00 pm CT that night. Grok (read-only) runs C8, the no-sudo C9 lines, and the `Finished` journal check on the second pass. AJ runs the sudo C9 lines, shown first. `--since today` covers that run until 00:00 UTC on 2026-11-05 (6:00 pm CT on 2026-11-04). Governance then re-audits 6.1.1.1.5, 6.1.2.7, 6.3.1, and 6.3.2. Batch 4 is after that. AJ chose the later Central morning on 2026-11-04 for that pass, not 06:30 UTC (12:30 am CT). `aide.db.new` from C6 is left alone.
+- **Johnny:** Batch 3 Groups A, B, and C are applied through the first C9. Claude's sign-off on `de0113e` is C4, A1b, and the checkpoints only. **Owners:** B5 has passed (Grok, read-only, 2026-11-04 00:00:47 UTC). The 05:00 UTC AIDE run is 11:00 pm CT that night. The second pass starts when AJ says go. AJ runs sudo C9 lines 2, 6, 7, 11, 13, and 15, shown first. Grok runs C8, the no-sudo C9 lines (1, 3, 5, 8–10, then 12, 14, 16), line 4 unless permission denied, and the `Finished` journal check. `--since today` covers that run until 00:00 UTC on 2026-11-05 (6:00 pm CT on 2026-11-04) while timezone stays `Etc/UTC`. Governance then re-audits 6.1.1.1.5, 6.1.2.7, 6.3.1, and 6.3.2. Batch 4 is after that. `aide.db.new` from C6 is left alone.
 - **Open, not blocking:** rotate the exposed DMT Console `jwtKey` and admin password; test the console's power buttons on purpose; the 2026-11-01 KVM method is an assumption. KVM works via the Johnny KVM Desktop icon on rock-box (login username `standalone`, device "Johnny Mgmt.").
 - **Token note (AJ, 2026-11-03):** usage credits are being spent; keep agent runs few and short, one spot-check at most per draft.
 
