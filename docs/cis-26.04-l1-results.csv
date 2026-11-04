@@ -10,11 +10,11 @@ id,title,level,result,evidence,date
 1.1.2.1.1,Ensure /tmp is tmpfs or a separate partition,L1,PASS,"/tmp tmpfs tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,usrquota; tmp.mount static (not masked/disabled)",2026-10-30
 1.1.2.1.2,Ensure nodev option set on /tmp partition,L1,PASS,"/tmp tmpfs tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,usrquota",2026-10-30
 1.1.2.1.3,Ensure nosuid option set on /tmp partition,L1,PASS,"/tmp tmpfs tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,usrquota",2026-10-30
-1.1.2.1.4,Ensure noexec option set on /tmp partition,L1,FAIL,"/tmp tmpfs tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,usrquota; noexec missing",2026-10-30
+1.1.2.1.4,Ensure noexec option set on /tmp partition,L1,PASS,"re-audit 2026-11-04 after Batch 5 reboot: findmnt /tmp rw,nosuid,nodev,noexec,size=15904820k,nr_inodes=1048576,inode64,usrquota",2026-11-04
 1.1.2.2.1,Ensure /dev/shm is tmpfs or a separate partition,L1,PASS,"/dev/shm tmpfs tmpfs rw,nosuid,nodev,inode64,usrquota",2026-10-30
 1.1.2.2.2,Ensure nodev option set on /dev/shm partition,L1,PASS,"/dev/shm tmpfs tmpfs rw,nosuid,nodev,inode64,usrquota",2026-10-30
 1.1.2.2.3,Ensure nosuid option set on /dev/shm partition,L1,PASS,"/dev/shm tmpfs tmpfs rw,nosuid,nodev,inode64,usrquota",2026-10-30
-1.1.2.2.4,Ensure noexec option set on /dev/shm partition,L1,FAIL,"/dev/shm tmpfs tmpfs rw,nosuid,nodev,inode64,usrquota; noexec missing",2026-10-30
+1.1.2.2.4,Ensure noexec option set on /dev/shm partition,L1,PASS,"re-audit 2026-11-04 after Batch 5 reboot: findmnt /dev/shm rw,nosuid,nodev,noexec,inode64,usrquota",2026-11-04
 1.1.2.3.2,Ensure nodev option set on /home partition,L1,N/A,"not a separate mount (findmnt -kn); separate partition is L2",2026-10-30
 1.1.2.3.3,Ensure nosuid option set on /home partition,L1,N/A,"not a separate mount (findmnt -kn); separate partition is L2",2026-10-30
 1.1.2.4.2,Ensure nodev option set on /var partition,L1,N/A,"not a separate mount (findmnt -kn); separate partition is L2",2026-10-30
@@ -37,13 +37,13 @@ id,title,level,result,evidence,date
 1.2.1.8,Ensure access to /etc/apt/sources.list.d directory is configured,L1,PASS,"755 root:root",2026-10-30
 1.2.1.9,Ensure access to files in /etc/apt/sources.list.d are configured,L1,PASS,"ubuntu.sources and ubuntu.sources.curtin.orig (installer leftover) 644 root:root",2026-10-30
 1.2.1.10,Ensure repositories are set to https in /etc/apt/sources.list,L1,PASS,"no http deb lines in /etc/apt/sources.list",2026-10-30
-1.2.1.11,Ensure repositories are set to https in /etc/apt/sources.list.d directory,L1,FAIL,"ubuntu.sources URIs: http://us.archive.ubuntu.com/ubuntu/ and http://security.ubuntu.com/ubuntu/",2026-10-30
+1.2.1.11,Ensure repositories are set to https in /etc/apt/sources.list.d directory,L1,PASS,"re-audit 2026-11-04: ubuntu.sources URIs https://us.archive.ubuntu.com/ubuntu/ and https://security.ubuntu.com/ubuntu/; sha256 cabf1ceb160f86f80bfdd51c828445a76f4f094e40bf81f341ab3937d11e36a8",2026-11-04
 1.2.1.12,Ensure AllowInsecureRepositories is configured,L1,PASS,"Acquire::AllowInsecureRepositories ""0"";",2026-10-30
 1.2.1.13,Ensure AllowWeakRepositories is configured,L1,PASS,"Acquire::AllowWeakRepositories ""0"";",2026-10-30
 1.2.1.14,Ensure AllowDowngradeToInsecureRepositories is configured,L1,PASS,"Acquire::AllowDowngradeToInsecureRepositories ""0"";",2026-10-30
-1.2.1.15,Ensure Acquire::Check-Date is configured,L1,FAIL,"no Acquire::Check-Date in apt-config dump (compiled-in default true per CIS note; CIS wants it explicit)",2026-10-30
+1.2.1.15,Ensure Acquire::Check-Date is configured,L1,PASS,"re-audit 2026-11-04: apt-config dump Acquire::Check-Date prints Acquire::Check-Date ""true"";",2026-11-04
 1.2.2.1,"Ensure updates, patches, and additional security software are installed",L1,PASS (manual),"AJ ran sudo apt update; apt -s upgrade: Upgrading 0, Not Upgrading 0 (holds shim-signed/secureboot-db have nothing pending); no /var/run/reboot-required",2026-10-30
-1.3.1.1,Ensure apparmor packages are installed,L1,FAIL,"apparmor installed; apparmor-utils not installed",2026-10-30
+1.3.1.1,Ensure apparmor packages are installed,L1,PASS,"re-audit 2026-11-04: apparmor and apparmor-utils 5.0.2-0ubuntu1~26.04.1 installed; python3-apparmor and python3-libapparmor same version; aa-status identical across the install; initrd hash unchanged",2026-11-04
 1.3.1.4,Ensure kernel.apparmor_restrict_unprivileged_unconfined is enabled,L1,PASS,"running = 1; set to 1 in /usr/lib/sysctl.d/10-apparmor.conf (CIS recommends also an /etc/sysctl.d/ file)",2026-10-30
 1.4.2,Ensure access to bootloader config is configured,L1,PASS,"/boot/grub/grub.cfg 0600 root:root",2026-10-30
 1.3.1.2,Ensure AppArmor is enabled,L1,PASS,"no apparmor=0 in grub.cfg linux lines or /etc/default/grub.d/apparmor.cfg; apparmor.service enabled + active; 180 profiles loaded (sudo, AJ)",2026-10-30
@@ -60,15 +60,15 @@ id,title,level,result,evidence,date
 1.5.11,Ensure systemd-coredump ProcessSizeMax is configured,L1,PASS,"systemd-coredump not installed (CIS: passing state)",2026-10-30
 1.5.12,Ensure systemd-coredump Storage is configured,L1,PASS,"systemd-coredump not installed (CIS: passing state)",2026-10-30
 1.6.1,Ensure /etc/motd is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: /etc/motd and /etc/motd.d still absent; grep returned nothing (CIS: nothing returned)",2026-11-03
-1.6.2,Ensure /etc/issue is configured,L1,FAIL,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: unchanged, /etc/issue: Ubuntu 26.04.1 LTS \n \l (OS name; CIS: nothing returned); not in Batch 1",2026-11-03
-1.6.3,Ensure /etc/issue.net is configured,L1,FAIL,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: unchanged, /etc/issue.net: Ubuntu 26.04.1 LTS (OS name; CIS: nothing returned); not in Batch 1",2026-11-03
+1.6.2,Ensure /etc/issue is configured,L1,PASS,"re-audit 2026-11-04: /etc/issue is Authorized use only. Activity is monitored. No Ubuntu release name. dpkg --verify base-files: ??5?????? c /etc/issue",2026-11-04
+1.6.3,Ensure /etc/issue.net is configured,L1,PASS,"re-audit 2026-11-04: /etc/issue.net is Authorized use only. Activity is monitored. No Ubuntu release name. dpkg --verify base-files: ??5?????? c /etc/issue.net",2026-11-04
 1.6.4,Ensure pam_motd is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: CIS script returned nothing (CIS: nothing returned); pam_motd motd=/run/motd.dynamic still in sshd and login, but the file is now 0 bytes because Batch 1 (1.6.6) made the update-motd.d scripts non-executable; was FAIL 2026-10-30",2026-11-03
 1.6.6,Ensure access to /etc/motd is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: 14 stat lines, all 644 root:root (13 /etc/update-motd.d/* + /run/motd.d/85-fwupd); CIS: each 0644 or more restrictive, owner root, group root; /etc/motd, /run/motd, /usr/lib/motd absent",2026-11-03
 1.6.7,Ensure access to /etc/issue is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: /etc/issue 0644 root:root (CIS: 0644 or more restrictive, root:root)",2026-11-03
 1.6.8,Ensure access to /etc/issue.net is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: /etc/issue.net 0644 root:root (CIS: 0644 or more restrictive, root:root)",2026-11-03
 1.6.9,Ensure access to pam_motd file is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: /run/motd.dynamic 0644 root:root (CIS: 0644 or more restrictive, root:root)",2026-11-03
 1.6.11,Ensure update-notifier-motd.service is not in use,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: update-notifier-motd.service not enabled, not active (CIS: nothing returned)",2026-11-03
-1.6.12,Ensure update-notifier-motd.timer is not in use,L1,FAIL,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: unchanged, update-notifier-motd.timer enabled + active (CIS: nothing returned); Batch 1 disabled motd-news.timer, not this timer; not in Batch 1",2026-11-03
+1.6.12,Ensure update-notifier-motd.timer is not in use,L1,PASS,"re-audit 2026-11-04: update-notifier-motd.timer disabled and inactive",2026-11-04
 1.7.1,Ensure GDM login banner is configured,L1,N/A,"gdm3 not installed; no /etc/gdm3 or /etc/gdm (CIS: section can be skipped)",2026-10-30
 1.7.2,Ensure GDM disable-user-list is configured,L1,N/A,"gdm3 not installed; no /etc/gdm3 or /etc/gdm (CIS: section can be skipped)",2026-10-30
 1.7.3,Ensure GDM screen lock is configured,L1,N/A,"gdm3 not installed; no /etc/gdm3 or /etc/gdm (CIS: section can be skipped)",2026-10-30
