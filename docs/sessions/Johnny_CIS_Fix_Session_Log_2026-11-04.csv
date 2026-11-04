@@ -1,0 +1,10 @@
+Seq,Time_UTC,Step,Issue,Actor,Action,Command,Result,Files_Changed,Status
+1,~07:30,10,Batch 5 draft,Grok,Draft mounts apt banners,read-only SSH,"fstab 065034aa; initrd size 42618411 mtime 2026-11-03 06:13:32",docs/cis-fix/batch-5.md,Done
+2,~08:32,10,Rev 1 review,Claude,Approve with changes,,journalctl -q; no-clobber backups; sed sources,docs/cis-fix/batch-5.md,Done
+3,~09:16,10,Rev 2 review,Claude,Approved,,Paste 3 needs copy-hash line,docs/cis-fix/batch-5.md,Done
+4,~09:32,10,Paste 2,AJ,Mount noexec,sudo bash,"Ctrl-C after findmnt warning; both mounts later noexec",,Done
+5,~09:41,10,Pre-reboot,AJ,Hash and apt list,sha256sum; apt list --upgradable,"initrd OK; 12 packages; no kernel or initramfs",,Done
+6,~09:49,10,Paste 3,AJ,Reboot,sudo systemctl reboot,"KVM: no passphrase; banner only",,Done
+7,~09:50,10,Boot gate,AJ,After-login block,sudo bash,OK-boot-gate; ksmbd 1; 60 zeros,~/cis-audit/own-ko-batch5.txt,Done
+8,~09:55,10,Install,AJ,Pinned apparmor-utils,sudo bash,aa-status-identical; initrd-identical; OK-apparmor-utils,,Done
+9,~10:57,10,Close package,Grok,Mirrors SBOM re-audit,read-only sha256sum,"195/56/23; drop-in live hash 927012ef not cd0b7621",docs/os-handoff.md; etc/; docs/cis-26.04-l1-results.csv,Done
