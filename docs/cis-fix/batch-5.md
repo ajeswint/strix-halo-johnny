@@ -1,6 +1,8 @@
 # CIS L1 fix pass, Batch 5: mounts, apt, banners
 
-**Status:** DRAFT rev 2 (Grok, 2026-11-04). Claude on `825bf6d` (rev 1): approve with changes. Those changes are in this rev. Nothing in this file has been run. AJ runs sudo. A second SSH session stays open for Paste 1 and Paste 2. Paste 3 needs the AMT KVM (the Johnny KVM icon on rock-box, handoff step 5) and the LUKS recovery passphrase at hand.
+**Status:** DRAFT rev 3 (Grok, 2026-11-04). Claude on `64a24af` (rev 2): approved. Paste 3 adds one line, `sha256sum -c` of the `.pre-batch5` copy, before the reboot. Nothing in this file has been run. AJ runs sudo. A second SSH session stays open for Paste 1 and Paste 2. Paste 3 needs the AMT KVM (the Johnny KVM icon on rock-box, handoff step 5) and the LUKS recovery passphrase at hand.
+
+**Run order:** Paste 1, then the install block only after Governance's vet and the SBOM rows, then Paste 2, then Paste 3, then the after-login block. A paste that does not print its `OK-` line is a stop even when it printed no `STOP-` line. Do not start the next paste.
 
 **Rules in scope (8):** 1.1.2.1.4 `/tmp` noexec, 1.1.2.2.4 `/dev/shm` noexec, 1.2.1.11 https repositories, 1.2.1.15 `Acquire::Check-Date`, 1.3.1.1 `apparmor-utils`, 1.6.2 `/etc/issue`, 1.6.3 `/etc/issue.net`, 1.6.12 `update-notifier-motd.timer`.
 
@@ -334,6 +336,7 @@ esac
 systemctl daemon-reload
 mount -o remount,noexec /tmp
 mount -o remount,rw,nosuid,nodev,noexec,inode64,usrquota /dev/shm
+systemctl show -p Options tmp.mount
 tmp_opts=$(findmnt -kn -o OPTIONS /tmp)
 shm_opts=$(findmnt -kn -o OPTIONS /dev/shm)
 printf '%s\n' "$tmp_opts" "$shm_opts"
@@ -369,7 +372,13 @@ EOF
 
 Expected: `sha256sum -c` prints `OK` at the start and again at the end. `findmnt --verify` still contains `0 parse errors, 0 errors`. The existing `/swap.img` warning may remain. The fstab already ends in a newline (`tail -c1 | wc -l` is 1; checked on Johnny 2026-11-04), so the appended `/dev/shm` line does not glue to `/swap.img`. Each of `nosuid`, `nodev`, and `noexec` is matched as its own comma-separated field. Both test binaries are refused. The last line is `OK-paste-2`. A `STOP-mount-restore` line means the backup is back in place and the reboot paste is not next.
 
-`findmnt --verify` as non-root this session was `0 parse errors, 0 errors, 5 warnings` (permission denied on filesystem type, plus the swap-file warning). Root may print fewer warnings. An error count other than 0 restores.
+`findmnt --verify` as non-root this session was `0 parse errors, 0 errors, 5 warnings` (permission denied on filesystem type, plus the swap-file warning). Root may print fewer warnings. An error count other than 0 restores. `systemctl show -p Options tmp.mount` is printed after the remount. It is not a pass/fail line.
+
+| Line | What to do |
+|---|---|
+| `STOP-shm-line-exists` | `/dev/shm` is already in fstab. Nothing was written. Tell the Brain. |
+| `STOP-mount-restore` | A step after the backup failed. The script put `/root/fstab.pre-batch5` back and removed the drop-in. Tell the Brain the line printed just before it. |
+| No `OK-paste-2` and no `STOP-` line | A check before the edits failed: the initrd hash, the drop-in directory already existing, the fstab hash, or the trailing newline. The live fstab was not changed. |
 
 ## Paste 3 — reboot
 
@@ -388,6 +397,7 @@ exp='/boot/initrd.img-7.0.0-42-generic
 [ "$got" = "$exp" ]
 [ "$(stat -c '%s %y' /boot/initrd.img-7.0.0-42-generic)" = "42618411 2026-11-03 06:13:32.840646209 +0000" ]
 sha256sum -c /home/aj/cis-audit/initrd-sha256-pre-batch5.txt
+sha256sum -c /home/aj/cis-audit/initrd-copy-sha256-pre-batch5.txt
 sha256sum -c /home/aj/cis-audit/fstab-sha256-pre-batch5.txt
 [ ! -e /run/reboot-required ]
 st=$(systemctl is-active apt-daily-upgrade.service || true)
@@ -418,7 +428,15 @@ EOF
 
 `unattended-upgrades.service` may stay active. Its process is the shutdown helper, and the name check above does not treat that helper as an upgrade. `sha256sum -c` on `fstab-sha256-pre-batch5.txt` checks `/root/fstab.pre-batch5`, the copy taken before the edit, so the live fstab can already contain the `/dev/shm` line. Before the reboot the script also requires that live line, the drop-in `Options=` line, and mode `644 root:root` on the drop-in. The three mount flags are matched as comma-separated fields, same as Paste 2.
 
+`sha256sum -c` of `initrd-copy-sha256-pre-batch5.txt` checks `/boot/initrd.img-7.0.0-42-generic.pre-batch5` before the reboot. Both initrd checks must print `OK`.
+
 The KVM watch is the TPM check. A passphrase prompt is a stop, as written under Recovery.
+
+| Line | What to do |
+|---|---|
+| `STOP-upgrade` | An upgrade is running. The script did not reboot. Wait, then run Paste 3 again. |
+| `STOP-tmp-…` or `STOP-shm-…` | A required mount flag is missing. The script did not reboot. Tell the Brain. |
+| No `OK-to-reboot` and no `STOP-` line | A check failed: the kernel, the initrd names, the size and mtime, either initrd `sha256sum -c`, the fstab backup, `/run/reboot-required`, `apt-daily-upgrade`, the fstab line, or the drop-in. The script did not reboot. |
 
 ## After login — reboot checks
 
@@ -471,6 +489,12 @@ awk '
   { if ($1 != 0) exit 1; z++ }
   END { if (k != 1 || z != 60) exit 1 }
 ' /home/aj/cis-audit/own-ko-batch5.txt
+loaded=$(lsmod | awk '$1 ~ /^(9p|adfs|affs|befs|bfs|blocklayoutdriver|btrfs|cachefiles|ceph|cifs|cifs_md4|coda|cuse|dlm|efs|erofs|exfat|f2fs|gfs2|grace|hpfs|isofs|jfs|kafs|ksmbd|lockd|minix|msdos|netfs|nfs|nfs_acl|nfs_layout_flexfiles|nfs_layout_nfsv41_files|nfsd|nfsv2|nfsv3|nfsv4|nilfs2|ntfs3|ocfs2|ocfs2_dlm|ocfs2_dlmfs|ocfs2_nodemanager|ocfs2_stack_o2cb|ocfs2_stack_user|ocfs2_stackglue|omfs|orangefs|overlay|qnx4|qnx6|quota_tree|quota_v1|quota_v2|romfs|ubifs|udf|ufs|vboxsf|virtiofs|zonefs)$/')
+if [ -n "$loaded" ]; then
+  printf '%s\n' "$loaded"
+  echo STOP-lsmod
+  exit 1
+fi
 live=$(lsinitrd -m /boot/initrd.img-7.0.0-42-generic | sed -n '/^dracut modules:/,/^=====/p')
 printf '%s\n' "$live" | diff -u /home/aj/cis-audit/initrd-mods-pre-batch5.txt -
 printf '%s\n' "$live" | grep -qx crypt
@@ -485,7 +509,7 @@ Expected:
 
 - `0 loaded units listed.`
 - `systemd-modules-load`: `Result=success`, `ExecMainStatus=0`, and no priority-err journal line. `journalctl -q` is required. Without it, an empty filter prints `-- No entries --` and `grep -q .` stops a clean boot. Checked on Johnny 2026-11-04 (`systemd` 259.9-0ubuntu0.1): the plain command printed those 17 bytes and exited 0; `journalctl -q` printed nothing and exited 0. resolute `journalctl(1)` describes `-q` as suppressing informational messages: https://manpages.ubuntu.com/manpages/resolute/man1/journalctl.1.html . The man page's examples are `-- Journal begins at ...` and `-- Reboot --`. **[Assumption]** `-- No entries --` is in that class on 26.04. The Johnny check above is the evidence for this host. `is-failed` printing `active` is the success state from before the reboot and is not a failure.
-- The 59 filesystem names and `overlay` each print `0`. `ksmbd` prints `1`. A `0` on `ksmbd` means the check is blind. The awk requires 60 zeros and one `1`.
+- The 59 filesystem names and `overlay` each print `0`. `ksmbd` prints `1`. A `0` on `ksmbd` means the check is blind. The awk requires 60 zeros and one `1`. `lsmod` prints none of those names and none of `ksmbd`. A loaded name prints `STOP-lsmod`.
 - `diff` prints nothing. `crypt`, `systemd-cryptsetup`, and `tpm2-tss` are in the live module list.
 - `sha256sum -c` prints `/boot/initrd.img-7.0.0-42-generic: OK`.
 - `/tmp` and `/dev/shm` still have `nosuid`, `nodev`, and `noexec` as their own comma-separated fields. The full option string may differ from the live remount, because the next boot applies the unit and the fstab line. The three flags are the pass.
