@@ -1,6 +1,6 @@
 # CIS L1 fix pass, Batch 4: kernel modules, kernel parameters, core dumps and apport
 
-**Status:** DRAFT rev 4 (Claude, 2026-11-04: P1-P3 results recorded; the ufw `rp_filter` premise behind Q5 was wrong, so Q5 is reopened for AJ). Rev 3 (Claude, 2026-11-04: AJ chose "recommendations" for Q1-Q9, recorded below; no command changed). Rev 2 (Claude, 2026-11-04, after Assurance's review `docs/findings/cis-batch-4-review.md`, approve with changes; applies F1, F2, F3, F4, F5, F6, F7, F8; F9-F11 are residuals for Governance). Rev 1 was drafted by Platform. Still nothing run on Johnny. **Nothing below has run on Johnny and nothing was read from Johnny while drafting** (this session has no route to `192.168.50.152`). Every "current state" below comes from `docs/cis-26.04-l1-results.csv` (audit 2026-10-30 and 2026-10-31) and the repo docs, so the P-blocks re-read it at apply time and stop on any difference. Not reviewed yet. Per the handoff, Batch 4 starts after Batch 3's second C9 and Governance's re-audits of 6.1.1.1.5, 6.1.2.7, 6.3.1 and 6.3.2. AJ runs every `sudo` block, shown first, with a second SSH session open (fix gate met, handoff rev 16). Stop on any error.
+**Status:** DRAFT rev 5 (Grok, 2026-11-04: A3's `head -1` stop is a spec bug. The check counts `install /bin/false` on the full dry-run. P4 and A1 have run. A2 and F4 have not. Q5 is open). Rev 4 (Claude, 2026-11-04: P1-P3 results recorded; the ufw `rp_filter` premise behind Q5 was wrong, so Q5 is reopened for AJ). Rev 3 (Claude, 2026-11-04: AJ chose "recommendations" for Q1-Q9, recorded below; no command changed). Rev 2 (Claude, 2026-11-04, after Assurance's review `docs/findings/cis-batch-4-review.md`, approve with changes; applies F1, F2, F3, F4, F5, F6, F7, F8; F9-F11 are residuals for Governance). Rev 1 was drafted by Platform. P4 and A1 have run. A2 has not. Group B has not. **Nothing below has run on Johnny and nothing was read from Johnny while drafting** (this session has no route to `192.168.50.152`). Every "current state" below comes from `docs/cis-26.04-l1-results.csv` (audit 2026-10-30 and 2026-10-31) and the repo docs, so the P-blocks re-read it at apply time and stop on any difference. Not reviewed yet. Per the handoff, Batch 4 starts after Batch 3's second C9 and Governance's re-audits of 6.1.1.1.5, 6.1.2.7, 6.3.1 and 6.3.2. AJ runs every `sudo` block, shown first, with a second SSH session open (fix gate met, handoff rev 16). Stop on any error.
 
 **Rules in scope (32):** 1.1.1.1, .2, .3, .4, .5, .9, .10, .11 (8) · 3.2.1, .2, .4, .5, .6 (5) · 3.3.1.1, .2, .3, .4, .5, .8, .9, .10, .11, .12, .13, .14, .18, .19 (14) · 1.5.4, 1.5.5, 1.5.7, 1.5.9, 1.5.10 (5).
 **Not in this batch, on purpose:** 3.3.1.16 and 3.3.1.17 (`log_martians`; Batch 6, because `/etc/ufw/sysctl.conf` sets them to 0 when ufw is enabled; this batch does not touch that file). 3.2.7 (FAIL (manual), waits for Governance's module list). 3.1.1 and 3.3.2.x (IPv6, Batch 7). 3.2.3 dccp is already PASS (no dccp module in the kernel). 3.3.1.6, .7 and .15 pass today; Group C optionally pins them (Q8).
@@ -23,6 +23,60 @@ All nine questions are answered with the marked recommendation: **Q1** no rebuil
 
 ## P1-P3 results (AJ, no sudo, 2026-11-04 ~05:2x UTC)
 Everything matched the draft except two points. **Matched:** kernel `7.0.0-42-generic`; 0 failed units; none of the 12 modules loaded; `xfs` and `autofs4` loaded; no existing blacklist or install line for them; `/etc/modprobe.d/` holds the two `johnny-no-*` files plus stock vendor files and no `johnny-cis-*`; `/etc/sysctl.d/` and `limits.d/` have no Batch 4 files; no `/etc/sysctl.conf`; `modules-load.d` and `/etc/modules` name only `i2c_dev` and `msr` (neither is on any blocklist here); every sysctl value as expected (`suid_dumpable` 2, redirects 1, `rp_filter` 2, `log_martians` 0, forwarding 0); apport active and enabled with `enabled=1` once; `apport`, `apport-core-dump-handler`, `python3-apport` installed 2.34.1-0ubuntu0.1; `systemd-coredump` not installed; `ulimit -Hc` unlimited; ufw `ENABLED=no`. **Differences:** (1) `/etc/ufw/sysctl.conf` has no active `rp_filter` or `accept_source_route` line (corrected above; reopens Q5). (2) `/usr/lib/sysctl.d/10-coredump-debian.conf` sets `kernel.core_pattern=core`, which is the value D2 expects once apport is masked (no change needed; it is why the running pattern reverts after the mask and reboot). **Note:** the vendor limits file also has `* soft core 0` and `root soft core 0` and `root hard core infinity`; B3's `* hard core 0` does not change the `root` lines, and CIS audits the `*` line.
+
+## Recorded output
+Each output line is prefixed with `# ` so it is not a shell command.
+
+**P4 (AJ, sudo, 2026-11-04).** Initrd and the `.pre-batch4` copy:
+```
+# -rw------- 1 root root 42618411 2026-11-03 06:13:32.840646209 +0000 /boot/initrd.img-7.0.0-42-generic
+# -rw------- 1 root root 42618411 2026-11-03 06:13:32.840646209 +0000 /boot/initrd.img-7.0.0-42-generic.pre-batch4
+# 40 /home/aj/cis-audit/initrd-mods-pre-batch4.txt
+# crypt
+# systemd-cryptsetup
+# tpm2-tss
+# 2
+# /dev/nvme0n1p2  2.0G  118M  1.7G   7% /boot
+# f0a42b98383cce09397c4fa998a518a1452ed303701a732e390e5433137618a7  /boot/initrd.img-7.0.0-42-generic
+```
+The `2` is `etc/modprobe.d/johnny-no-bluetooth.conf` and `etc/modprobe.d/johnny-no-thunderbolt.conf` inside the image. Hostonly. No rebuild.
+
+**A0 (Grok, read-only, just before A1).**
+```
+# OK-kernel
+# 0 loaded units listed.
+# xfs
+# autofs4
+```
+The showconfig grep for the twelve names printed nothing.
+
+**A1 (AJ, sudo, 2026-11-04 05:34 UTC).** `tee` printed each file body. `chown` and `chmod` printed nothing. Modes `644 root:root`. Sizes 296, 210, and 293 bytes. Mirrors under `etc/modprobe.d/` match Johnny:
+```
+# ebf42bf47095169cc7abfb8e81f0a6f2c3de32ed449c9570ca3da2df2735def3  johnny-cis-fs.conf
+# 4510b705d550fbaed58e45102107a4a58a82c115ef1337a5e9f77edbad116d70  johnny-cis-drivers.conf
+# 756c6360afc36408c4d0222cedd68c85f779a27261ef91aa293e7798e9d907dd  johnny-cis-net.conf
+```
+
+**A3 count (Grok, read-only).** Full dry-run, one `install /bin/false` each:
+```
+# cramfs 1
+# freevxfs 1
+# hfs 1
+# hfsplus 1
+# jffs2 1
+# firewire-core 1
+# usb-storage 1
+# atm 1
+# can 1
+# rds 1
+# sctp 1
+# tipc 1
+```
+`can` alone is also `1`. Showconfig count `24`. `UFW-MODULES-CLEAR`. `xfs` and `autofs4` loaded. Failed units `0`.
+
+**Accidental paste.** AJ pasted the dry-run record into the shell. **[Assumption]** no pasted line began with `sudo`. The transcript Claude saw has no `sudo`. `insmod` of the `...` paths failed. GNU `install /bin/false` had no destination and wrote nothing. `tipc` is a userspace tool and did not load the module. `lsmod` afterward showed none of `firewire_core`, `sctp`, `tipc`, `crc_itu_t`, `udp_tunnel`, or `ip6_udp_tunnel`.
+
+**Not done.** A2 has not run. Governance's F4 diff of the raw 1.1.1.11 list has not been done. Q5 is still open with AJ. Group A is not signed off.
 
 ## Risk
 None for access or boot in the recommended path. **No step touches SSH, PAM, sudo, GRUB, Secure Boot, the shim, a held package or PCR 7.** No package is installed or removed (Option A of Q7). The initrd is not rebuilt: Group P records its hash and keeps a copy, and Group D proves it unchanged. Runtime effects: 12 modules (plus 60 or 61 filesystem modules with A2) can no longer be loaded; core dumps stop (apport off, `fs.suid_dumpable=0`, `* hard core 0`); ICMP redirects are refused and not sent. Capture and the port mirror are not affected (next section). One attended reboot at the end.
@@ -206,7 +260,7 @@ After A2/A2b, the CIS script will still list the keep set as loadable. That is t
 
 ### A3. Verification (read-only, no sudo)
 ```
-for m in cramfs freevxfs hfs hfsplus jffs2 firewire-core usb-storage atm can rds sctp tipc; do printf '%-14s' "$m"; modprobe -n -v "$m" 2>&1 | head -1; done
+for m in cramfs freevxfs hfs hfsplus jffs2 firewire-core usb-storage atm can rds sctp tipc; do printf '%s %s\n' "$m" "$(modprobe -n -v "$m" 2>&1 | grep -c '^install /bin/false')"; done
 modprobe --showconfig | grep -E '^(blacklist|install) (cramfs|freevxfs|hfs|hfsplus|jffs2|firewire_core|usb_storage|atm|can|rds|sctp|tipc)( |$)' | sort | wc -l
 lsmod | awk '$1 ~ /^(cramfs|freevxfs|hfs|hfsplus|jffs2|firewire_core|usb_storage|atm|can|rds|sctp|tipc)$/'
 lsmod | awk '$1=="xfs"||$1=="autofs4"{print $1}'
@@ -216,20 +270,20 @@ modprobe -n -v uas 2>&1 | head -3
 systemctl --failed --no-pager --plain | tail -1
 ```
 Expected:
-- Line 1: twelve lines, each the module name then `install /bin/false` (kmod's dry-run print of the install command). A line starting `insmod` means that file is not read: stop.
+- Line 1: twelve lines, each the module name then `1`. Count `^install /bin/false` over the full `modprobe -n -v` output. Do not use `head -1`. For a module with dependencies, kmod prints those dependency `insmod` lines before the module's own `install /bin/false`, so the first line can be `insmod` on a correct block. A count other than `1` is a stop. A real `modprobe` of `firewire-core`, `sctp`, or `tipc` loads `crc_itu_t`, `udp_tunnel`, and `ip6_udp_tunnel` first. Those dependencies are harmless. The target module is not inserted.
 - Line 2: `24` (12 blacklist plus 12 install). Lines 3 and 4: nothing, then `xfs` and `autofs4`.
 - ufw line: `UFW-MODULES-CLEAR`. Not a stop if some names print `FATAL: Module ... not found` (they are not in the filter's output). A hit means a ufw module depends on a blocked one: **stop, remove that pair, tell the Brain.**
 - `can_raw` and `uas` lines (Assurance F2, from kmod source: a blocked parent's `install /bin/false` also refuses its dependents): the correct dry-run output is two lines each, first `install /bin/false` (for the parent), then `insmod .../can_raw.ko.zst` (or the `uas` file). That **is** the blocked case; the real load stops at the first line. **[Assumption]** Ubuntu's kmod 34.2 matches the source read. If `install /bin/false` does not appear first, record it and tell the Brain.
-- With A2: `awk '/^install /{print $2}' /etc/modprobe.d/johnny-cis-fs-unused.conf | while read m; do modprobe -n -v "$m" 2>&1 | head -1; done | sort | uniq -c` prints `60 install /bin/false`. Run it as shown (read-only).
+- With A2: `awk '/^install /{print $2}' /etc/modprobe.d/johnny-cis-fs-unused.conf | while read m; do modprobe -n -v "$m" 2>&1 | grep -c '^install /bin/false'; done | sort | uniq -c` prints `60 1`. Same rule as line 1: count the full dry-run, not `head -1`. Run it as shown (read-only).
 - Then Governance's re-audit with the local scripts (verdict). Initrd unchanged: `ls -l --time-style=full-iso /boot/initrd.img-7.0.0-42-generic` still `42618411` and `2026-11-03 06:13:32`.
 
 ### A4. Rollback
 ```
 sudo rm /etc/modprobe.d/johnny-cis-fs.conf /etc/modprobe.d/johnny-cis-drivers.conf /etc/modprobe.d/johnny-cis-net.conf
 sudo rm -f /etc/modprobe.d/johnny-cis-fs-unused.conf /etc/modprobe.d/johnny-cis-fs-overlay.conf
-modprobe -n -v can | head -1
+modprobe -n -v can 2>&1 | grep -c '^install /bin/false'
 ```
-Expected: the last line starts `insmod` (the module is loadable again). No reboot, no rebuild: nothing was loaded and the initrd was not changed.
+Expected: the count is `0` (no `install /bin/false` left for `can`). No reboot, no rebuild: nothing was loaded and the initrd was not changed.
 
 ---
 
@@ -437,12 +491,12 @@ Watch the KVM. **Expected:** no LUKS passphrase prompt (TPM2 unlock), then the l
 ### D2. After login (read-only; from the laptop or rock-box)
 ```
 ssh aj@192.168.50.152 'uname -r; uptime -p; systemctl --failed --no-pager --plain | tail -1; dpkg --audit; echo rc=$?; cat /run/reboot-required; systemctl is-enabled apport.service; sysctl fs.suid_dumpable kernel.core_pattern kernel.dmesg_restrict kernel.randomize_va_space net.ipv4.conf.all.send_redirects net.ipv4.conf.default.accept_redirects net.ipv4.conf.all.rp_filter; ulimit -Hc'
-ssh aj@192.168.50.152 'lsmod | awk "\$1==\"xfs\"||\$1==\"autofs4\"{print \$1}"; modprobe -n -v can | head -1; ls -l --time-style=full-iso /boot/initrd.img-7.0.0-42-generic'
+ssh aj@192.168.50.152 'lsmod | awk "\$1==\"xfs\"||\$1==\"autofs4\"{print \$1}"; modprobe -n -v can 2>&1 | grep -c "^install /bin/false"; ls -l --time-style=full-iso /boot/initrd.img-7.0.0-42-generic'
 ssh aj@192.168.50.152 'journalctl -b --no-pager | grep -E "Error running install command"; ip -s link show eno1np0 | head -4; kdump-config status 2>&1 | head -2'
 ```
 Expected:
 - `7.0.0-42-generic`; a short uptime; `0 loaded units listed.`; `rc=0`; `cat: /run/reboot-required: No such file or directory`; `masked`; `fs.suid_dumpable = 0`; `kernel.core_pattern = core`; `dmesg_restrict = 1`; `randomize_va_space = 2`; `send_redirects = 0`; `default.accept_redirects = 0`; `all.rp_filter = 2` (deferred) or 1; `ulimit -Hc` `0`.
-- `xfs` and `autofs4`; `install /bin/false`; the initrd line identical to P4 (`42618411`, `2026-11-03 06:13:32`).
+- `xfs` and `autofs4`; the `can` count is `1`; the initrd line identical to P4 (`42618411`, `2026-11-03 06:13:32`).
 - The journal grep prints nothing (no blocked module was tried at boot); `eno1np0` UP with a rising counter; `kdump-config status` informational (**[Assumption]** it reports ready as before; the kdump crash-kernel initrd is not examined or touched by this batch).
 - AJ, sudo: `sudo sha256sum -c ~/cis-audit/initrd-sha256-pre-batch4.txt` prints `OK`, and `sudo lsinitrd -m /boot/initrd.img-7.0.0-42-generic | sed -n '/^dracut modules:/,/^=====/p' | diff ~/cis-audit/initrd-mods-pre-batch4.txt -` prints nothing.
 - Information only: `ssh aj@192.168.50.152 'sysctl -a 2>/dev/null | grep -E "^net\.ipv4\.conf\.(eno3|eno1np0|eno4)\.(send_redirects|accept_redirects|secure_redirects|rp_filter) "'`. Expect 0 on every NIC for the three redirect keys (the `default` write reached them at C1); a surviving 1 means something wrote that interface by name: tell the Brain. `rp_filter` per NIC is information for Batch 6.
@@ -460,8 +514,8 @@ Only if AJ wants the new blocks inside the image. P4's `grep -c` result decides 
 ---
 
 ## Files to mirror under `etc/` (create after the apply; real paths; same commit as the handoff Config changes rows)
-Not created by this draft. Contents are exactly the heredocs above.
-- `etc/modprobe.d/johnny-cis-fs.conf`, `etc/modprobe.d/johnny-cis-drivers.conf`, `etc/modprobe.d/johnny-cis-net.conf`
+The three A1 files are mirrored in this rev. Their sha256 matches Johnny (see Recorded output). The rest are not created yet. Contents of the applied files are the heredocs above.
+- `etc/modprobe.d/johnny-cis-fs.conf`, `etc/modprobe.d/johnny-cis-drivers.conf`, `etc/modprobe.d/johnny-cis-net.conf` (mirrored)
 - `etc/modprobe.d/johnny-cis-fs-unused.conf` and `etc/modprobe.d/johnny-cis-fs-overlay.conf` (only if A2 and A2b ran)
 - `etc/sysctl.d/60-johnny-cis-kernel.conf`, `etc/sysctl.d/60-johnny-cis-network.conf` (as applied, with the `rp_filter` lines commented or not)
 - `etc/security/limits.d/60-johnny-cis-core.conf`
