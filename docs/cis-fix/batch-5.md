@@ -1,6 +1,6 @@
 # CIS L1 fix pass, Batch 5: mounts, apt, banners
 
-**Status:** DRAFT rev 3 (Grok, 2026-11-04). Claude on `64a24af` (rev 2): approved. Paste 3 adds one line, `sha256sum -c` of the `.pre-batch5` copy, before the reboot. Nothing in this file has been run. AJ runs sudo. A second SSH session stays open for Paste 1 and Paste 2. Paste 3 needs the AMT KVM (the Johnny KVM icon on rock-box, handoff step 5) and the LUKS recovery passphrase at hand.
+**Status:** APPLIED, rev 4 (Grok, 2026-11-04). Claude on the after-login result: consistent with a pass, no findings. Verdicts are not written here. Governance re-audits the eight rules. 1.3.1.1 stays FAIL until the install block runs. AJ has not decided whether this batch closes with that rule deferred. `.pre-batch5` stays until that install, because its restore copies the image back.
 
 **Run order:** Paste 1, then the install block only after Governance's vet and the SBOM rows, then Paste 2, then Paste 3, then the after-login block. A paste that does not print its `OK-` line is a stop even when it printed no `STOP-` line. Do not start the next paste.
 
@@ -88,7 +88,7 @@ systemctl default
 
 dracut's only trigger is `interest-await update-initramfs`: https://git.launchpad.net/ubuntu/+source/dracut/plain/debian/dracut.triggers?h=applied/ubuntu/resolute . Editing fstab or a unit drop-in does not run it. The initrd keeps today's fstab until some later rebuild. `/tmp` and `/dev/shm` are mounted by the real root's systemd after switch-root. **[Assumption]** the initrd's own `/tmp` and `/dev/shm` are discarded at switch-root and do not keep the host options.
 
-`noexec` stops the kernel from executing a file on that mount. `sh /tmp/x` still runs, because `sh` is on `/usr`. dpkg's maintainer-script directory was not re-read this session. **[Assumption]** those scripts run from `/var/lib/dpkg`. Paste 1 does not install a package. The gated install, once it is allowed to run, runs while `/tmp` still allows execution. The first later `apt-get install` after Paste 2 is the real apt-under-noexec test. Rollback of the mounts does not need a reboot while SSH is up.
+`noexec` stops the kernel from executing a file on that mount. `sh /tmp/x` still runs, because `sh` is on `/usr`. dpkg's maintainer-script directory was not re-read this session. **[Assumption]** those scripts run from `/var/lib/dpkg`. The install block is the first `apt-get install` after `noexec` is on, so it is the apt-under-noexec test. It stays behind Governance's vet and the SBOM rows.
 
 A2 and A2b have not been through a boot. Paste 3 is that boot. The after-login block is the A2/A2b gate plus the TPM re-check.
 
@@ -516,7 +516,7 @@ Expected:
 - Cryptsetup `Result=success` and `ExecMainStatus=0`. `systemd-ask-password-console.service` is `inactive`. Those unit reads do not show whether a person typed the passphrase. The KVM watch is the TPM re-check.
 - Last line `OK-boot-gate`.
 
-The `.pre-batch5` copy stays until that block passes and AJ says to remove it. `~/cis-audit/*-pre-batch4.txt` and `/root/apport.default.pre-batch4` stay.
+The `.pre-batch5` copy stays until the install block has run. That block's restore copies it back if a package trigger rebuilds the image. `~/cis-audit/*-pre-batch4.txt` and `/root/apport.default.pre-batch4` stay.
 
 ## Rollback (not part of any paste)
 
@@ -564,8 +564,67 @@ fi
 EOF
 ```
 
-`apparmor` stays. `apt-get remove` can activate a trigger. The same restore covers that. Do not delete `/boot/initrd.img-7.0.0-42-generic.pre-batch5` in either rollback.
+`apparmor` stays. `apt-get remove` can activate a trigger. The same restore covers that. Do not delete `/boot/initrd.img-7.0.0-42-generic.pre-batch5` until the install block has run.
+
+## Recorded output
+
+Each output line is prefixed with `# ` so it is not a shell command. Times are 2026-11-04 UTC.
+
+**Paste 1.** AJ ran it before the mount paste. The later reads match what it writes: both issue files are `Authorized use only. Activity is monitored.`, `Acquire::Check-Date "true";`, the motd timer is `disabled` and `inactive`, and `ubuntu.sources` has the two https URI lines. The Paste 1 transcript itself was not pasted here.
+
+**Paste 2.** The transcript shows the opening hash and the `findmnt --verify` warning, then `^C`. The warning is the one the script prints before `systemctl daemon-reload`. After the interrupt, both mounts had `noexec` and the test files were gone, so the remounts and the exec checks had finished. `OK-paste-2` was not in the transcript. A later `sha256sum -c` of the live initrd printed `OK`.
+
+```
+# /boot/initrd.img-7.0.0-42-generic: OK
+# 0 parse errors, 0 errors, 2 warnings
+# none
+#    [W] non-bind mount source /swap.img is a directory or regular file
+#    [W] your fstab has been modified, but systemd still uses
+#        the old version; use 'systemctl daemon-reload' to reload
+```
+
+`systemctl show -p Options tmp.mount` was not in that transcript. Read back after the reboot:
+
+```
+# Options=rw,nosuid,nodev,noexec,size=15904820k,nr_inodes=1048576,inode64,usrquota
+```
+
+`size=15904820k` is the packaged `50%%` expanded. The `/dev/shm` line from the after-login block is `rw,nosuid,nodev,noexec,inode64,usrquota`, so the fstab options, including `usrquota`, were applied. That settles the remount assumption.
+
+**Before Paste 3.**
+
+```
+# /boot/initrd.img-7.0.0-42-generic: OK
+# base-files/resolute-updates 14ubuntu6.3
+# bind9-dnsutils, bind9-host, bind9-libs 1:9.20.24-1ubuntu0.5
+# libmspack0t64 0.11-1.1ubuntu0.2
+# libpcre2-8-0 10.46-1ubuntu0.1
+# motd-news-config/resolute-updates 14ubuntu6.3
+# vim, vim-tiny, vim-common, vim-runtime, xxd 2:9.1.2141-1ubuntu4.10
+```
+
+Twelve packages. None is a kernel, a modules package, dracut, or an initramfs package. They were left uninstalled.
+
+**Paste 3.** The script's stdout, including `OK-to-reboot`, was not pasted. AJ watched the KVM: the login prompt came up with no passphrase, the console showed the authorized-use line, and no Ubuntu release name. SSH came back. The after-login block then ran on that boot.
+
+**After login** (uptime 2 minutes in the paste; 3 minutes on the read-back). `OK-boot-gate`. Own-`.ko` is 60 zeros and `1 ksmbd`. No `STOP-lsmod`. No module diff. Initrd `sha256sum -c` printed `OK`. Read-back: `7.0.0-42-generic`, `0 loaded units listed.`, modules-load `success` / `0`, cryptsetup `success` / `0`, `systemd-ask-password-console` `inactive`. `own-ko-batch5.txt` is 61 lines, 60 zeros, `ksmbd` 1. Mounts:
+
+```
+# /tmp rw,nosuid,nodev,noexec,size=15904820k,nr_inodes=1048576,inode64,usrquota
+# /dev/shm rw,nosuid,nodev,noexec,inode64,usrquota
+```
+
+Both initrd files are still `42618411` bytes, mtime `2026-11-03 06:13:32.840646209 +0000`.
+
+**base-files and sources**, read back after the boot. `dpkg --verify base-files` prints only the two intended conffile lines:
+
+```
+# ??5?????? c /etc/issue
+# ??5?????? c /etc/issue.net
+```
+
+`ubuntu.sources` sha256 is `cabf1ceb160f86f80bfdd51c828445a76f4f094e40bf81f341ab3937d11e36a8`. The URI lines are `https://us.archive.ubuntu.com/ubuntu/` and `https://security.ubuntu.com/ubuntu/`. `dpkg -S` still finds no owner. The hash before the `sed` was `077ad25a51b484eae9bebddd027b18e11d85ec7b69aa0d817e7960b631fa5c8a`.
 
 ## After the boot gate
 
-Governance re-audits 1.1.2.1.4, 1.1.2.2.4, 1.2.1.11, 1.2.1.15, 1.3.1.1, 1.6.2, 1.6.3, and 1.6.12 with the local scripts. Verdicts stay Governance's. Mirrors under `etc/` (same paths, same commit as the handoff rows, after the apply): `etc/fstab`, `etc/issue`, `etc/issue.net`, `etc/apt/sources.list.d/ubuntu.sources`, `etc/apt/apt.conf.d/60-johnny-cis-check-date.conf`, `etc/systemd/system/tmp.mount.d/60-johnny-cis-noexec.conf`. The timer change is the removal of `/etc/systemd/system/timers.target.wants/update-notifier-motd.timer`. Handoff revision and the session CSV wait until this session ends.
+Governance re-audits 1.1.2.1.4, 1.1.2.2.4, 1.2.1.11, 1.2.1.15, 1.3.1.1, 1.6.2, 1.6.3, and 1.6.12. 1.3.1.1 stays FAIL. The install block is still the apt-under-noexec test, and it waits on Governance's vet plus SBOM rows for `apparmor-utils`, `python3-apparmor`, and `python3-libapparmor`. AJ decides whether the batch closes with 1.3.1.1 deferred. Mirrors under `etc/` and the handoff bump wait until this session ends. The files to mirror then: `etc/fstab`, `etc/issue`, `etc/issue.net`, `etc/apt/sources.list.d/ubuntu.sources`, `etc/apt/apt.conf.d/60-johnny-cis-check-date.conf`, `etc/systemd/system/tmp.mount.d/60-johnny-cis-noexec.conf`. The timer change is the removal of `/etc/systemd/system/timers.target.wants/update-notifier-motd.timer`.
