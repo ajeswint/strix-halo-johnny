@@ -1,6 +1,6 @@
 # CIS L1 fix pass, Batch 6: firewall
 
-**Status:** DRAFT rev 5 (Grok, 2026-11-04 16:45 CT). Paste 1 is the fence Claude approved at `904f24b` (rev 3, no findings). AJ runs that fence. Claude on `35f0697` approved Paste 2 with changes. Rev 5 applies them. Paste 2 has not run.
+**Status:** DRAFT rev 5 (Grok, 2026-11-04 16:45 CT). The fences are unchanged. Paste 1 is the fence Claude approved at `904f24b`. Paste 2 is the fence Claude approved at `f519e8b`. Neither has landed. Paste 2 waits on `OK-paste-1` and on AJ's go.
 
 **Rules in scope (5):** 4.1.2 ufw service active with rules, 4.1.3 incoming default, 4.1.5 routed default, then 3.3.1.16 and 3.3.1.17 `log_martians`.
 
@@ -134,6 +134,8 @@ After `OK-paste-1`, Grok reads this with no sudo. `aj` is in group `adm`. A coun
 ```bash
 journalctl -k -b --since "-5 min" --no-pager | grep -c martian
 ```
+
+Read-only at 2026-11-04 16:48 CT, before Paste 1 landed. `ENABLED=no`. `/etc/ufw/sysctl.conf` lines 29 and 30 were still `log_martians=0`. The johnny file still ended at `route_localnet = 0`, sha256 `e51dc93631673b952667ef5dc5fe34403cd33192ab4498825c24396b152d71e9`. Running values were `0` and `0`. `/etc/ufw/sysctl.conf` sha256 was `df05de02ea325b3c6d0d22c06c3dc7ebaf3a4e06e41fb98a0671b430b7da5b7f`. The martian command printed `0`. That `0` is the baseline from before the paste. It is not the count after `OK-paste-1`. No rollback. The `sed` had not run. If a paste stopped before the edit, a rerun copies the same bytes over any backup it already made. Ask AJ for any Paste 1 output before that rerun. No mirror commit until `OK-paste-1`.
 
 After `OK-paste-1`, one commit does the mirrors and the Config rows. Not before. Grok reads both live files with no sudo and writes `etc/ufw/sysctl.conf` and `etc/sysctl.d/60-johnny-cis-network.conf`. The Config rows in `docs/os-handoff.md` use the paste's two `sha256sum` lines. The ufw row says modified conffile. The johnny row does not. The `/root` backups stay out of `etc/`.
 
