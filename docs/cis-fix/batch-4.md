@@ -38,8 +38,9 @@ Each output line is prefixed with `# ` so it is not a shell command.
 # 2
 # /dev/nvme0n1p2  2.0G  118M  1.7G   7% /boot
 # f0a42b98383cce09397c4fa998a518a1452ed303701a732e390e5433137618a7  /boot/initrd.img-7.0.0-42-generic
+# f0a42b98383cce09397c4fa998a518a1452ed303701a732e390e5433137618a7  /boot/initrd.img-7.0.0-42-generic.pre-batch4
 ```
-The `2` is `etc/modprobe.d/johnny-no-bluetooth.conf` and `etc/modprobe.d/johnny-no-thunderbolt.conf` inside the image. Hostonly. No rebuild.
+The copy hash is from `sudo sha256sum /boot/initrd.img-7.0.0-42-generic.pre-batch4` (AJ, 2026-11-04). It matches the live image. The `2` is `etc/modprobe.d/johnny-no-bluetooth.conf` and `etc/modprobe.d/johnny-no-thunderbolt.conf` inside the image. Hostonly. No rebuild.
 
 **A0 (Grok, read-only, just before A1).**
 ```
@@ -469,6 +470,7 @@ Expected: three lines `= 1` (the pre-batch runtime values). Deleting the file al
 ---
 
 ## Group D: attended reboot proof (Q1; recommended)
+Do not start Group D until B4's new SSH session has printed `0` for `ulimit -Hc` and `0` for `ulimit -Sc`. An existing session keeps the old limit. If the hard limit is still `unlimited`, stop. The fallback is B6.
 
 Why: the fix is only proven if the values survive a boot. In particular `fs.suid_dumpable` must stay 0 with apport masked, the per-interface sysctl values come from `default` at boot, and TPM unlock must still work. Nothing here changes the boot chain; the initrd is the same file (hash check). **Prerequisites (same as Batch 2 Q5-A):** A, B and C verified; AMT KVM session open (the **Johnny KVM** icon on rock-box, handoff step 5); LUKS recovery passphrase at hand; a second SSH session. No `/run/reboot-required` surprise: run `cat /run/reboot-required` first (expect "No such file").
 
