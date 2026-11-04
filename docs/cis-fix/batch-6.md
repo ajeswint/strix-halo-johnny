@@ -1,17 +1,19 @@
 # CIS L1 fix pass, Batch 6: firewall
 
-**Status:** DRAFT rev 3 (Grok, 2026-11-04 16:15 CT). Nothing in this file has run. Claude on `f322785` approved rev 2 with changes. Rev 3 applies those five changes. `ufw` stays inactive until AJ answers Q1 and Q2 and a later paste is reviewed.
+**Status:** DRAFT rev 4 (Grok, 2026-11-04 16:37 CT). Paste 1 is the fence Claude approved at `904f24b` (rev 3, no findings). AJ is running that fence. Rev 4 records Q1 (a) and Q2 (a). Paste 2 is drafted below and has not run.
 
 **Rules in scope (5):** 4.1.2 ufw service active with rules, 4.1.3 incoming default, 4.1.5 routed default, then 3.3.1.16 and 3.3.1.17 `log_martians`.
 
 **Not in this batch:** 4.1.1 is already PASS. 4.1.4 outgoing deny is Level 2. IPv6 disable is Batch 7. SSH daemon settings are Batch 8. No `ufw enable` is in Paste 1.
 
-## Decisions still open
+## Decisions (AJ, 2026-11-04)
 
-1. **SSH source.** (a) Recommended: allow TCP 22 only from `192.168.50.0/24` in on `eno3`. (b) Allow TCP 22 from anywhere. (c) Name one host. The live address is `192.168.50.152/24` on `eno3` only.
-2. **Incoming policy.** (a) Recommended: keep `DEFAULT_INPUT_POLICY="DROP"`. ufw prints that as deny ([ufw(8), resolute](https://manpages.ubuntu.com/manpages/resolute/man8/ufw.8.html)). (b) Change incoming to reject.
+AJ said "go with recs, if feasible."
 
-Paste 2 is not written until those two answers are in. Enabling ufw flushes its chains and can drop the SSH session that runs it. The man page says to add the SSH rule first, and that `ufw enable` prompts when run over SSH. A script would need `ufw --force enable`. Recovery if the new session fails is AMT KVM, then `ufw disable`.
+1. **SSH source.** (a) TCP 22 from `192.168.50.0/24` in on `eno3`. Feasible. The hosts that SSH to Johnny are in that subnet: laptop Wi-Fi `192.168.50.7`, Framework `192.168.50.188`, rock-box `192.168.50.223` (`docs/network-map.md`). A read at 16:31 CT showed one established peer, `192.168.50.223`. Switch management on ether1 is `192.168.88.0/24` and is not host SSH. AMT is `192.168.51.0/24` and is not host SSH.
+2. **Incoming policy.** (a) Keep `DEFAULT_INPUT_POLICY="DROP"`. Feasible. That line is already in `/etc/default/ufw`. Paste 2 does not change it. ufw prints DROP as deny ([ufw(8), resolute](https://manpages.ubuntu.com/manpages/resolute/man8/ufw.8.html)).
+
+Paste 1's go is the fence below. It matches `904f24b`. This revision does not change it. Paste 2 waits on Claude's review.
 
 ## Live state (read-only SSH, 2026-11-04 21:57 UTC)
 
@@ -146,4 +148,153 @@ sudo sysctl -w net.ipv4.conf.default.log_martians=0
 
 ## Paste 2
 
-Not written. It waits on Q1 and Q2. It will be its own paste: confirm the DHCP line, add the SSH allow, then `ufw --force enable`, then a second SSH session must log in before anything else. AMT KVM stays the way back.
+Not run. Claude has not reviewed this fence. It waits until Paste 1 has printed `OK-paste-1`.
+
+Before this paste: a second SSH session is already logged in from `192.168.50.0/24`, AMT KVM is open, and the LUKS passphrase is at hand. The script stops unless two established sessions to port 22 are already from that subnet. Enabling ufw flushes its chains and can drop the session that runs it. The man page says to add the SSH rule first, and that `ufw enable` prompts over SSH, so the script uses `ufw --force enable` ([ufw(8), resolute](https://manpages.ubuntu.com/manpages/resolute/man8/ufw.8.html)). The same page's sample `ufw allow in on eth0 from 192.168.0.0/16` is one IPv4 rule. A generic `ufw allow 22/tcp` is the example that applies to IPv4 and IPv6. This rule names an IPv4 source, so it does not allow `[::]:22`. `IPV6=yes` stays. Incoming DROP then blocks new IPv6 SSH. Batch 7 is the IPv6 disable. This paste does not set `IPV6=no`.
+
+After `OK-paste-2`, a new SSH login from a host in `192.168.50.0/24` has to reach a shell before anything else. If that login fails, from the session that was already open or from the KVM console:
+
+```bash
+sudo ufw disable
+```
+
+One block. `sudo -v` is the first line. A paste that does not print `OK-paste-2` is a stop.
+
+```bash
+sudo -v
+sudo bash <<'EOF'
+set -euo pipefail
+if ! grep -qx 'ENABLED=no' /etc/ufw/ufw.conf; then
+  echo STOP-ufw-already-enabled
+  exit 1
+fi
+if ! grep -qx 'DEFAULT_INPUT_POLICY="DROP"' /etc/default/ufw; then
+  echo STOP-input-policy
+  exit 1
+fi
+if ! grep -qx 'DEFAULT_FORWARD_POLICY="DROP"' /etc/default/ufw; then
+  echo STOP-forward-policy
+  exit 1
+fi
+if grep -Eq '^[[:space:]]*([^#[:space:]].*)?log_martians' /etc/ufw/sysctl.conf; then
+  echo STOP-ufw-sysctl-active
+  exit 1
+fi
+a=$(sysctl -n net.ipv4.conf.all.log_martians)
+d=$(sysctl -n net.ipv4.conf.default.log_martians)
+if [ "$a" != 1 ] || [ "$d" != 1 ]; then
+  echo STOP-log-martians-before
+  exit 1
+fi
+if ! grep -qx -- '-A ufw-before-input -p udp --sport 67 --dport 68 -j ACCEPT' /etc/ufw/before.rules; then
+  echo STOP-dhcp
+  exit 1
+fi
+if ip -4 addr show dev eno1np0 | grep -q 'inet '; then
+  echo STOP-eno1np0-addr
+  exit 1
+fi
+n=0
+while read -r peer; do
+  [ -n "$peer" ] || continue
+  ip=${peer%:*}
+  case "$ip" in
+    192.168.50.*)
+      n=$((n+1))
+      echo "SSH-PEER $ip"
+      ;;
+    *)
+      echo "STOP-ssh-peer $ip"
+      exit 1
+      ;;
+  esac
+done < <(ss -Htn state established '( sport = :22 )' | awk '{print $4}')
+if [ "$n" -lt 2 ]; then
+  echo STOP-ssh-peers-$n
+  exit 1
+fi
+ufw allow in on eno3 from 192.168.50.0/24 to any port 22 proto tcp
+echo RULE-ADDED
+if ! ufw show added | grep -Fxq 'ufw allow in on eno3 from 192.168.50.0/24 to any port 22 proto tcp'; then
+  ufw show added || true
+  echo STOP-ssh-rule
+  exit 1
+fi
+echo "eno1np0-before $(cat /sys/class/net/eno1np0/statistics/rx_packets) $(cat /sys/class/net/eno1np0/statistics/rx_bytes)"
+ufw --force enable
+if ! ufw status | grep -qx 'Status: active'; then
+  echo STOP-ufw-not-active
+  exit 1
+fi
+rule_line=$(ufw status | grep -F '192.168.50.0/24' || true)
+if [[ "$rule_line" != *eno3* || "$rule_line" != *22* ]]; then
+  ufw disable
+  echo STOP-ssh-rule-missing
+  exit 1
+fi
+v6=$(ufw status verbose | grep -F '(v6)' || true)
+case "$v6" in
+  *22*)
+    ufw disable
+    echo STOP-ipv6-ssh-allow
+    exit 1
+    ;;
+esac
+a=$(sysctl -n net.ipv4.conf.all.log_martians)
+d=$(sysctl -n net.ipv4.conf.default.log_martians)
+if [ "$a" != 1 ] || [ "$d" != 1 ]; then
+  ufw disable
+  echo STOP-log-martians-after-enable
+  exit 1
+fi
+echo "eno1np0-after $(cat /sys/class/net/eno1np0/statistics/rx_packets) $(cat /sys/class/net/eno1np0/statistics/rx_bytes)"
+ip -br link show eno1np0
+ip -br addr show eno1np0
+ufw status verbose
+if ! sha256sum /etc/ufw/ufw.conf /etc/ufw/user.rules /etc/ufw/user6.rules; then
+  ufw disable
+  echo STOP-sha256
+  exit 1
+fi
+echo OK-paste-2
+EOF
+```
+
+| Line | Meaning | What AJ does |
+|---|---|---|
+| `STOP-ufw-already-enabled` | `ENABLED` is not `no`. | Stop. No rule was added by this run. |
+| `STOP-input-policy` or `STOP-forward-policy` | A saved default is not DROP. | Stop. No rule was added. |
+| `STOP-ufw-sysctl-active` or `STOP-log-martians-before` | Paste 1 is not in effect. | Stop. No rule was added. |
+| `STOP-dhcp` | The DHCP client accept line is not the stock text. | Stop. No rule was added. Send the output. |
+| `STOP-eno1np0-addr` | `eno1np0` has an IPv4 address. | Stop. No rule was added. |
+| `STOP-ssh-peer` | An established SSH peer is outside `192.168.50.0/24`. | Stop. No rule was added. |
+| `STOP-ssh-peers-N` | Fewer than two established SSH sessions from that subnet. | Open the lifeline session and run the paste again. |
+| `SSH-PEER` | One accepted peer. | Read it. The paste continues. |
+| `RULE-ADDED` | The allow command ran. | If `OK-paste-2` is missing, rollback below. |
+| `STOP-ssh-rule` | `ufw show added` did not print the expected line. `show added` is above this line. | Stop. Rollback below. |
+| `STOP-ufw-not-active` | `ufw --force enable` did not leave status active. | Stop. Tell the Brain. |
+| `STOP-ssh-rule-missing`, `STOP-ipv6-ssh-allow`, `STOP-log-martians-after-enable`, `STOP-sha256` | Enable ran and a later check failed. The script ran `ufw disable`. | Stop. Rollback below deletes the staged rule. |
+| `OK-paste-2` | ufw is active, the IPv4 SSH rule is present, no IPv6 port-22 allow is present, and `log_martians` is still 1. | Send the output. Do the new login before anything else. |
+
+**[Assumption]** `ufw show added` prints the rule as the single line `ufw allow in on eno3 from 192.168.50.0/24 to any port 22 proto tcp`. `get_show_added` in the installed `frontend.py` prints `ufw ` plus the command string. If the formatter uses another word order, the paste stops at `STOP-ssh-rule` before enable and prints `show added`. **[Assumption]** `/etc/ufw/user.rules` and `/etc/ufw/user6.rules` exist because `ufw` is installed.
+
+After the new login works, Grok reads this with no sudo. A flat 10-second sample is a quiet LAN, not a reason to disable ufw. Detection confirms the mirror. This draft does not claim the filter table leaves the mirror alone.
+
+```bash
+ip -br link show eno1np0
+ip -br addr show eno1np0
+cat /sys/class/net/eno1np0/statistics/rx_packets
+sleep 10
+cat /sys/class/net/eno1np0/statistics/rx_packets
+```
+
+If the second count equals the first, Detection's confirm is a ping from rock-box to the Framework while Grok reads `rx_packets` again. That is the L1-2 comparison in `docs/network-map.md`.
+
+Governance then re-audits 4.1.2, 4.1.3, 4.1.5, 3.3.1.16, and 3.3.1.17. 4.1.5 stays a manual judge on `DEFAULT_FORWARD_POLICY="DROP"`. The verdicts are Governance's. After those verdicts, one commit mirrors `/etc/ufw/ufw.conf`, `/etc/ufw/user.rules`, and `/etc/ufw/user6.rules` into `etc/` and adds their Config rows. The `etc/` hashes must equal the paste's `sha256sum` lines. That commit is not the Paste 1 mirror commit.
+
+Rollback when the paste printed `RULE-ADDED` and did not print `OK-paste-2`. Not part of the paste. `ufw disable` while already inactive prints a skipping line. That is expected when enable did not happen.
+
+```bash
+sudo ufw disable
+sudo ufw delete allow in on eno3 from 192.168.50.0/24 to any port 22 proto tcp
+```
