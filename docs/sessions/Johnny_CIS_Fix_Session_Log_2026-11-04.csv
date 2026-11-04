@@ -10,3 +10,4 @@ Seq,Time_UTC,Step,Issue,Actor,Action,Command,Result,Files_Changed,Status
 9,~10:57,10,Close package,Grok,Mirrors SBOM re-audit,read-only sha256sum,"195/56/23; drop-in live hash 927012ef not cd0b7621",docs/os-handoff.md; etc/; docs/cis-26.04-l1-results.csv,Done
 10,~11:16,10,Delete initrd copy,AJ,Remove .pre-batch5,sudo rm /boot/initrd.img-7.0.0-42-generic.pre-batch5,"ls: No such file or directory; live initrd remains 42618411",,Done
 11,~11:34,10,Batch 5 close,Grok,Close after Claude dropped,sha256sum of the six mirrors,"hashes match Config rows; eight rules PASS; pushed ccb4531..34d9918",docs/os-handoff.md; docs/cis-fix/batch-5.md,Done
+12,~21:57,10,Batch 6 draft,Grok,Read ufw and draft Paste 1,read-only SSH,"ENABLED=no; nftables rc; log_martians 0; Paste 1 rev 2; Q1 and Q2 open; no ufw enable",docs/cis-fix/batch-6.md; docs/sessions/2026-11-04-cis-fix-batch6-handoff.md,Draft
