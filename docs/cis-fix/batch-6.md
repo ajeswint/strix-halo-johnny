@@ -6,6 +6,38 @@
 
 **Not in this batch:** 4.1.1 is already PASS. 4.1.4 outgoing deny is Level 2. IPv6 disable is Batch 7. SSH daemon settings are Batch 8. No `ufw enable` is in Paste 1.
 
+## Plan
+
+The run AJ copies and executes is [`batch-6.sh`](batch-6.sh). This section does not replace the Paste 1 or Paste 2 fences above. Those stay as the record of what already ran. The next action is the script, not the Paste 2 fence.
+
+Read-only SSH at 2026-11-04 23:39 UTC, no sudo. `ufw.service` is enabled and active. `/etc/ufw/ufw.conf` line 6 is `ENABLED=yes` (mtime 23:03 UTC, same minute as `/etc/ufw/user.rules`). Saved policy is still input DROP, output ACCEPT, forward DROP, `IPV6=yes`. Running `log_martians` is 1 and 1. The ufw sysctl lines are commented. The johnny file has both `= 1` keys. `johnny-ufw-rollback.timer` is inactive. `ss` shows two established SSH sessions, local `192.168.50.152:22`, peer `192.168.50.223` on both. Non-root `ufw status` and `ufw show added` return "You need to be root". `/etc/ufw/user.rules` and `/etc/ufw/before.rules` are not readable as `aj`. **[Assumption]** the 23:03 UTC edit is an enable that kept these SSH sessions. The script checks that as root and does not trust this assumption.
+
+How AJ runs it:
+
+```bash
+scp docs/cis-fix/batch-6.sh aj@192.168.50.152:cis-audit/batch-6.sh
+```
+
+From an SSH session on Johnny:
+
+```bash
+sudo bash ~/cis-audit/batch-6.sh
+```
+
+That command is PASTE 1 only (`# RUNS IN: SSH`). PASTE 2 is `# RUNS IN: KVM` and runs only as `sudo bash ~/cis-audit/batch-6.sh 2` at the console.
+
+PASTE 1 is idempotent. It prints `STATE` from `ufw status`, `/etc/default/ufw`, and the two `log_martians` values, then skips work already done.
+
+1. `log_martians` (3.3.1.16, 3.3.1.17). If the two ufw lines are already the comments from Paste 1, it prints `SKIP-ufw-sysctl-comment`. If they are still the stock `=0` lines, it copies `/etc/ufw/sysctl.conf` to `/root/ufw.sysctl.conf.pre-batch6` and comments them. Any other uncommented `log_martians` text is `STOP-ufw-sysctl-active`. If `60-johnny-cis-network.conf` already has both `= 1` keys, it prints `SKIP-log-martians-file`. If both keys are absent, it copies that file to `/root/60-johnny-cis-network.conf.pre-batch6` and appends them. Running values that are already 1 print `SKIP-log-martians-running`. Otherwise it runs `sysctl -p` on the johnny file only while `net.ipv4.ip_forward` is 0.
+2. SSH allow, before any `ufw default deny` and before any `ufw --force enable`. The rule command is `ufw allow in on eno3 from 192.168.50.0/24 to any port 22 proto tcp`. It must appear as that exact line from `ufw show added`, and as `-A ufw-user-input -i eno3 -p tcp --dport 22 -s 192.168.50.0/24 -j ACCEPT` in `/etc/ufw/user.rules`. If either check fails after the add, the script prints `STOP-ssh-rule` and does not change the default policy and does not enable ufw. An existing pair prints `SKIP-ssh-rule`.
+3. Incoming default. `DEFAULT_INPUT_POLICY="DROP"` prints `SKIP-input-policy`. The script sets `ufw default deny incoming` only after `SSH-RULE-OK`.
+4. Enable. `Status: active` prints `SKIP-enable` and does not arm a timer. `Status: inactive` re-checks the SSH rule, refuses an IPv4 address on `eno1np0`, copies `/etc/ufw/ufw.conf` to `/root/ufw.conf.pre-batch6`, then arms the timer and only then runs `ufw --force enable`. The arm command is `systemd-run --unit=johnny-ufw-rollback --on-active=5min /usr/sbin/ufw --force disable`. On success the script tells AJ to open a new SSH session from aj-rock-box and, only after that session has a shell, run `sudo systemctl stop johnny-ufw-rollback.timer`.
+5. A verification block between `=== VERIFY ===` and `=== END VERIFY ===`, then `OK-batch-6` only if status is active, incoming is deny, routed is deny or disabled, the SSH rule is present, no IPv6 port-22 allow is present, and both `log_martians` values are 1.
+
+A peer of `192.168.50.152` is logged as `NOTE-ssh-self` and is not counted. The script stops before an enable if any established SSH peer is outside `192.168.50.0/24`. It does not require two sessions. The earlier `STOP-ssh-self` fence is not in this script.
+
+Backups use `cp -a` and are kept if the destination already exists (`BACKUP-KEPT`). A failed check after this run's own enable runs `ufw --force disable` and leaves the timer armed. Lockout from the console is PASTE 2. Full undo is `## Rollback` below.
+
 ## Decisions (AJ, 2026-11-04)
 
 AJ said "go with recs, if feasible."
@@ -315,4 +347,44 @@ Rollback when the paste printed `RULE-ADDED` and did not print `OK-paste-2`. Not
 ```bash
 sudo ufw disable
 sudo ufw delete allow in on eno3 from 192.168.50.0/24 to any port 22 proto tcp
+```
+
+## Rollback
+
+Not part of `sudo bash ~/cis-audit/batch-6.sh`. Use the matching block only. A run that prints `OK-batch-6` and whose new SSH session from aj-rock-box reaches a shell does not use these blocks. After that session is up, cancel a timer this run armed:
+
+```bash
+sudo systemctl stop johnny-ufw-rollback.timer
+```
+
+**New SSH fails, or the timer is about to disable ufw.** At the KVM console, PASTE 2:
+
+```bash
+sudo bash ~/cis-audit/batch-6.sh 2
+```
+
+That runs `ufw --force disable` and stops `johnny-ufw-rollback.timer`. The same two commands by hand:
+
+```bash
+sudo ufw --force disable
+sudo systemctl stop johnny-ufw-rollback.timer
+```
+
+**Remove the SSH allow after ufw is inactive.** Skip this if `ufw show added` does not list the rule.
+
+```bash
+sudo ufw delete allow in on eno3 from 192.168.50.0/24 to any port 22 proto tcp
+```
+
+**Put back the pre-batch6 files.** Skip a `cp` whose `/root` source is missing. Then force the running values back to 0. This undoes Paste 1 as well as PASTE 1 of the script.
+
+```bash
+sudo cp -a /root/ufw.sysctl.conf.pre-batch6 /etc/ufw/sysctl.conf
+sudo cp -a /root/60-johnny-cis-network.conf.pre-batch6 /etc/sysctl.d/60-johnny-cis-network.conf
+sudo cp -a /root/ufw.conf.pre-batch6 /etc/ufw/ufw.conf
+sudo cp -a /root/default.ufw.pre-batch6 /etc/default/ufw
+sudo cp -a /root/ufw.user.rules.pre-batch6 /etc/ufw/user.rules
+sudo cp -a /root/ufw.user6.rules.pre-batch6 /etc/ufw/user6.rules
+sudo sysctl -w net.ipv4.conf.all.log_martians=0
+sudo sysctl -w net.ipv4.conf.default.log_martians=0
 ```
