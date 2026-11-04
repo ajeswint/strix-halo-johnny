@@ -1,6 +1,6 @@
 # CIS L1 fix pass, Batch 5: mounts, apt, banners
 
-**Status:** APPLIED (Grok, 2026-11-04). Claude on `5a018b0..0503640`: approved with changes, none on Johnny. The eight rules are PASS. Totals **195 pass, 56 fail, 23 N/A**. R-AAU-1 is accepted, option A. 1.3.1.1 is PASS. `.pre-batch5` stays until AJ decides; Claude's recommendation is to delete it after these mirrors.
+**Status:** APPLIED (Grok, 2026-11-04). Claude on `5a018b0..0503640`: approved with changes, none on Johnny. The eight rules are PASS. Totals **195 pass, 56 fail, 23 N/A**. R-AAU-1 is accepted, option A. 1.3.1.1 is PASS. AJ deleted `/boot/initrd.img-7.0.0-42-generic.pre-batch5` on 2026-11-04. The live initrd remains.
 
 **Run order:** Paste 1, then the install block only after Governance's vet and the SBOM rows, then Paste 2, then Paste 3, then the after-login block. A paste that does not print its `OK-` line is a stop even when it printed no `STOP-` line. Do not start the next paste.
 
