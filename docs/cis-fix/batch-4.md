@@ -140,7 +140,7 @@ There is no TPM2 unlock sentence in those lines. Cryptsetup started and finished
 ```
 1.5.4 persisted: `suid_dumpable` was 0 after the reboot.
 
-**D3.** Done. `sudo rm` removed the copy. `ls -l --time-style=full-iso /boot/initrd.img-7.0.0-42-generic*` is one line: `42618411` bytes, mtime `2026-11-03 06:13:32.840646209 +0000`. Claude on `9377b4a` said to keep that copy until the Batch 5 reboot is clean. The copy was already gone. The live initrd stays as it is until that reboot is clean. `~/cis-audit/*-pre-batch4.txt` and `/root/apport.default.pre-batch4` stay.
+**D3.** Done. `sudo rm` removed the copy. `ls -l --time-style=full-iso /boot/initrd.img-7.0.0-42-generic*` is one line: `42618411` bytes, mtime `2026-11-03 06:13:32.840646209 +0000`. Claude withdrew the later "keep that copy" advice (`c78a0e4`): D3 had already removed it. Batch 5 takes a fresh `/boot/initrd.img-7.0.0-42-generic.pre-batch5` and its sha256 before any step that can run `update-initramfs`. `~/cis-audit/*-pre-batch4.txt` and `/root/apport.default.pre-batch4` stay.
 
 **`~/cis-audit/` on Johnny (2026-11-04).** Scripts: `cis-4-root.sh`, `cis-5.1-root.sh`, `cis-5.2-root.sh`, `cis-5.4-root.sh`, `cis-6-root.sh`, `cis-7-root.sh`. No `cis-1*.sh` and no `cis-3-audit.sh`. The 1.1.1.1 to .10 script is not a file there. The 2026-10-30 session log says the audit was "CIS 1.1.1.x module script looped over 7 modules" and does not name a file. On rock-box, gitignored `docs/cis-local/` has `cis-1.5-audit.sh`, `cis-3-audit.sh`, and `cis-1.1.1.11-audit.sh`. Governance, from rock-box, non-root:
 ```
