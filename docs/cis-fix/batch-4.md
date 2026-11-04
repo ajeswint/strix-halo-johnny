@@ -19,7 +19,7 @@
 9. **Only if Governance's re-audit of 1.5.10 still fails on the vendor `* hard core infinity` line:** allow a local `dpkg-divert` of `/etc/security/limits.d/10-coredump-debian.conf`? (Not run now; see B6.)
 
 ## Decisions (AJ, 2026-11-04: "recommendations")
-All nine questions are answered with the marked recommendation: **Q1** no rebuild, take the baseline and `.pre-batch4` copy, one attended reboot at the end (Group D, after D0). **Q2** (a) block the 60 unused filesystem modules (A2), **gated on Governance's F4 diff** of the raw 1.1.1.11 list before A2 runs. **Q3** block `overlay` (A2b). **Q4** block `usb-storage`. **Q5** was "defer `rp_filter`" but is **reopened** (rev 4: the ufw premise was wrong; new rec is apply now). **Q6** apply `ip_forward`, `forwarding`, `send_redirects`. **Q7** option A: `enabled=0` plus `systemctl mask --now apport.service`. **Q8** pin 3.3.1.6, .7 and .15. **Q9** only if Governance still fails 1.5.10 after B3. Not chosen: Q2 (c) pstore trio, Q2 (d) keeping nfs/cifs; either can be added by a one-line change before A2. Next step: Group P.
+All nine questions are answered with the marked recommendation: **Q1** no rebuild, take the baseline and `.pre-batch4` copy, one attended reboot at the end (Group D, after D0). **Q2** (a) block the 60 unused filesystem modules (A2), **gated on Governance's F4 diff** of the raw 1.1.1.11 list before A2 runs. **Q3** block `overlay` (A2b). **Q4** block `usb-storage`. **Q5** apply `rp_filter = 1` for `all` and `default` now (AJ, 2026-11-04, "go on Q5"; the deferral was reopened and the updated rec is this). **Q6** apply `ip_forward`, `forwarding`, `send_redirects`. **Q7** option A: `enabled=0` plus `systemctl mask --now apport.service`. **Q8** pin 3.3.1.6, .7 and .15. **Q9** only if Governance still fails 1.5.10 after B3. Not chosen: Q2 (c) pstore trio, Q2 (d) keeping nfs/cifs; either can be added by a one-line change before A2. Next step: Group P.
 
 ## P1-P3 results (AJ, no sudo, 2026-11-04 ~05:2x UTC)
 Everything matched the draft except two points. **Matched:** kernel `7.0.0-42-generic`; 0 failed units; none of the 12 modules loaded; `xfs` and `autofs4` loaded; no existing blacklist or install line for them; `/etc/modprobe.d/` holds the two `johnny-no-*` files plus stock vendor files and no `johnny-cis-*`; `/etc/sysctl.d/` and `limits.d/` have no Batch 4 files; no `/etc/sysctl.conf`; `modules-load.d` and `/etc/modules` name only `i2c_dev` and `msr` (neither is on any blocklist here); every sysctl value as expected (`suid_dumpable` 2, redirects 1, `rp_filter` 2, `log_martians` 0, forwarding 0); apport active and enabled with `enabled=1` once; `apport`, `apport-core-dump-handler`, `python3-apport` installed 2.34.1-0ubuntu0.1; `systemd-coredump` not installed; `ulimit -Hc` unlimited; ufw `ENABLED=no`. **Differences:** (1) `/etc/ufw/sysctl.conf` has no active `rp_filter` or `accept_source_route` line (corrected above; reopens Q5). (2) `/usr/lib/sysctl.d/10-coredump-debian.conf` sets `kernel.core_pattern=core`, which is the value D2 expects once apport is masked (no change needed; it is why the running pattern reverts after the mask and reboot). **Note:** the vendor limits file also has `* soft core 0` and `root soft core 0` and `root hard core infinity`; B3's `* hard core 0` does not change the `root` lines, and CIS audits the `*` line.
@@ -407,7 +407,7 @@ Expected: `dpkg --verify` prints nothing (conffile back to the package copy); `s
 | 3.3.1.4, .5 | "… all / default.send_redirects …" | running **1** | `= 0` both |
 | 3.3.1.8, .9 | "… all / default.accept_redirects …" | running **1**; 0 only in `/etc/ufw/sysctl.conf` (inert) | `= 0` both |
 | 3.3.1.10, .11 | "… all / default.secure_redirects …" | running **1** | `= 0` both |
-| 3.3.1.12, .13 | "… all / default.rp_filter …" | running **2** (`55-network-security.conf`, `50-default.conf`) | **deferred (Q5)**: `= 1` both, commented out |
+| 3.3.1.12, .13 | "… all / default.rp_filter …" | running **2** (`55-network-security.conf`, `50-default.conf`) | **Q5 apply now:** `= 1` both |
 | 3.3.1.14 | "… all.accept_source_route …" | running 0, in no file | `= 0` |
 | 3.3.1.18 | "Ensure net.ipv4.tcp_syncookies is configured" | running 1, in no file | `= 1` |
 | 3.3.1.19 | "… all.route_localnet …" | running 0, in no file | `= 0` |
@@ -441,9 +441,9 @@ net.ipv4.conf.all.accept_redirects = 0
 net.ipv4.conf.default.accept_redirects = 0
 net.ipv4.conf.all.secure_redirects = 0
 net.ipv4.conf.default.secure_redirects = 0
-# 3.3.1.12 and 3.3.1.13 rp_filter: deferred to Batch 6 (Q5). Uncomment both to apply strict mode.
-#net.ipv4.conf.all.rp_filter = 1
-#net.ipv4.conf.default.rp_filter = 1
+# 3.3.1.12 and 3.3.1.13 rp_filter: AJ chose apply now (2026-11-04). Strict mode.
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
 net.ipv4.conf.all.accept_source_route = 0
 net.ipv4.conf.default.accept_source_route = 0
 net.ipv4.tcp_syncookies = 1
@@ -454,7 +454,7 @@ sudo chmod 0644 /etc/sysctl.d/60-johnny-cis-network.conf
 sudo systemctl restart systemd-sysctl.service
 systemctl is-failed systemd-sysctl.service
 ```
-(Q8 = no: delete the `icmp_ignore_bogus`, `icmp_echo_ignore_broadcasts` and `default.accept_source_route` lines. Q6 = defer: delete the five forwarding and `send_redirects` lines. Q5 = apply now: remove the two `#` before running.) `restart` re-applies every sysctl file and does not touch interfaces.
+(Q8 = no: delete the `icmp_ignore_bogus`, `icmp_echo_ignore_broadcasts` and `default.accept_source_route` lines. Q6 = defer: delete the five forwarding and `send_redirects` lines. Q5 is apply now: the two `rp_filter` lines are active.) `restart` re-applies every sysctl file and does not touch interfaces.
 
 ### C2. Verification (read-only, no sudo)
 ```
