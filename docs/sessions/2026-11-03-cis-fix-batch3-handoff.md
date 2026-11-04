@@ -6,6 +6,29 @@ Repo `ajeswint/strix-halo-johnny`; `git pull` first. Read `AGENTS.md`, `README.m
 
 **Method, batch table, owed decisions, "every change" steps and the Don't list:** `docs/sessions/2026-10-31-cis-fix-handoff.md`. That brief still holds, except where this one and `2026-11-03-cis-fix-batch2-handoff.md` update it (re-check verdicts edited in place; mode-only changes as Config changes rows; log group `root adm` 0640).
 
+## Summary (2026-11-03 20:06 CT)
+
+Batch 3 is applied and signed off. Johnny is otherwise unchanged since Batch 2. Full state is `docs/os-handoff.md` rev 34 (`0fa0ac9` and later). Claude reviewed C4, A1b, and the checkpoint results, not C1–C10 in full.
+
+**On Johnny**
+- Group A: journald cap `SystemMaxUse=1G` (was `max 4G`). Drop-in `/etc/systemd/journald.conf.d/60-rotation.conf`. Reload 09:22:46 UTC, same process. Seven journal files `640 root:systemd-journal`.
+- Group B: `/etc/logrotate.conf` is `rotate 13` and `maxage 90`. `rsyslog` and `ufw` are `rotate 13`. B3 passed (`MODES-UNCHANGED`).
+- Group C: `aide` and `aide-common` 0.19.2-3, `liblockfile1` and `liblockfile-bin` 1.17-2build2, no Postfix. `_aide` is uid/gid 982. `dotlockfile` is `755 root:mail`. Database `/var/lib/aide/aide.db` (init 3m 13s, return code 0, 111497 entries). C6 took 3m 8s. Timer next run 05:00 UTC (11:00 pm CT Nov 3). `aide.db.new` from that check is left alone.
+- CIS totals are still **151 pass, 100 fail, 23 N/A** until Governance re-audits.
+
+**Who does what next**
+- Grok, read-only: B5 after 00:30 UTC Nov 4 (6:30 pm CT Nov 3). That window is open. Commands are in `docs/cis-fix/batch-3.md` B5. Not run yet.
+- The AIDE timer fires at 05:00 UTC Nov 4 (11:00 pm CT Nov 3).
+- Grok, read-only, on the later Central morning of Nov 4: C8, the no-sudo C9 lines, and `journalctl -u dailyaidecheck.service --since today --no-pager | tail -5` (expect `Finished`). That window lasts until 00:00 UTC Nov 5 (6:00 pm CT Nov 4).
+- AJ: the sudo C9 lines, shown first.
+- Governance: re-audit 6.1.1.1.5, 6.1.2.7, 6.3.1, and 6.3.2.
+- Batch 4 after those re-audits. Not started.
+
+**Still open**
+- Entry count: init 111497, C6 total 111499, added 1, removed 0. One short of the arithmetic. Not a stop.
+- B5 also on 2026-11-08 and 2026-12-01.
+- DMT Console `jwtKey` and admin password are still not rotated.
+
 ## Where it stands
 - **Batch 1 (file modes) and Batch 2 (package removal) done.** Totals **151 pass, 100 fail, 23 N/A**. Records: `docs/cis-fix/batch-1.md`, `docs/cis-fix/batch-2.md` (rev 3, applied), `docs/findings/cis-batch-1-review.md`, `docs/findings/cis-batch-2-review.md`, handoff step 10 + Config changes + SBOM.
 - Johnny rebooted at 06:17 UTC 2026-11-03 on the rebuilt initrd (unattended, TPM unlock worked). Kernel 7.0.0-42.
