@@ -89,11 +89,26 @@ The showconfig grep for the twelve names printed nothing.
 
 **Group C (AJ, sudo, 2026-11-04 ~06:04 UTC).** Q6 applied (the five `ip_forward`, `forwarding`, and `send_redirects` lines). Q8 applied (`icmp_ignore_bogus_error_responses`, `icmp_echo_ignore_broadcasts`, and `default.accept_source_route`). Q5 applied (`rp_filter = 1` for `all` and `default`). C0 before the write: redirects were 1, `rp_filter` was 2 and 2, `log_martians` was 0, `ENABLED=no`. `eno1np0` was UP, RX 3638682 bytes / 16120 packets. `nstat -az IPReversePathFilter` printed only `#kernel` (no counter line). C1 `tee` echoed the file. `is-failed` printed `active` (exit 1). After the restart: redirects 0, `rp_filter` 1 and 1, `log_martians` still 0. The last `rp_filter` lines in `--tldr` are in `60-johnny-cis-network.conf` (the `55-network-security.conf` lines of 2 sit above them). `eno1np0` RX then 3643271 bytes / 16141 packets. Initrd unchanged. Mirror sha256 `e51dc93631673b952667ef5dc5fe34403cd33192ab4498825c24396b152d71e9`.
 
-**Per-NIC `rp_filter`.** After boot, `all` and `default` are 1. `eno1np0`, `eno3`, and `eno4` are each 2. `/usr/lib/sysctl.d/50-default.conf` has `net.ipv4.conf.*.rp_filter = 2`, which sets each interface by name. The Group C file does not set that wildcard. The kernel uses the max of `all` and the interface, so the effective mode on those NICs is still loose (2). CIS reads `all` and `default`. Redirects on those three NICs are 0. Two options, not chosen: leave the wildcard at 2, or add `net.ipv4.conf.*.rp_filter = 1` and have Detection check capture on `eno1np0`.
+**Per-NIC `rp_filter`.** After boot, `all` and `default` are 1. `eno1np0`, `eno3`, and `eno4` are each 2. `/usr/lib/sysctl.d/50-default.conf` has `net.ipv4.conf.*.rp_filter = 2`, which sets each interface by name. The Group C file does not set that wildcard. The kernel uses the max of `all` and the interface, so the effective mode on those NICs is still loose (2). CIS reads `all` and `default`. `default.rp_filter = 1` makes an interface that has never been set by name strict. The three NICs already named by the wildcard stay at 2 until that wildcard is changed. Redirects on those three NICs are 0. Two options, not chosen: leave the wildcard at 2, or add `net.ipv4.conf.*.rp_filter = 1` and have Detection check capture on `eno1np0`.
 
 **D0.** Only `vmlinuz-7.0.0-42-generic`, the live initrd, and the `.pre-batch4` copy. `dpkg` ii lines: `linux-image-7.0.0-42-generic 7.0.0-42.42` and `linux-image-generic 7.0.0-42.42`. `apt-daily-upgrade.service` inactive. `unattended-upgrades.service` active as `/usr/share/unattended-upgrades/unattended-upgrade-shutdown --wait-for-signal` since the 2026-11-03 06:17:25 UTC boot, not an upgrade. No `/run/reboot-required`. Initrd still `42618411` at `2026-11-03 06:13:32`.
 
-**D1.** AJ ran `sudo systemctl reboot` from rock-box. The SSH session got `Connection reset by peer`. Johnny answered at `2026-11-04T06:06:28Z`, up 0 minutes, kernel `7.0.0-42-generic`. No passphrase was typed on that SSH session. The KVM screen is not in this transcript.
+**D1.** AJ ran `sudo systemctl reboot` from rock-box. The SSH session got `Connection reset by peer`. Johnny answered at `2026-11-04T06:06:28Z`, up 0 minutes, kernel `7.0.0-42-generic`. AJ has not said whether the LUKS passphrase was typed at the KVM. The KVM screen is not in this transcript. `journalctl -b | grep -iE 'cryptsetup|tpm2|ask-password' | head -12` for this boot:
+```
+# Nov 04 06:05:44 johnny kernel: ACPI: TPM2 0x0000000064E6A000 00004C (v04 ALASKA A M I    00000001 AMI  00000000)
+# Nov 04 06:05:44 johnny kernel: ACPI: Reserving TPM2 table memory at [mem 0x64e6a000-0x64e6a04b]
+# Nov 04 06:05:44 johnny systemd[1]: systemd 259.9-0ubuntu0.1 running in system mode (+PAM ... +TPM2 ...)
+# Nov 04 06:05:44 johnny systemd[1]: Created slice system-systemd-cryptsetup.slice
+# Nov 04 06:05:44 johnny systemd[1]: Started systemd-ask-password-console.path - Dispatch Password Requests to Console Directory Watch.
+# Nov 04 06:05:44 johnny systemd[1]: Reached target tpm2.target - Trusted Platform Module.
+# Nov 04 06:05:45 johnny systemd[1]: Starting systemd-cryptsetup@dm_crypt-0.service - Cryptography Setup for dm_crypt-0...
+# Nov 04 06:05:45 johnny systemd[1]: Finished systemd-cryptsetup@dm_crypt-0.service - Cryptography Setup for dm_crypt-0.
+# Nov 04 06:05:45 johnny systemd[1]: Reached target cryptsetup.target - Local Encrypted Volumes.
+# Nov 04 06:05:45 johnny systemd[1]: Reached target remote-cryptsetup.target - Remote Encrypted Volumes.
+# Nov 04 06:05:45 johnny systemd[1]: Stopped target remote-cryptsetup.target - Remote Encrypted Volumes.
+# Nov 04 06:05:45 johnny systemd[1]: Stopped target tpm2.target - Trusted Platform Module.
+```
+There is no TPM2 unlock sentence in those lines. Cryptsetup started and finished in the same second. No `systemd-ask-password@` service instance started. The `.path` units start on every boot. That is not a record of a passphrase prompt, and it is not a record that TPM released the key.
 
 **D2.**
 ```
@@ -125,7 +140,7 @@ The showconfig grep for the twelve names printed nothing.
 ```
 1.5.4 persisted: `suid_dumpable` was 0 after the reboot.
 
-**D3.** Not run. The `.pre-batch4` copy is still on `/boot`. The draft deletes it after D2 and keeps `~/cis-audit/*-pre-batch4.txt` and `/root/apport.default.pre-batch4` until the re-audit. AJ has not said to delete the copy. It stays until AJ says so.
+**D3.** AJ said proceed (2026-11-04). The command is shown and has not been pasted yet. The copy is still on `/boot` until that command returns `No such file or directory`. Keep `~/cis-audit/*-pre-batch4.txt` and `/root/apport.default.pre-batch4` until the re-audit.
 
 **`~/cis-audit/` on Johnny (2026-11-04).** Scripts: `cis-4-root.sh`, `cis-5.1-root.sh`, `cis-5.2-root.sh`, `cis-5.4-root.sh`, `cis-6-root.sh`, `cis-7-root.sh`. No `cis-1*.sh` and no `cis-3-audit.sh`. The 1.1.1.1 to .10 script is not a file there. The 2026-10-30 session log says the audit was "CIS 1.1.1.x module script looped over 7 modules" and does not name a file. On rock-box, gitignored `docs/cis-local/` has `cis-1.5-audit.sh`, `cis-3-audit.sh`, and `cis-1.1.1.11-audit.sh`. Governance, from rock-box, non-root:
 ```
@@ -539,7 +554,7 @@ systemctl is-active apt-daily-upgrade.service unattended-upgrades.service
 ls -l --time-style=full-iso /boot/initrd.img-7.0.0-42-generic
 cat /run/reboot-required
 ```
-Expected: only the `7.0.0-42-generic` kernel and initrd (plus the `.pre-batch4` initrd copy); one `ii` line, `linux-image-7.0.0-42-generic`; `inactive` twice; initrd size `42618411` and mtime `2026-11-03 06:13:32` (as in P4); `cat: /run/reboot-required: No such file or directory`. If a second kernel appears, either service is `active`, or the initrd size or time differs, **stop**: a security update landed, so the reboot would first-boot an unproven kernel with no fallback kernel. Tell the Brain; re-run P4 to re-baseline, or reboot only when nothing else changed.
+Expected: only the `7.0.0-42-generic` kernel and initrd (plus the `.pre-batch4` copy until D3). `linux-image-generic` on the `dpkg` list is the metapackage, not a second kernel. `apt-daily-upgrade.service` should be `inactive`. `unattended-upgrades.service` is normally `active`: its process is `unattended-upgrade-shutdown --wait-for-signal`, the shutdown helper, not an upgrade. A running upgrade is a process named `unattended-upgrade` or `apt-get`/`apt` that is not that helper, or `/run/reboot-required` existing, or a second `vmlinuz`, or the initrd size or mtime changing. Any of those is a stop. Initrd size `42618411` and mtime `2026-11-03 06:13:32`. `cat /run/reboot-required` expects `No such file or directory`.
 
 ### D1. Reboot (AJ; only after D0 passes)
 ```
