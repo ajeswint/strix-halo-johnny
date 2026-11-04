@@ -10,7 +10,7 @@ Batch 5 is closed. HEAD when this brief was written was `4d2d66e`, handoff rev 6
 
 ## Batch 6
 
-Draft: `docs/cis-fix/batch-6.md` rev 2. Nothing has run. ufw is installed, the unit is active, and `ENABLED=no`. Input policy on disk is already DROP. `nftables` is `rc`.
+Draft: `docs/cis-fix/batch-6.md` rev 3. Nothing has run. ufw is installed, the unit is active, and `ENABLED=no`. Input policy on disk is already DROP. `nftables` is `rc`.
 
 Two decisions are open. Recommended answers: (a) SSH from `192.168.50.0/24` in on `eno3` to TCP 22, and (a) keep deny (DROP). Paste 1 only comments the two `log_martians=0` lines in `/etc/ufw/sysctl.conf` and sets those keys to 1 in `60-johnny-cis-network.conf`. It does not enable ufw. Paste 2 is the enable and is not written until AJ answers.
 
