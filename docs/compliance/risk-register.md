@@ -1,6 +1,6 @@
 # Johnny risk register
 
-Three entries. An entry is accepted only when AJ has said so. `docs/findings/aide-vetting.md` still says R-AIDE-1 is pending; the acceptance is Batch 3, not that line.
+Four entries. An entry is accepted only when AJ has said so. `docs/findings/aide-vetting.md` still says R-AIDE-1 is pending; the acceptance is Batch 3, not that line.
 
 ## R-AIDE-1
 
@@ -29,3 +29,11 @@ Read-only checks, 2026-11-04T07:26:18Z, before this entry is finalized: `dpkg-qu
 - Options: (A) leave `ksmbd` loadable, as it is now; (B) divert or remove `ksmbd.ko.zst`, which is a package file and can return on a kernel upgrade; (C) put `install ksmbd /bin/false` back. C is not a block: the softdep still wins, and showconfig would claim a block the dry-run disproves.
 - Recommendation: **A**. Nothing listens on 139 or 445, and `ksmbd-tools` is not installed. B fights the kernel package. C is a false block.
 - AJ acceptance: pending.
+
+## R-AAU-1
+
+**Status:** accepted, option A (AJ, 2026-11-04). Cite: `docs/compliance/apparmor-utils-vetting.md`.
+
+`apparmor-utils` and its two dependencies add root-only tools that can put a profile in complain mode or turn it off. Root can already do that with `apparmor_parser`. The tools make that quicker, and they add Python code that parses logs and profiles when root runs it. No daemon, no listener, no setuid file.
+
+AJ also accepted the rule that `aa-disable`, `aa-complain`, and `aa-teardown` are not run without a separate decision. Governance re-audits the eight Batch 5 rules after the install.

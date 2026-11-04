@@ -18,4 +18,4 @@ The "Commands for Johnny" before the install, and what they printed:
 
 Source rebuild, the CIS PDF text for 1.3.1.1, upstream release notes, the SRU autopkgtest claim, and the Ubuntu CVE web page. The vet already labels those. They do not change the pinned three-package install. `aa-status` and the initrd hash are still before-and-after checks for the install paste, not for this review.
 
-R-AAU-1 acceptance is still pending. Until AJ accepts option A, the install block does not run.
+R-AAU-1 is accepted, option A (AJ, 2026-11-04). No `aa-disable`, `aa-complain`, or `aa-teardown` without a separate decision. Governance re-audits the eight Batch 5 rules after the install.

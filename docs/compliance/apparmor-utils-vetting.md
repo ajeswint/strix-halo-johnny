@@ -106,7 +106,7 @@ Read as text from `DEBIAN/` of each `.deb`:
 - Residual items AJ should accept: (1) SRU-class version (5.0.2 backport, not the release-day 5.0.0~beta1); (2) no `apparmor` source entry in the Ubuntu CVE or USN data now, but an absence of entries is not proof; (3) updates arrive from `-updates` unless Ubuntu issues a USN, so `unattended-upgrades` (security-only) will not move these; a USN would update all binaries of the source together; (4) AIDE baseline drift from the new files; (5) the autopkgtest regressions listed on LP #2161458 were reported as spurious by the uploader and not verified by me; (6) if the install runs `man-db` or other triggers, a harmless extra line appears in the dpkg log.
 - Options: (A) install as vetted with the conditions above; (B) hold CIS 1.3.1.1 as a documented FAIL until a later benchmark review (leaves a Level 1 recommendation failing, no security gain since the tools are not needed for enforcement); (C) install the benchmark's package set and remove the tools after audit (breaks the benchmark's intent; the audit state would not stay PASS).
 - Recommendation: **A**.
-- AJ acceptance: pending.
+- AJ acceptance: accepted, option A (AJ, 2026-11-04). No `aa-disable`, `aa-complain`, or `aa-teardown` without a separate decision. Governance re-audits the eight Batch 5 rules after the install.
 
 ## Commands for Johnny (read-only; AJ or Platform runs; no sudo unless marked)
 
@@ -204,4 +204,4 @@ Also record after the install: no new system user or group (none of the three cr
 - Brain: paste the SBOM rows after AJ installs and the hashes are confirmed; record the three conffiles.
 - Governance: after the install, re-run CIS 1.3.1.1 and edit the CSV row in place; `vuln-intake` watch for any `apparmor` USN in resolute and for kernel AppArmor LSM CVEs against the SBOM kernel row.
 
-AJ acceptance: pending
+AJ acceptance: accepted, option A (AJ, 2026-11-04). No `aa-disable`, `aa-complain`, or `aa-teardown` without a separate decision.

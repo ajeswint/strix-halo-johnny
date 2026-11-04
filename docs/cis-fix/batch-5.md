@@ -247,34 +247,60 @@ The script exits before `OK-paste-1`. Do not start Paste 2. Do not reboot. Leave
 | `STOP-apt-update` | `apt-get update` failed. The script copied the backup back, so the URI lines are `http://` again. The banner, the Check-Date file, and the timer change stay. | Read the apt output. Tell the Brain. A later run of Paste 1 is safe: the initrd copy and the three `/root` backups are kept, and `sed` runs again. |
 | `STOP-initrd-restored` | Something rebuilt the live initrd. The script copied `.pre-batch5` back and `sha256sum -c` printed `OK`. | Stop. Tell the Brain what apt printed. Do not reboot. |
 
-### Install block (not part of Paste 1)
+### Install block
 
-This block stays out of Paste 1 until both of these are true: Governance's vet of `apparmor-utils`, `python3-apparmor`, and `python3-libapparmor` is in the repo, and the handoff SBOM has a row for each. The simulation gate is the same one read on 2026-11-04. `NEEDRESTART_MODE=l` and `</dev/null` apply here too. **[Assumption]** none of the three packages activates `update-initramfs`. The file list of `apparmor-utils` has no initramfs hook (https://packages.ubuntu.com/resolute-updates/all/apparmor-utils/filelist). A dpkg `triggers` member would not show in that list. The hash check is the stop if the assumption is wrong.
+AJ accepted R-AAU-1, option A (2026-11-04). One block. `sudo -v` is the first line. The three packages are pinned. The simulation must be `0 upgraded, 3 newly installed, 0 to remove`. A larger "not upgraded" count is the other pending packages and is not a stop. `NEEDRESTART_MODE=l` lists restart requests and does not restart anything (https://manpages.ubuntu.com/manpages/resolute/man1/needrestart.1.html). If the live initrd hash changes, the script copies `.pre-batch5` back and exits. Do not run `aa-disable`, `aa-complain`, or `aa-teardown`.
 
 ```
 sudo -v
 sudo bash <<'EOF'
 set -euo pipefail
 export LC_ALL=C
-sim=$(NEEDRESTART_MODE=l apt-get -s install --no-install-recommends apparmor-utils </dev/null)
+sha256sum -c /home/aj/cis-audit/initrd-sha256-pre-batch5.txt
+pol=$(apt-cache policy apparmor-utils python3-apparmor python3-libapparmor | awk '/^  Candidate:/{print $2}' | sort -u)
+[ "$pol" = "5.0.2-0ubuntu1~26.04.1" ]
+show=$(apt-cache show apparmor-utils=5.0.2-0ubuntu1~26.04.1 python3-apparmor=5.0.2-0ubuntu1~26.04.1 python3-libapparmor=5.0.2-0ubuntu1~26.04.1 | grep '^SHA256:')
+printf '%s\n' "$show" | grep -qx 'SHA256: 6d251b6ffefb54ccee50518bae414b5dd8abf0a55faf9687b550b153886e5d4c'
+printf '%s\n' "$show" | grep -qx 'SHA256: df67e000dcec6a8888c89dc0bdf15ad5e2d33b73601265a2a69579816ba6cdff'
+printf '%s\n' "$show" | grep -qx 'SHA256: fabb4c780038884b4b616a9568d90ed3113683c15f22fe9c44edf5540a844bda'
+install -d -o aj -g "$(id -gn aj)" -m 0755 /home/aj/cis-audit
+aa-status > /home/aj/cis-audit/aa-status-before-apparmor-utils.txt || echo "aa-status-before-exit:$?"
+sha256sum /boot/initrd.img-7.0.0-42-generic /boot/initrd.img-7.0.0-42-generic.pre-batch5 > /home/aj/cis-audit/initrd-before-apparmor-utils.txt
+head -4 /home/aj/cis-audit/aa-status-before-apparmor-utils.txt
+sim=$(NEEDRESTART_MODE=l apt-get -s install --no-install-recommends apparmor-utils=5.0.2-0ubuntu1~26.04.1 python3-apparmor=5.0.2-0ubuntu1~26.04.1 python3-libapparmor=5.0.2-0ubuntu1~26.04.1 </dev/null)
 printf '%s\n' "$sim"
-printf '%s\n' "$sim" | grep -qx '0 upgraded, 3 newly installed, 0 to remove and 0 not upgraded.'
-NEEDRESTART_MODE=l DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends apparmor-utils </dev/null
+printf '%s\n' "$sim" | grep -q '^0 upgraded, 3 newly installed, 0 to remove,'
+ninst=$(printf '%s\n' "$sim" | grep -c '^Inst ')
+[ "$ninst" = 3 ]
+mark=$(wc -l < /var/log/apt/term.log)
+NEEDRESTART_MODE=l DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends apparmor-utils=5.0.2-0ubuntu1~26.04.1 python3-apparmor=5.0.2-0ubuntu1~26.04.1 python3-libapparmor=5.0.2-0ubuntu1~26.04.1 </dev/null
 got=$(dpkg-query -W -f '${Version}\n' apparmor apparmor-utils python3-apparmor python3-libapparmor | sort -u)
 [ "$got" = "5.0.2-0ubuntu1~26.04.1" ]
-if ! sha256sum -c /home/aj/cis-audit/initrd-sha256-pre-batch5.txt; then
+aa-status > /home/aj/cis-audit/aa-status-after-apparmor-utils.txt || echo "aa-status-after-exit:$?"
+if ! diff /home/aj/cis-audit/aa-status-before-apparmor-utils.txt /home/aj/cis-audit/aa-status-after-apparmor-utils.txt; then
+  echo STOP-aa-status
+  exit 1
+fi
+echo aa-status-identical
+sha256sum /boot/initrd.img-7.0.0-42-generic /boot/initrd.img-7.0.0-42-generic.pre-batch5 > /home/aj/cis-audit/initrd-after-apparmor-utils.txt
+if ! diff /home/aj/cis-audit/initrd-before-apparmor-utils.txt /home/aj/cis-audit/initrd-after-apparmor-utils.txt; then
   cp -a /boot/initrd.img-7.0.0-42-generic.pre-batch5 /boot/initrd.img-7.0.0-42-generic
   sha256sum -c /home/aj/cis-audit/initrd-sha256-pre-batch5.txt
   echo STOP-initrd-restored
   exit 1
 fi
-[ "$(systemctl --failed --no-pager --plain | tail -1)" = "0 loaded units listed." ]
+echo initrd-identical
+if tail -n +"$((mark + 1))" /var/log/apt/term.log | grep -E 'update-initramfs|dracut' | grep -q .; then
+  echo STOP-initramfs-log
+  exit 1
+fi
+chown aj:"$(id -gn aj)" /home/aj/cis-audit/aa-status-before-apparmor-utils.txt /home/aj/cis-audit/aa-status-after-apparmor-utils.txt /home/aj/cis-audit/initrd-before-apparmor-utils.txt /home/aj/cis-audit/initrd-after-apparmor-utils.txt
 [ "$(systemctl is-active ssh.socket)" = active ]
 echo OK-apparmor-utils
 EOF
 ```
 
-`STOP-initrd-restored` here means the same thing as in Paste 1: the image was put back, the packages stay installed, and the reboot is not next.
+`STOP-aa-status` means the profile list changed. The packages stay. Do not reboot. `STOP-initrd-restored` means the script put `.pre-batch5` back. `STOP-initramfs-log` means the apt log mentioned an initramfs rebuild. Send the output before any PASS is written.
 
 ## Paste 2 — mount steps
 
