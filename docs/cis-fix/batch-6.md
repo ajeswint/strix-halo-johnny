@@ -1,6 +1,6 @@
 # CIS L1 fix pass, Batch 6: firewall
 
-**Status:** DRAFT rev 5 (Grok, 2026-11-04 16:45 CT). The fences are unchanged. Paste 1 is the fence Claude approved at `904f24b`. Paste 2 is the fence Claude approved at `f519e8b`. Neither has landed. Paste 2 waits on `OK-paste-1` and on AJ's go.
+**Status:** DRAFT rev 6 (Grok, 2026-11-04 17:00 CT). Paste 1 has landed on Johnny. Its fence stays the one from `904f24b`. Paste 2's run, unless AJ says B, is the unchanged fence from `f519e8b`. Rev 6 records `STOP-ssh-self` and is not that run.
 
 **Rules in scope (5):** 4.1.2 ufw service active with rules, 4.1.3 incoming default, 4.1.5 routed default, then 3.3.1.16 and 3.3.1.17 `log_martians`.
 
@@ -135,7 +135,9 @@ After `OK-paste-1`, Grok reads this with no sudo. `aj` is in group `adm`. A coun
 journalctl -k -b --since "-5 min" --no-pager | grep -c martian
 ```
 
-Read-only at 2026-11-04 16:48 CT, before Paste 1 landed. `ENABLED=no`. `/etc/ufw/sysctl.conf` lines 29 and 30 were still `log_martians=0`. The johnny file still ended at `route_localnet = 0`, sha256 `e51dc93631673b952667ef5dc5fe34403cd33192ab4498825c24396b152d71e9`. Running values were `0` and `0`. `/etc/ufw/sysctl.conf` sha256 was `df05de02ea325b3c6d0d22c06c3dc7ebaf3a4e06e41fb98a0671b430b7da5b7f`. The martian command printed `0`. That `0` is the baseline from before the paste. It is not the count after `OK-paste-1`. No rollback. The `sed` had not run. If a paste stopped before the edit, a rerun copies the same bytes over any backup it already made. Ask AJ for any Paste 1 output before that rerun. No mirror commit until `OK-paste-1`.
+Read-only at 2026-11-04 16:48 CT, before Paste 1 landed. `ENABLED=no`. `/etc/ufw/sysctl.conf` lines 29 and 30 were still `log_martians=0`. The johnny file still ended at `route_localnet = 0`, sha256 `e51dc93631673b952667ef5dc5fe34403cd33192ab4498825c24396b152d71e9`. Running values were `0` and `0`. `/etc/ufw/sysctl.conf` sha256 was `df05de02ea325b3c6d0d22c06c3dc7ebaf3a4e06e41fb98a0671b430b7da5b7f`. That hash is the pre-paste reference. The martian command printed `0`. That `0` is the baseline from before the paste.
+
+Read-only at 16:59 CT. Lines 29 and 30 are commented. The johnny file ends with `log_martians = 1` for `all` and `default`. Running values are `1` and `1`. `ENABLED=no`. sha256 `/etc/ufw/sysctl.conf` `9ffb3c8abeebb2b678cc8103aeb8a4ba796aca1288bb755b68f30fed3d3d23d3`, johnny file `b9e2aad124dbaa02aa229207c08b93658ea15eddd888bd5db481c8ad79931254`. The martian command printed `22`. That is the count after the paste, not the baseline. The lines are broadcasts to `192.168.50.255` on `eno1np0` and `eno4`, sources `192.168.50.211` and `192.168.50.1`. It is a note. It is not a rollback. The script's own `OK-paste-1` text is not in this session. The disk matches the success checks.
 
 After `OK-paste-1`, one commit does the mirrors and the Config rows. Not before. Grok reads both live files with no sudo and writes `etc/ufw/sysctl.conf` and `etc/sysctl.d/60-johnny-cis-network.conf`. The Config rows in `docs/os-handoff.md` use the paste's two `sha256sum` lines. The ufw row says modified conffile. The johnny row does not. The `/root` backups stay out of `etc/`.
 
@@ -150,9 +152,11 @@ sudo sysctl -w net.ipv4.conf.default.log_martians=0
 
 ## Paste 2
 
-Not run. Claude on `35f0697` approved the rev 4 fence with changes. This is rev 5. It waits until Paste 1 has printed `OK-paste-1`. It is not a go until Claude reviews this fence.
+Not run. Option A, unless AJ says B: paste the unchanged fence from `f519e8b` in the first SSH session. The spare session stays open. At 16:59 CT, `ss` showed three established clients, all `192.168.50.223`, and the local address `192.168.50.152`. That fence prints one `SSH-PEER 192.168.50.223` line per session. It does not print `.152`. After `OK-paste-2`, a new login from a third rock-box window comes before anything else. AMT KVM stays open, and the LUKS passphrase stays at hand.
 
-Before this paste: two SSH sessions from `192.168.50.0/24` are already established, and one of them is AJ's interactive shell. AMT KVM is open, and the LUKS passphrase is at hand. The script stops unless those two sessions are already connected. It cannot see which one is the interactive shell. That is AJ's to have open before the paste. Enabling ufw flushes its chains and can drop the session that runs it. The man page says to add the SSH rule first, and that `ufw enable` prompts over SSH, so the script uses `ufw --force enable` ([ufw(8), resolute](https://manpages.ubuntu.com/manpages/resolute/man8/ufw.8.html)). The same page's sample `ufw allow in on eth0 from 192.168.0.0/16` is one IPv4 rule. A generic `ufw allow 22/tcp` is the example that applies to IPv4 and IPv6. This rule names an IPv4 source, so it does not allow `[::]:22`. `IPV6=yes` stays. Incoming DROP then blocks new IPv6 SSH. Batch 7 is the IPv6 disable. This paste does not set `IPV6=no`.
+Rev 6 adds `STOP-ssh-self` to the fence below. `192.168.50.152` is Johnny, the local side of the socket, not a client. The `f519e8b` fence counts it as a normal peer if it ever appears in the peer column. Rev 6 stops instead. That stop is the record. It is not the block for option A.
+
+Before this paste: two SSH sessions from `192.168.50.0/24` are already established, and one of them is AJ's interactive shell. The script stops unless those two sessions are already connected. It cannot see which one is the interactive shell. That is AJ's to have open before the paste. Enabling ufw flushes its chains and can drop the session that runs it. The man page says to add the SSH rule first, and that `ufw enable` prompts over SSH, so the script uses `ufw --force enable` ([ufw(8), resolute](https://manpages.ubuntu.com/manpages/resolute/man8/ufw.8.html)). The same page's sample `ufw allow in on eth0 from 192.168.0.0/16` is one IPv4 rule. A generic `ufw allow 22/tcp` is the example that applies to IPv4 and IPv6. This rule names an IPv4 source, so it does not allow `[::]:22`. `IPV6=yes` stays. Incoming DROP then blocks new IPv6 SSH. Batch 7 is the IPv6 disable. This paste does not set `IPV6=no`.
 
 After `OK-paste-2`, a new SSH login from a host in `192.168.50.0/24` has to reach a shell before anything else. If that login fails, from the session that was already open or from the KVM console:
 
@@ -201,6 +205,10 @@ while read -r peer; do
   [ -n "$peer" ] || continue
   ip=${peer%:*}
   case "$ip" in
+    192.168.50.152)
+      echo "STOP-ssh-self $ip"
+      exit 1
+      ;;
     192.168.50.*)
       n=$((n+1))
       echo "SSH-PEER $ip"
@@ -274,6 +282,7 @@ EOF
 | `STOP-ufw-sysctl-active` or `STOP-log-martians-before` | Paste 1 is not in effect. | Stop. No rule was added. |
 | `STOP-dhcp` | The DHCP client accept line is not the stock text. | Stop. No rule was added. Send the output. |
 | `STOP-eno1np0-addr` | `eno1np0` has an IPv4 address. | Stop. No rule was added. |
+| `STOP-ssh-self` | The peer column is `192.168.50.152`, Johnny's own address. | Stop. No rule was added. This arm is rev 6. It is not in the `f519e8b` fence. |
 | `STOP-ssh-peer` | An established SSH peer is outside `192.168.50.0/24`. | Stop. No rule was added. |
 | `STOP-ssh-peers-N` | Fewer than two established SSH sessions from that subnet. | Open the interactive shell from `192.168.50.0/24` and run the paste again. One of the two peers has to be that shell. |
 | `SSH-PEER` | One accepted peer. | Read it. The paste continues. |
