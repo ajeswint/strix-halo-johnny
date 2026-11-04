@@ -77,7 +77,7 @@ The showconfig grep for the twelve names printed nothing.
 
 **Accidental paste.** AJ pasted the dry-run record into the shell. **[Assumption]** no pasted line began with `sudo`. The transcript Claude saw has no `sudo`. `insmod` of the `...` paths failed. GNU `install /bin/false` had no destination and wrote nothing. `tipc` is a userspace tool and did not load the module. `lsmod` afterward showed none of `firewire_core`, `sctp`, `tipc`, `crc_itu_t`, `udp_tunnel`, or `ip6_udp_tunnel`.
 
-**Not done.** A2 has run. `ksmbd` is named in the file and `modprobe -n` still inserts it, because its softdep takes precedence over `install`. A2b has not run. F4 is closed (see A2). 1.1.1.11 stays FAIL (manual) until A2b has run and Governance judges the keep set, including this `ksmbd` exception. Group A sign-off did not cover A2. Q9 has run. 1.5.10 stays FAIL because the audit grep still sees the `.distrib` file.
+**Not done.** A2 and A2b have run. The two `ksmbd` lines are removed. `ksmbd` is a manual exception: `modprobe -n` still inserts it because softdep takes precedence over install, and the CIS script never lists it. 1.1.1.11 stays FAIL (manual) until Governance judges the keep set plus that exception. Group A sign-off did not cover A2. Q9 has run. 1.5.10 stays FAIL because the audit grep still sees the `.distrib` file.
 
 **Group B (AJ, sudo, 2026-11-04 05:48–05:54 UTC).** B1 created the mask symlink. `mask --now` stopped the masked unit, so `ExecStop` did not run and the three kernel settings stayed at the apport-on values. `sudo /usr/share/apport/apport --stop` then set `fs.suid_dumpable = 0`, `kernel.core_pattern = core`, and `kernel.core_pipe_limit = 0`. B2: `systemd-sysctl.service` finished at 05:50:43 UTC. `is-failed` printed `active` (exit 1) because `RemainAfterExit=yes` and `Result=success`. B3 wrote `* hard core 0`. B4 read-only matched. `dpkg --verify` printed `??5?????? c /etc/default/apport`. `sha256sum -c` printed `/boot/initrd.img-7.0.0-42-generic: OK`. A new session printed `0` and `0` for `ulimit -Hc` and `ulimit -Sc`. Mirrors:
 ```
@@ -315,7 +315,7 @@ Expected: `72`; the `comm -3` prints nothing (the 72 names match the kernel exac
 sudo chown root:root /etc/modprobe.d/johnny-cis-fs-unused.conf
 sudo chmod 0644 /etc/modprobe.d/johnny-cis-fs-unused.conf
 ```
-Expected: `121` (one comment line plus 60 pairs). Ran 2026-11-04. `wc -l` printed `121`. Mode 0644 root:root. sha256 `7fac9b377874261da91f42cbab9aaa9e90dd084ac8853ff4cf2f4feb77fbb9ba`. The later `uniq -c` check does not print `60 1`. Twenty-one modules print more than one `install /bin/false` because a dependency is also blocked. Their own `.ko` does not appear as `insmod`. One module prints zero: `ksmbd`. `modprobe.d(5)` on Johnny: if an install command and a softdep share a module name, softdep takes precedence. `modinfo -F softdep ksmbd` is `pre: gcm`, `ccm`, `aead2`, `cmac`, `aes`, `nls`, `ecb`. `modprobe -n -v ksmbd` prints `insmod /lib/modules/7.0.0-42-generic/kernel/fs/smb/server/ksmbd.ko.zst` and exits 0. A real `modprobe ksmbd` was not run. `overlay` has no softdep. A2b has not run.
+Expected: `121` (one comment line plus 60 pairs). That was the first write, sha256 `7fac9b377874261da91f42cbab9aaa9e90dd084ac8853ff4cf2f4feb77fbb9ba`. `modprobe.d(5)` on Johnny: if an install command and a softdep share a module name, softdep takes precedence. `modinfo -F softdep ksmbd` is `pre: gcm`, `ccm`, `aead2`, `cmac`, `aes`, `nls`, `ecb`. AJ then deleted the two `ksmbd` lines (`^blacklist ksmbd$` and `^install ksmbd /bin/false$`). The file is now 119 lines, 59 and 59, `grep -c ksmbd` is 0, 0644 root:root, sha256 `c84fb98cf516dc6ef3c18dc1da7223e10155c7617e6233f4e97398d43ce51858`. `ksmbd` is a manual exception. The CIS script never lists it. A real `modprobe ksmbd` was not run.
 
 **A2b `overlay` (Q3 = block; AJ, sudo):**
 ```
@@ -327,7 +327,17 @@ EOF
 sudo chown root:root /etc/modprobe.d/johnny-cis-fs-overlay.conf
 sudo chmod 0644 /etc/modprobe.d/johnny-cis-fs-overlay.conf
 ```
-After A2/A2b, the CIS script will still list the keep set as loadable. That is the manual part: Governance judges 1.1.1.11 PASS (manual) if AJ accepts the keep set, or FAIL (manual) with the reason. A module blocked here but needed later is unblocked by deleting its line or the file; no rebuild is needed.
+Ran 2026-11-04. `wc -l` printed `3`. Mode `0644 root:root`. sha256 `08a53f0914389e5d1b81f4364415a77c702fecd28766cc8016114064f0b85121`. The first `sudo -v` in that paste failed once; the retry succeeded.
+
+**Own-`.ko` check (read-only).** `modinfo -n` supplies the path. `grep -cF` counts that path in `modprobe -n -v`. A hyphen or underscore in the module name is not rebuilt.
+```
+for m in 9p adfs affs befs bfs blocklayoutdriver btrfs cachefiles ceph cifs cifs_md4 coda cuse dlm efs erofs exfat f2fs gfs2 grace hpfs isofs jfs kafs lockd minix msdos netfs nfs nfs_acl nfs_layout_flexfiles nfs_layout_nfsv41_files nfsd nfsv2 nfsv3 nfsv4 nilfs2 ntfs3 ocfs2 ocfs2_dlm ocfs2_dlmfs ocfs2_nodemanager ocfs2_stack_o2cb ocfs2_stack_user ocfs2_stackglue omfs orangefs qnx4 qnx6 quota_tree quota_v1 quota_v2 romfs ubifs udf ufs vboxsf virtiofs zonefs overlay; do p=$(modinfo -n "$m"); n=$(modprobe -n -v "$m" 2>&1 | grep -cF -- "$p" || true); printf '%s %s\n' "$n" "$m"; done
+p=$(modinfo -n ksmbd); n=$(modprobe -n -v ksmbd 2>&1 | grep -cF -- "$p" || true); printf '%s %s\n' "$n" ksmbd
+stat -c '%s %y' /boot/initrd.img-7.0.0-42-generic
+```
+Ran with the delete and A2b. The 59 names and `overlay` each printed `0`. `ksmbd` printed `1`. Initrd printed `42618411 2026-11-03 06:13:32.840646209 +0000`.
+
+After A2/A2b, the CIS script will still list the keep set as loadable. That is the manual part: Governance judges 1.1.1.11 PASS (manual) if AJ accepts the keep set, or FAIL (manual) with the reason. `ksmbd` is part of that judgment. A module blocked here but needed later is unblocked by deleting its line or the file; no rebuild is needed.
 
 ### A3. Verification (read-only, no sudo)
 ```
@@ -345,7 +355,7 @@ Expected:
 - Line 2: `24` (12 blacklist plus 12 install). Lines 3 and 4: nothing, then `xfs` and `autofs4`.
 - ufw line: `UFW-MODULES-CLEAR`. Not a stop if some names print `FATAL: Module ... not found` (they are not in the filter's output). A hit means a ufw module depends on a blocked one: **stop, remove that pair, tell the Brain.**
 - `can_raw` and `uas` lines (Assurance F2, from kmod source: a blocked parent's `install /bin/false` also refuses its dependents): the correct dry-run output is two lines each, first `install /bin/false` (for the parent), then `insmod .../can_raw.ko.zst` (or the `uas` file). That **is** the blocked case; the real load stops at the first line. **[Assumption]** Ubuntu's kmod 34.2 matches the source read. If `install /bin/false` does not appear first, record it and tell the Brain.
-- With A2: the `uniq -c` line was expected to print `60 1`. It does not. A count above 1 is a dependency that is also blocked, and it is not a stop when that module's own `.ko` is absent from the dry-run. A count of 0 is a stop. `ksmbd` is the count of 0. See A2.
+- With A2 and A2b: the own-`.ko` check above. Each of the 59 names and `overlay` prints `0`. `ksmbd` prints `1`. A `0` on `ksmbd` means the check is blind.
 - Then Governance's re-audit with the local scripts (verdict). Initrd unchanged: `ls -l --time-style=full-iso /boot/initrd.img-7.0.0-42-generic` still `42618411` and `2026-11-03 06:13:32`.
 
 ### A4. Rollback
