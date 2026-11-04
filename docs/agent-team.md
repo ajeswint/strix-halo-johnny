@@ -1,6 +1,6 @@
 # Johnny agent team
 
-Rev 7, 2026-11-03. Rev 7: reviewer label is Claude, as Assurance (AJ). Each seat writes its own Relay for the other to read. The writer does not add to a findings file after the review. Rev 6: model seats (AJ). Grok writes; Claude reviews and does not edit the draft. Domain ownership unchanged. Rev 5, 2026-10-31, agreed by AJ and Grok: first skill file (`cis-audit`); skill folders owned by the agent that holds the skill; `docs/hosts/` → Architect (provisional). Wired: `.claude/agents/` holds one file per agent (9); the Brain is the main session and has no file. Rev 2 (AJ): the SLM has full function for now; architecture-logic questions deferred (§7). Rev 3: Grok review applied (quarantine cross-reference, `.gitignore` owner, Fast Path in PW.9). Rev 4: agent files created.
+Rev 8, 2026-11-04. Rev 8: CIS batches are one recoverable sudo script, reviewed once before AJ runs it and once at batch close; handoff bumps at session end only (AJ). Rev 7, 2026-11-03. Rev 7: reviewer label is Claude, as Assurance (AJ). Each seat writes its own Relay for the other to read. The writer does not add to a findings file after the review. Rev 6: model seats (AJ). Grok writes; Claude reviews and does not edit the draft. Domain ownership unchanged. Rev 5, 2026-10-31, agreed by AJ and Grok: first skill file (`cis-audit`); skill folders owned by the agent that holds the skill; `docs/hosts/` → Architect (provisional). Wired: `.claude/agents/` holds one file per agent (9); the Brain is the main session and has no file. Rev 2 (AJ): the SLM has full function for now; architecture-logic questions deferred (§7). Rev 3: Grok review applied (quarantine cross-reference, `.gitignore` owner, Fast Path in PW.9). Rev 4: agent files created.
 
 What this is: the roster that says which agent owns which job, so no two agents do the same work. Inputs: role list `docs/Enterprise Security Software Team Roles.md` (127 titles); control model `docs/Distributed Neural Networks and Control Systems in Cephalopods.md` §1, §4–5; architecture `docs/JOHNNY_ Executive Architectural Summary.md`.
 
@@ -40,7 +40,7 @@ Count: 9 agents (Architect + 8 arms), run by the Brain. Floor of 8 met.
 Thin by design, 6 skills:
 - `session-open`: read README → AGENTS → handoff; state of play in ≤10 lines.
 - `route`: find the one owner in §4; write the directive (§6).
-- `sequence`: keep handoff "Next steps" in order; one step at a time.
+- `sequence`: keep handoff "Next steps" in order. One recoverable sudo script per CIS batch. Mount changes and reboots are their own pastes.
 - `consolidate`: merge agent reports into `docs/os-handoff.md` (sole writer).
 - `arbitrate`: ownership gap or clash → propose an owner, AJ decides, update §4.
 - `session-close`: bump the handoff revision; write the session CSV.
@@ -226,7 +226,8 @@ Model seats (AJ, 2026-11-03). These name who holds the pen. They do not move §4
 - **Writer: Grok.** Drafts, exact commands, and repo edits, inside the owning agent's paths (Platform for OS fixes, and so on).
 - **Reviewer: Claude, as Assurance** (AJ, 2026-11-03). Claude is the model. Assurance is the role. Independent review only. Findings go in `docs/findings/` for a fix-batch review. Claude does not edit the draft. The writer does not add to that file after the review.
 - **Relay:** the seat replying to AJ writes it. Grok's Relay is for Claude. Claude's Relay is for Grok.
-- The writer does not review their own draft. AJ decides and runs sudo.
+- The writer does not review their own draft. AJ decides and runs sudo. No passwordless sudo.
+- CIS batches (AJ, 2026-11-04): Grok writes one fail-fast `sudo bash` script for the recoverable steps. Claude reviews that exact paste before AJ runs it, and reviews once at batch close. Docs-only commits are not a review gate. Mount changes and reboots are separate pastes. Batch 5's mount steps and its reboot stay separate. A new Grok session starts each batch. Handoff revision and session CSV happen at session end only.
 - Batch 3 rev 3 (`docs/cis-fix/batch-3.md`) was written before this rule. Further edits to it are Grok's.
 
 Directive (Brain → agent):
@@ -248,7 +249,7 @@ Handoffs: request to <agent>: what
 Open: questions for AJ
 ```
 
-Every agent inherits `AGENTS.md`: terse, one step at a time, show commands first, cite a URL for any 26.04 claim, never echo or store passwords, Johnny work only, stop after presenting options.
+Every agent inherits `AGENTS.md`: terse, one recoverable sudo script per batch, show that paste for review before AJ runs it, cite a URL for any 26.04 claim, never echo or store passwords, no passwordless sudo, no other-release SCAP content, Johnny work only, stop after presenting options.
 
 ## 7. Source conflicts
 
