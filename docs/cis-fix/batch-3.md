@@ -1,16 +1,27 @@
 # CIS L1 fix pass, Batch 3: logging (journald rotation, logrotate) and AIDE
 
-**Status:** DRAFT rev 5 (Grok, 2026-11-03, after Claude's review of `1f917c8`, approve with changes, docs only). Group A has run on Johnny (2026-11-03 09:19–09:27 UTC). Group B's config edits have run (09:37–09:41 UTC, B0–B3). B5 passed (2026-11-04 00:00:47 UTC): `Finished logrotate.service - Rotate log files.`; `is-failed` printed `inactive`. The recorded next elapse was 00:23 UTC; the only invocation since midnight UTC was 00:00:47. Group C is applied through C9 (2026-11-03 09:47–10:30 UTC). The second pass (C8 and C9) runs when AJ says go, on the later Central morning of 2026-11-04, after the 05:00 UTC run. Governance's re-audits of 6.1.1.1.5, 6.1.2.7, 6.3.1, and 6.3.2 are still to do. Rev 4 (2026-11-03, Grok, after Claude's review of `44efe85`, approve with changes): C4 is `--add root mail 0755` (mode only; group stays `mail`). A1b sits after A2 and checks the `max 1.0G` line. Claude did not review C1–C10 beyond C4 and A1b. S1 (2026-11-03, Grok, after the rev 3 spot-check): assumption 9 now says 20 to 60 minutes. No command changed in that pass. Assurance asked for no re-review of S1. Spelling check (2026-11-03, Grok): `adeinit.still-running` matches the package script, so C3's `ls` stays. Rev 1 drafted Groups A and B (6.1.1.1.5, 6.1.2.7). Rev 2 added Group C (AIDE: 6.3.1, 6.3.2) after AJ's `sudo apt update` (~06:45 UTC) and Governance's vetting (`docs/findings/aide-vetting.md`, APPROVE WITH CONDITIONS). Assurance reviewed rev 2 and approved it with changes (`docs/findings/cis-batch-3-review.md`, F1-F12); rev 3 applies F1-F10 (F11 and F12 need no change beyond one line). **AJ's decisions (2026-11-03): accept R-AIDE-1 (option A), install resolute's 0.19.2-3 inside this batch with `--no-install-recommends` (no Postfix), use multiple hash functions, hold the timer until the database exists.** **AJ (2026-11-03), all recs:** Q1 keep `maxage 90`; Q2 run B2; Q3 accept the conffile residual; Q4 keep the recorded journal caps; Q5 run `journalctl --rotate`; Q7 statoverride `dotlockfile` to 0755, group `mail`; Q8 read `aide.log` by hand; Q9 `RandomizedDelaySec=0` when C6 is under 50 minutes, and stop before C7 at 50 or more; Q10 run C6 before C7. Group A is applied. Group B's config edits are applied (B0–B3). B5 passed on 2026-11-04 00:00:47 UTC. Group C's apply is done through the first C9. Claude's sign-off is C4, A1b, and the checkpoints only. The second pass runs when AJ says go, on the later Central morning of 2026-11-04. Grok runs the read-only SSH checks. AJ runs every `sudo` block, and each block is shown first. Stop on any error.
+**Status:** DRAFT rev 6 (Grok, 2026-11-03, after Claude's review of `2803d6a`, approve with changes, docs only). Group A has run on Johnny (2026-11-03 09:19–09:27 UTC). Group B's config edits have run (09:37–09:41 UTC, B0–B3). B5 passed (2026-11-04 00:00:47 UTC): `Finished logrotate.service - Rotate log files.`; `is-failed` printed `inactive`. The recorded next elapse was 00:23 UTC; the only invocation since midnight UTC was 00:00:47. Group C is applied through C9 (2026-11-03 09:47–10:30 UTC). The second pass (C8 and C9) runs when AJ says go, on the later Central morning of 2026-11-04, after the 05:00 UTC run. Governance's re-audits of 6.1.1.1.5, 6.1.2.7, 6.3.1, and 6.3.2 are still to do. Rev 4 (2026-11-03, Grok, after Claude's review of `44efe85`, approve with changes): C4 is `--add root mail 0755` (mode only; group stays `mail`). A1b sits after A2 and checks the `max 1.0G` line. Claude did not review C1–C10 beyond C4 and A1b. S1 (2026-11-03, Grok, after the rev 3 spot-check): assumption 9 now says 20 to 60 minutes. No command changed in that pass. Assurance asked for no re-review of S1. Spelling check (2026-11-03, Grok): `adeinit.still-running` matches the package script, so C3's `ls` stays. Rev 1 drafted Groups A and B (6.1.1.1.5, 6.1.2.7). Rev 2 added Group C (AIDE: 6.3.1, 6.3.2) after AJ's `sudo apt update` (~06:45 UTC) and Governance's vetting (`docs/findings/aide-vetting.md`, APPROVE WITH CONDITIONS). Assurance reviewed rev 2 and approved it with changes (`docs/findings/cis-batch-3-review.md`, F1-F12); rev 3 applies F1-F10 (F11 and F12 need no change beyond one line). **AJ's decisions (2026-11-03): accept R-AIDE-1 (option A), install resolute's 0.19.2-3 inside this batch with `--no-install-recommends` (no Postfix), use multiple hash functions, hold the timer until the database exists.** **AJ (2026-11-03), all recs:** Q1 keep `maxage 90`; Q2 run B2; Q3 accept the conffile residual; Q4 keep the recorded journal caps; Q5 run `journalctl --rotate`; Q7 statoverride `dotlockfile` to 0755, group `mail`; Q8 read `aide.log` by hand; Q9 `RandomizedDelaySec=0` when C6 is under 50 minutes, and stop before C7 at 50 or more; Q10 run C6 before C7. Group A is applied. Group B's config edits are applied (B0–B3). B5 passed on 2026-11-04 00:00:47 UTC. Group C's apply is done through the first C9. Claude's sign-off is C4, A1b, and the checkpoints only. The second pass runs when AJ says go, on the later Central morning of 2026-11-04. Grok runs the read-only SSH checks. AJ runs every `sudo` block, and each block is shown first. Stop on any error.
 
 ### Corrections from the apply
 | Item | Status |
 |---|---|
 | `fold: fold-error-failed-to-write: Broken pipe` | Benign and recurring. Same cause as the mail WARN. The script pipes `fold \| send_mail` (line 754). With no mailer, `send_mail` returns without reading (line 147). Seen 2026-11-03 10:22:29 UTC. The unit still finished. |
-| Entry count | Re-read 2026-11-04 from `/var/log/aide/aide.log` by `aj`, no sudo. Init `111497`. Added `1`, removed `0`, changed `5`. Arithmetic: `111497 + 1 = 111498`. The report's total line is `111499`. The one added path is `/run/systemd/journal/streams/10:47893`. Changed paths: `/run/sudo-rs/ts/1000`, `/var/log/aide/aideinit.log`, `/var/log/auth.log`, `/var/log/syslog`, `/var/log/sysstat/sa03`. The gap of 1 stays unreconciled. Not a stop. The second pass records that run's total, added, removed, and changed. |
+| Entry count | Re-read 2026-11-04 from `/var/log/aide/aide.log` by `aj`, no sudo. Init `111497`. Added `1`, removed `0`, changed `5`. Arithmetic: `111497 + 1 = 111498`. The report's total line is `111499`. The one added path is `/run/systemd/journal/streams/10:47893`. Changed paths: `/run/sudo-rs/ts/1000`, `/var/log/aide/aideinit.log`, `/var/log/auth.log`, `/var/log/syslog`, `/var/log/sysstat/sa03`. Gap rule is in C9: while `COPYNEWDB=no`, the next total should be `111497 + added − removed`. Not a stop. |
 | C1 and C3 expected text | Applied below. `Created symlink` did print at install. The service and buildcache were not started. `0` failed units is a possible result. |
 | `reset-failed` says `not loaded` | Applied below. Units that have never been started return that. Not a stop. The following `start` is the check. |
 | `H` hash wording | Applied below. `H` is seven named hashes, not every compiled-in hash. |
 | Assumption 9 | Applied below. Init measured 3m 13s. C6 measured 3m 8s. |
+
+### Change log (rev 5 to rev 6, Claude's review of `2803d6a`)
+Docs only. The four rev 5 findings stay. B5 stays a pass.
+
+| # | Sev | Change in this doc |
+|---|---|---|
+| 1 | Low | The 05:00 count command matches `started at 2026-11-04 05:` in `/var/log/aide/aide.log*`. It no longer keys on `n==2` in `aide.log` alone. Empty output means the report was not found, not that a count is zero. |
+| 2 | Low | Gap rule is written before that command. `COPYNEWDB=no` was confirmed with `grep -E '^COPYNEWDB' /etc/default/aide`. The 05:00 total should be `111497 + added − removed`. A repeat +1 means the init count is the quirk. An offset of 0 means the C6 gap was a one-off. Not a stop either way. |
+| 3 | Low | `aide.db.new` is described as not promoted to `aide.db`. The 05:00 run may overwrite `aide.db.new`. |
+| 4 | Low | Before the 2026-11-08 check, run `systemctl show logrotate.timer -p AccuracyUSec -p RandomizedDelayUSec -p LastTriggerUSec` and `systemctl list-timers logrotate.timer --no-pager`. Those `-p` names were unconfirmed in the review. They returned values on Johnny on 2026-11-04. The 00:23 figure is the unsaved live-state "next" time from 2026-11-03 06:40–06:45 UTC. |
+| 5 | Low | GR1 (`find /var/log/sysstat -type f -perm /0137`) ran 2026-11-04 and printed nothing. |
 
 ### Change log (rev 4 to rev 5, Claude's review of `1f917c8`)
 Claude's four findings from the `0fa0ac9` review. Rev 35 did not carry them. Docs only.
@@ -230,7 +241,7 @@ Expected (B1 + B2):
 ### B4. Side effects on Batch 1 (checked)
 - **Log modes (GR1/GR2).** B1 and B2 do not touch any `create` line, so the Batch 1 `create 640 root adm` / `0640 root adm` rules still decide the mode of rotated `dpkg`, `alternatives` and `ubuntu-advantage*` logs. `unattended-upgrades` has no `create` line and uses the global bare `create`, which copies the old file's mode and owner (still 640 root:adm); B1 edits only `rotate` and `maxage`, not `create`. The rsyslog logs are recreated 640 by rsyslog (`$FileCreateMode 0640`) after logrotate's `rsyslog-rotate` postrotate. Raising `rotate` from 4 to 13 renames more old files but does not change their modes. `maxage` only deletes. **No rotation is due until the first real run** (below), so nothing changes at apply time.
 - **First real run.** The draft recorded `logrotate.timer` next at **2026-11-04 00:23 UTC**. The service ran at **2026-11-04 00:00:47 UTC** (B5, below). Due at that run: `apport.log`, `bootlog` (daily) if non-empty; weekly logs (syslog family) next rotate on Sunday **2026-11-08**; monthly logs (dpkg, alternatives, apt, uu, pro-client) on **2026-12-01**. `maxage 90` would delete `btmp.1` (0 bytes) at the btmp rotation (2026-12-01).
-- **Batch 1 recurring checks stay valid.** GR1 (`find /var/log/sysstat -type f -perm /0137`) is unaffected: sysstat rotates itself (`sysstat-rotate.timer`), with no logrotate file. GR2 still applies after 2026-12-01.
+- **Batch 1 recurring checks stay valid.** GR1 (`find /var/log/sysstat -type f -perm /0137`) is unaffected: sysstat rotates itself (`sysstat-rotate.timer`), with no logrotate file. **GR1 ran 2026-11-04 (Grok, no sudo):** nothing printed, exit 0. GR2 still applies after 2026-12-01.
 
 ### B5. Proof after the first real runs (read-only, no sudo; add to the recurring checks)
 After 00:30 UTC 2026-11-04:
@@ -247,7 +258,25 @@ Nov 04 00:00:47 johnny systemd[1]: logrotate.service: Deactivated successfully.
 Nov 04 00:00:47 johnny systemd[1]: Finished logrotate.service - Rotate log files.
 inactive
 ```
-`journalctl` exit 0. `is-failed` exit 1, text `inactive`. No `error:` line. The recorded next elapse was 00:23 UTC. This is the only invocation since midnight UTC, and it is 00:00:47. Why it ran then was not checked.
+`journalctl` exit 0. `is-failed` exit 1, text `inactive`. No `error:` line. The recorded next elapse was 00:23 UTC. This is the only invocation since midnight UTC, and it is 00:00:47.
+
+**Where 00:23 came from.** The live-state read on 2026-11-03 06:40–06:45 UTC (above; raw output not saved) wrote last run 2026-11-03 00:28 UTC, next 2026-11-04 00:23 UTC. That sentence is the only record. **[Assumption]** those two times are the LAST and NEXT columns of `systemctl list-timers logrotate.timer`. The command output was not kept.
+
+**Before the 2026-11-08 lines below,** and already run once on 2026-11-04. The three `-p` names were unconfirmed in Claude's review (not taken from a man page). This run is what showed they exist on Johnny:
+```
+systemctl show logrotate.timer -p AccuracyUSec -p RandomizedDelayUSec -p LastTriggerUSec
+systemctl list-timers logrotate.timer --no-pager
+```
+Output:
+```
+LastTriggerUSec=Wed 2026-11-04 00:00:47 UTC
+AccuracyUSec=1min
+RandomizedDelayUSec=1h
+
+NEXT                        LEFT LAST                              PASSED UNIT            ACTIVATES
+Thu 2026-11-05 00:02:52 UTC  21h Wed 2026-11-04 00:00:47 UTC 2h 20min ago logrotate.timer logrotate.service
+```
+systemd.timer(5) names the settings `AccuracySec=` and `RandomizedDelaySec=` (a delay evenly distributed between 0 and that value): https://manpages.ubuntu.com/manpages/resolute/en/man5/systemd.timer.5.html. The `USec` names are the `systemctl show` form. Run the same two commands again before the 2026-11-08 check.
 
 After Sunday 2026-11-08 00:30 UTC:
 ```
@@ -505,10 +534,17 @@ sed -n '/^== 6.1.3.1/,$p' ~/cis-audit/6-root-batch3.txt
 diff <(grep -v '^== helper: johnny' ~/cis-audit/5.4-root.txt) <(grep -v '^== helper: johnny' ~/cis-audit/5.4-root-batch3.txt)
 ```
 
-**05:00 run counts (Grok, no sudo, same trigger).** `/var/log/aide/aide.log` is `640 _aide:adm`. `aj` read the C6 report on 2026-11-04 with no sudo. If `awk` returns permission denied, AJ runs the same line with sudo. The C6 report is the first `aide run on johnny started at` block (2026-11-03 10:19:21 UTC): total `111499`, added `1`, removed `0`, changed `5`, added path `/run/systemd/journal/streams/10:47893`. Arithmetic is `111497 + 1 = 111498`. Record the second block, which is the 05:00 run:
+**Gap rule, before the counts.** `grep -E '^COPYNEWDB' /etc/default/aide` printed `COPYNEWDB=no` on 2026-11-04 (`aj`, no sudo). While that line stays `no`, the check does not promote `aide.db.new` to `aide.db`, so the 05:00 total should be `111497 + added − removed`. Compare the report total to that sum.
+- A repeat +1 (report total one above the sum, as in C6) means the init count is the quirk.
+- An offset of 0 means the C6 gap was a one-off.
+- Not a stop either way.
+- `aide.db.new` is not promoted to `aide.db`. The 05:00 run may overwrite `aide.db.new`.
+
+**05:00 run counts (Grok, no sudo, same trigger).** Match the block whose start line is `2026-11-04 05:`, in every plain `/var/log/aide/aide.log*` file, so a rotation off `aide.log` still counts. Empty output means the report was not found. Do not record the counts as zero. If `awk` prints `Permission denied`, AJ runs the same line with sudo. A `.gz` file is not a match for this `awk`; if that is the only copy, record `not found`.
 ```
-awk 'BEGIN{n=0} /^aide run on johnny started at /{n++} n==2 && /^  (Total number of entries|Added entries|Removed entries|Changed entries):/{print}' /var/log/aide/aide.log
+awk '/^aide run on johnny started at 2026-11-04 05:/{p=1} p && /^  (Total number of entries|Added entries|Removed entries|Changed entries):/{print} p && /^End of AIDE output/{exit}' /var/log/aide/aide.log*
 ```
+C6, for comparison, started `2026-11-03 10:19:21`: total `111499`, added `1`, removed `0`, changed `5`, added path `/run/systemd/journal/streams/10:47893`. Arithmetic of the init line is `111497 + 1 = 111498`.
 Expected:
 - GR1 (line 1): nothing. GR2 (lines 2-3): nothing, then `0`. GR3 (line 4): nothing. GR4 (line 5): two `No such file or directory`. The AIDE install does not touch sysstat, dpkg or alternatives logs, `update-motd.d`, or `/run/reboot-required`.
 - Line 6: `MODES-UNCHANGED` (no new file over 0640 anywhere under `/var/log`; `/var/log/aide` files are 0640).
@@ -517,7 +553,7 @@ Expected:
 - 7.1.13 (lines 11-12): with the C4 override, ` - List of "13" SUID executable files:` and ` - List of "6" SGID executable files:` (unchanged), no `dotlockfile` line. Without C4: `13` and **`7`**, plus `/usr/bin/dotlockfile` in the SGID list.
 - 6.1.3.1 (line 14, F10): the header line `== 6.1.3.1 access to all logfiles in /var/log (expect: nothing returned)`, then `== end`, and no file line between them. Seen 2026-11-03. Any file line between them is over 0640 or has a bad owner or group: show it to the Brain.
 - 5.4 for `_aide` (lines 15-16): before the diff, `~/cis-audit/5.4-root.txt` must exist. It does: 2713 bytes, mtime 2026-10-31 23:14:28 UTC. The 2026-11-03 diff against it was one line, `helper: _aide locked(!)`. No new rule failure text. `sysusers` creates the account with a locked password and `nologin`. Governance reads the diff and re-audits.
-- Also check `systemctl --failed` is empty after C6/C7. On the second pass, after the timezone check has printed `Etc/UTC`, `journalctl -u dailyaidecheck.service --since today --no-pager | tail -5` ends with `Finished dailyaidecheck.service`. Record the 05:00 run's total, added, removed, and changed counts from the `awk` line above.
+- Also check `systemctl --failed` is empty after C6/C7. On the second pass, after the timezone check has printed `Etc/UTC`, `journalctl -u dailyaidecheck.service --since today --no-pager | tail -5` ends with `Finished dailyaidecheck.service`. Record the 05:00 total, added, removed, and changed from the `awk` line above, then apply the gap rule. Empty `awk` output is `not found`, not zero.
 
 ### C10. Rollback
 **If C1 failed and left a half-configured install, this rollback is not for that state:** follow the "If C1 fails" branch under C1 first.
