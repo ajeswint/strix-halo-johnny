@@ -31,6 +31,7 @@ check_paths(){
 [ -z "$(git status --porcelain --untracked-files=no)" ] || { log "ABORT: working tree has uncommitted changes; commit/stash first"; exit 3; }
 
 CONV="DELIVERY CONVENTION (overrides AGENTS.md paste rules): AJ copies $SH to Johnny with scp and runs it whole as 'sudo bash ~/cis-audit/$BATCH.sh' from an SSH session; KVM-only steps (reboot checks, console) are separate numbered pastes marked '# RUNS IN: KVM' that AJ types at the console. The .sh file IS the deliverable; $DOC links to it rather than duplicating it. Rollback goes in $DOC under '## Rollback'. "
+EXTRA=${RELAY_EXTRA:-}   # optional one-off instructions for this run (Grok and Claude)
 SAFETY="HARD RULES: never run sudo; never write to Johnny ($JOHNNY); never run git commit/push/reset/checkout; edit only $DOC, $SH (and $CSV only if told). "
 if [ $DRY = 1 ]; then SAFETY+="DRY RUN: do NOT ssh or contact Johnny at all."
 else SAFETY+="You MAY run read-only, non-sudo audit commands on Johnny via: ssh -o BatchMode=yes $JOHNNY '<cmd>' (no redirects to files, no rm/mv/tee/cp/install/systemctl changes)."; fi
@@ -40,6 +41,7 @@ grok(){ # $1 prompt
   log "Grok ($GROK_MODEL) round $2 ..."
   "$CURSOR_BIN" -p --model "$GROK_MODEL" --output-format json --force --trust --workspace "$REPO" "$SAFETY
 $CONV
+${EXTRA:+ONE-OFF REQUIREMENTS FOR THIS RUN: $EXTRA}
 $1" > "$out" 2>>"$LOG" || { log "Grok CLI failed (see $out / $LOG)"; exit 4; }
   python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print((d.get("result") or "")[:1500])' "$out" | tee -a "$LOG" >&2
   check_paths
@@ -52,7 +54,7 @@ claude_review(){ # $1 round -> prints verdict JSON
   { git diff "$base" -- docs; git ls-files -o --exclude-standard docs | while read -r f; do echo "=== NEW FILE $f"; cat "$f"; done; } > "$LOGDIR/$BATCH-$TS-diff-$1.patch"
   claude -p ${CLAUDE_MODEL:+--model "$CLAUDE_MODEL"} --output-format json --json-schema "$SCHEMA" \
     --allowedTools "Read" "Grep" "Glob" --permission-mode dontAsk --no-session-persistence --max-budget-usd "${CLAUDE_BUDGET:-3}" \
-    "You are the reviewer for CIS Ubuntu 26.04 L1 fix $BATCH on host Johnny. Review the diff on stdin (and read repo files if needed) for: correctness vs CIS, safety (rollback, backups, set -euo pipefail, STOP guards), each paste's first line saying SSH or KVM, one numbered script $SH only. $CONV Return verdict approve if AJ can safely run it as is; cosmetic or style nits go in issues but do NOT block approval. Return changes only for correctness, safety, or rollback problems, each issue prefixed BLOCKER:." \
+    "You are the reviewer for CIS Ubuntu 26.04 L1 fix $BATCH on host Johnny. Review the diff on stdin (and read repo files if needed) for: correctness vs CIS, safety (rollback, backups, set -euo pipefail, STOP guards), each paste's first line saying SSH or KVM, one numbered script $SH only. $CONV ${EXTRA:+ONE-OFF REQUIREMENTS (reject with BLOCKER if any is missing): $EXTRA} Return verdict approve if AJ can safely run it as is; cosmetic or style nits go in issues but do NOT block approval. Return changes only for correctness, safety, or rollback problems, each issue prefixed BLOCKER:." \
     < "$LOGDIR/$BATCH-$TS-diff-$1.patch" > "$out" 2>>"$LOG" || { log "Claude CLI failed (see $out)"; exit 4; }
   python3 - "$out" <<'PY'
 import json,sys
