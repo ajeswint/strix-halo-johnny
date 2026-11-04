@@ -269,7 +269,7 @@ sha256sum /boot/initrd.img-7.0.0-42-generic /boot/initrd.img-7.0.0-42-generic.pr
 head -4 /home/aj/cis-audit/aa-status-before-apparmor-utils.txt
 sim=$(NEEDRESTART_MODE=l apt-get -s install --no-install-recommends apparmor-utils=5.0.2-0ubuntu1~26.04.1 python3-apparmor=5.0.2-0ubuntu1~26.04.1 python3-libapparmor=5.0.2-0ubuntu1~26.04.1 </dev/null)
 printf '%s\n' "$sim"
-printf '%s\n' "$sim" | grep -q '^0 upgraded, 3 newly installed, 0 to remove,'
+printf '%s\n' "$sim" | grep -q '^0 upgraded, 3 newly installed, 0 to remove '
 ninst=$(printf '%s\n' "$sim" | grep -c '^Inst ')
 [ "$ninst" = 3 ]
 mark=$(wc -l < /var/log/apt/term.log)
