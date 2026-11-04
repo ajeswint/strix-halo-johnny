@@ -77,7 +77,7 @@ The showconfig grep for the twelve names printed nothing.
 
 **Accidental paste.** AJ pasted the dry-run record into the shell. **[Assumption]** no pasted line began with `sudo`. The transcript Claude saw has no `sudo`. `insmod` of the `...` paths failed. GNU `install /bin/false` had no destination and wrote nothing. `tipc` is a userspace tool and did not load the module. `lsmod` afterward showed none of `firewire_core`, `sctp`, `tipc`, `crc_itu_t`, `udp_tunnel`, or `ip6_udp_tunnel`.
 
-**Not done.** A2 has not run. Governance's F4 diff of the raw 1.1.1.11 list has not been done. Q5 is still open with AJ. Group A is not signed off.
+**Not done.** A2 has not run. Governance's F4 diff of the raw 1.1.1.11 list has not been done. 1.1.1.11 stays out of the re-audit. Group A sign-off did not cover A2.
 
 **Group B (AJ, sudo, 2026-11-04 05:48–05:54 UTC).** B1 created the mask symlink. `mask --now` stopped the masked unit, so `ExecStop` did not run and the three kernel settings stayed at the apport-on values. `sudo /usr/share/apport/apport --stop` then set `fs.suid_dumpable = 0`, `kernel.core_pattern = core`, and `kernel.core_pipe_limit = 0`. B2: `systemd-sysctl.service` finished at 05:50:43 UTC. `is-failed` printed `active` (exit 1) because `RemainAfterExit=yes` and `Result=success`. B3 wrote `* hard core 0`. B4 read-only matched. `dpkg --verify` printed `??5?????? c /etc/default/apport`. `sha256sum -c` printed `/boot/initrd.img-7.0.0-42-generic: OK`. A new session printed `0` and `0` for `ulimit -Hc` and `ulimit -Sc`. Mirrors:
 ```
@@ -86,6 +86,53 @@ The showconfig grep for the twelve names printed nothing.
 # 4f23ea1c030ab6d26af0b60769912b19e6d8b16997aa34575281dfbdd40620c2  /etc/default/apport
 # /etc/systemd/system/apport.service -> /dev/null
 ```
+
+**Group C (AJ, sudo, 2026-11-04 ~06:04 UTC).** Q6 applied (the five `ip_forward`, `forwarding`, and `send_redirects` lines). Q8 applied (`icmp_ignore_bogus_error_responses`, `icmp_echo_ignore_broadcasts`, and `default.accept_source_route`). Q5 applied (`rp_filter = 1` for `all` and `default`). C0 before the write: redirects were 1, `rp_filter` was 2 and 2, `log_martians` was 0, `ENABLED=no`. `eno1np0` was UP, RX 3638682 bytes / 16120 packets. `nstat -az IPReversePathFilter` printed only `#kernel` (no counter line). C1 `tee` echoed the file. `is-failed` printed `active` (exit 1). After the restart: redirects 0, `rp_filter` 1 and 1, `log_martians` still 0. The last `rp_filter` lines in `--tldr` are in `60-johnny-cis-network.conf` (the `55-network-security.conf` lines of 2 sit above them). `eno1np0` RX then 3643271 bytes / 16141 packets. Initrd unchanged. Mirror sha256 `e51dc93631673b952667ef5dc5fe34403cd33192ab4498825c24396b152d71e9`.
+
+**Per-NIC `rp_filter`.** After boot, `all` and `default` are 1. `eno1np0`, `eno3`, and `eno4` are each 2. `/usr/lib/sysctl.d/50-default.conf` has `net.ipv4.conf.*.rp_filter = 2`, which sets each interface by name. The Group C file does not set that wildcard. The kernel uses the max of `all` and the interface, so the effective mode on those NICs is still loose (2). CIS reads `all` and `default`. Redirects on those three NICs are 0. Two options, not chosen: leave the wildcard at 2, or add `net.ipv4.conf.*.rp_filter = 1` and have Detection check capture on `eno1np0`.
+
+**D0.** Only `vmlinuz-7.0.0-42-generic`, the live initrd, and the `.pre-batch4` copy. `dpkg` ii lines: `linux-image-7.0.0-42-generic 7.0.0-42.42` and `linux-image-generic 7.0.0-42.42`. `apt-daily-upgrade.service` inactive. `unattended-upgrades.service` active as `/usr/share/unattended-upgrades/unattended-upgrade-shutdown --wait-for-signal` since the 2026-11-03 06:17:25 UTC boot, not an upgrade. No `/run/reboot-required`. Initrd still `42618411` at `2026-11-03 06:13:32`.
+
+**D1.** AJ ran `sudo systemctl reboot` from rock-box. The SSH session got `Connection reset by peer`. Johnny answered at `2026-11-04T06:06:28Z`, up 0 minutes, kernel `7.0.0-42-generic`. No passphrase was typed on that SSH session. The KVM screen is not in this transcript.
+
+**D2.**
+```
+# 7.0.0-42-generic
+# up 0 minutes
+# 0 loaded units listed.
+# rc:0
+# cat: /run/reboot-required: No such file or directory
+# masked
+# fs.suid_dumpable = 0
+# kernel.core_pattern = core
+# kernel.dmesg_restrict = 1
+# kernel.randomize_va_space = 2
+# net.ipv4.conf.all.send_redirects = 0
+# net.ipv4.conf.default.accept_redirects = 0
+# net.ipv4.conf.all.rp_filter = 1
+# ulimit -Hc: 0
+# xfs
+# autofs4
+# can_count:1
+# initrd 42618411 2026-11-03 06:13:32.840646209 +0000
+# journal grep Error running install command: no lines
+# eno1np0 UP RX 1663 bytes 10 packets (since this boot)
+# kdump-config status: current state   : ready to kdump
+# eno1np0/eno3/eno4 accept_redirects secure_redirects send_redirects = 0
+# eno1np0/eno3/eno4 rp_filter = 2
+# sha256sum -c: /boot/initrd.img-7.0.0-42-generic: OK
+# lsinitrd -m diff: empty
+```
+1.5.4 persisted: `suid_dumpable` was 0 after the reboot.
+
+**D3.** Not run. The `.pre-batch4` copy is still on `/boot`. The draft deletes it after D2 and keeps `~/cis-audit/*-pre-batch4.txt` and `/root/apport.default.pre-batch4` until the re-audit. AJ has not said to delete the copy. It stays until AJ says so.
+
+**`~/cis-audit/` on Johnny (2026-11-04).** Scripts: `cis-4-root.sh`, `cis-5.1-root.sh`, `cis-5.2-root.sh`, `cis-5.4-root.sh`, `cis-6-root.sh`, `cis-7-root.sh`. No `cis-1*.sh` and no `cis-3-audit.sh`. The 1.1.1.1 to .10 script is not a file there. The 2026-10-30 session log says the audit was "CIS 1.1.1.x module script looped over 7 modules" and does not name a file. On rock-box, gitignored `docs/cis-local/` has `cis-1.5-audit.sh`, `cis-3-audit.sh`, and `cis-1.1.1.11-audit.sh`. Governance, from rock-box, non-root:
+```
+ssh aj@192.168.50.152 'bash -s' < docs/cis-local/cis-1.5-audit.sh
+ssh aj@192.168.50.152 'bash -s' < docs/cis-local/cis-3-audit.sh
+```
+`cis-3-audit.sh` covers 3.2.1, .2, .4 to .6 and the 3.3.1.x lines. `cis-1.5-audit.sh` covers 1.5.4, .5, .7, .9, .10. Do not run `cis-1.1.1.11-audit.sh` for this re-audit. 1.1.1.11 stays out. 1.1.1.1 to .10 have no saved script; Governance has to use the same per-module loop the 2026-10-30 log describes, or record a new script name before judging those rows.
 
 ## Risk
 None for access or boot in the recommended path. **No step touches SSH, PAM, sudo, GRUB, Secure Boot, the shim, a held package or PCR 7.** No package is installed or removed (Option A of Q7). The initrd is not rebuilt: Group P records its hash and keeps a copy, and Group D proves it unchanged. Runtime effects: 12 modules (plus 60 or 61 filesystem modules with A2) can no longer be loaded; core dumps stop (apport off, `fs.suid_dumpable=0`, `* hard core 0`); ICMP redirects are refused and not sent. Capture and the port mirror are not affected (next section). One attended reboot at the end.
@@ -529,7 +576,7 @@ Only if AJ wants the new blocks inside the image. P4's `grep -c` result decides 
 The three A1 files are mirrored in this rev. Their sha256 matches Johnny (see Recorded output). The rest are not created yet. Contents of the applied files are the heredocs above.
 - `etc/modprobe.d/johnny-cis-fs.conf`, `etc/modprobe.d/johnny-cis-drivers.conf`, `etc/modprobe.d/johnny-cis-net.conf` (mirrored)
 - `etc/modprobe.d/johnny-cis-fs-unused.conf` and `etc/modprobe.d/johnny-cis-fs-overlay.conf` (only if A2 and A2b ran)
-- `etc/sysctl.d/60-johnny-cis-kernel.conf`, `etc/sysctl.d/60-johnny-cis-network.conf` (as applied, with the `rp_filter` lines commented or not)
+- `etc/sysctl.d/60-johnny-cis-kernel.conf` (mirrored), `etc/sysctl.d/60-johnny-cis-network.conf` (mirrored; `rp_filter = 1` lines active)
 - `etc/security/limits.d/60-johnny-cis-core.conf`
 - `etc/default/apport` (the whole modified conffile, `enabled=0`)
 - `etc/systemd/system/apport.service` as a symlink to `/dev/null` (like the masked sleep targets already in `etc/systemd/system/`)
