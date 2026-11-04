@@ -103,6 +103,7 @@ Secrets: LUKS passphrase (recovery; needed if PCR 7 changes), `aj` login passwor
 Switch changes (CRS309): `docs/network-map.md`.
 
 ## Known gaps and notes
+- **Risk register:** `docs/compliance/risk-register.md`. Three entries. R-AIDE-1 and the PCR 7 binding are accepted. `ksmbd` is pending.
 - **PCR-7-only binding (option A, chosen).** `/boot` is plaintext and the initrd is unsigned/unmeasured in PCR 7: a physical attacker can edit the initrd (or boot MS-signed media via BBS menu) and get the key released. No GRUB password yet (CIS 1.4.1): editing the kernel cmdline at the GRUB menu (e.g. `init=`) doesn't touch PCR 7, so it's another unlock path (understanding, untested). Accepted for the lab. **Fleet: option D**: signed UKI + signed PCR 11 policy (26.04 support unverified; research before fleet autoinstall). Options B (PIN) and C (PCR 7+9, re-enroll every update) rejected.
 - **PCR 7 changes** on any Secure Boot db/dbx/KEK/PK change, BIOS update, MOK change, shim re-signed by a different CA (2011 → 2023 expected), or shim raising `SbatLevel` → boot falls back to passphrase; re-enroll: `sudo systemd-cryptenroll --wipe-slot=tpm2 --tpm2-device=auto --tpm2-pcrs=7 /dev/nvme0n1p3`. Routine shim/GRUB/kernel updates signed by the same CA don't change PCR 7 (understanding, untested).
 - **Held-package update procedure:** `apt-mark unhold` → install → console reboot (AMT KVM) → passphrase → re-enroll → `apt-mark hold`.
