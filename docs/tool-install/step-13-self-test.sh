@@ -15,6 +15,8 @@ source "$ROOT/etc/johnny/irq-affinity.sh"
 source "$ROOT/etc/johnny/irqbalance-policy.sh"
 # shellcheck source=docs/tool-install/step-13-irq-affinity.sh
 source "$ROOT/docs/tool-install/step-13-irq-affinity.sh"
+# shellcheck source=docs/tool-install/step-13b-name-match.sh
+source "$ROOT/docs/tool-install/step-13b-name-match.sh"
 
 out=$(assign_cpu eno1np0-TxRx-0 1 2 3 4)
 [ "$out" = 1 ] || fail "txrx0 $out"
@@ -28,6 +30,119 @@ out=$(assign_cpu 'ice-0000:01:00.0:misc' 1 2 3 4)
 [ "$out" = 1 ] || fail "misc $out"
 out=$(assign_cpu eno1np0-TxRx-08 1 2 3 4)
 [ "$out" = 1 ] || fail "octal $out"
+# Step 13b: live names carry the ice- prefix.
+want_cpu=(1 2 3 4 1 2 3 4 1 2 3 4)
+for n in 0 1 2 3 4 5 6 7 8 9 10 11; do
+  out=$(assign_cpu "ice-eno1np0-TxRx-$n" 1 2 3 4)
+  [ "$out" = "${want_cpu[$n]}" ] || fail "ice txrx$n $out"
+done
+out=$(assign_cpu 'ice-0000:01:00.0:ctrl-TxRx-0' 1 2 3 4)
+[ "$out" = 1 ] || fail "ctrl $out"
+out=$(assign_cpu 'ice-0000:01:00.0:ll_ts' 1 2 3 4)
+[ "$out" = 1 ] || fail "ll_ts $out"
+out=$(assign_cpu 'ice-eno1np0-TxRx-9' 2 4)
+[ "$out" = 4 ] || fail "two cpus $out"
+[ "$(classify_irq_name ice-eno1np0-TxRx-11)" = queue ] || fail "class queue ice"
+[ "$(classify_irq_name eno1np0-rx-3)" = queue ] || fail "class queue plain"
+[ "$(classify_irq_name 'ice-0000:01:00.0:misc')" = aux ] || fail "class misc"
+[ "$(classify_irq_name 'ice-0000:01:00.0:ll_ts')" = aux ] || fail "class ll_ts"
+[ "$(classify_irq_name 'ice-0000:01:00.0:ctrl-TxRx-0')" = aux ] || fail "class ctrl"
+[ "$(classify_irq_name 'irdma-0000:01:00.0-CEQ-3')" = irdma ] || fail "class irdma"
+[ "$(classify_irq_name 'irdma-0000:01:00.0-AEQCEQ-0')" = irdma ] || fail "class aeqceq"
+[ "$(classify_irq_name 'ice-eno1np0-TxRx-x')" = other ] || fail "class bad idx"
+[ "$(classify_irq_name 'xice-eno1np0-TxRx-1')" = other ] || fail "class bad prefix"
+foreign_irq_name ice-eno1np0-TxRx-0 && fail "ice eno1 flagged foreign"
+foreign_irq_name irdma-0000:01:00.0-CEQ-1 && fail "irdma flagged foreign"
+foreign_irq_name ice-eno2np1-TxRx-0 || fail "ice eno2 not foreign"
+
+bk=$(mktemp)
+cat > "$bk" <<'BKEOF'
+189|0|ice-eno1np0-TxRx-0
+201|0-23|ice-0000:01:00.0:ctrl-TxRx-0
+217|0-23|irdma-0000:01:00.0-AEQCEQ-0
+229|0-23|irdma-0000:01:00.0-CEQ-12
+230|0-23|irdma-0000:01:00.1-AEQCEQ-0
+231||irdma-0000:01:00.0-CEQ-1
+BKEOF
+out=$(irdma_backup_lines "$bk")
+[ "$out" = $'217|0-23|irdma-0000:01:00.0-AEQCEQ-0\n229|0-23|irdma-0000:01:00.0-CEQ-12' ] || fail "irdma backup lines: $(printf %q "$out")"
+rm -f "$bk"
+same_cpulist 0-23 0-23 || fail "same list"
+same_cpulist 0-2 0,1,2 || fail "same list forms"
+if same_cpulist 1 0-23; then
+  fail "different lists same"
+fi
+if same_cpulist '' 1; then
+  fail "empty list same"
+fi
+# collect_eno1_map against a fake /proc built from the live Johnny names.
+fp=$(mktemp -d)
+mkdir -p "$fp/irq"
+{
+  echo '           CPU0       CPU1'
+  echo ' 187:  1  0  IR-PCI-MSIX-0000:01:00.0    0-edge      ice-0000:01:00.0:misc'
+  echo ' 188:  1  0  IR-PCI-MSIX-0000:01:00.0    1-edge      ice-0000:01:00.0:ll_ts'
+  for n in 0 1 2 3 4 5 6 7 8 9 10 11; do
+    echo " $((189 + n)):  1  0  IR-PCI-MSIX-0000:01:00.0    $((n + 2))-edge      ice-eno1np0-TxRx-$n"
+  done
+  echo ' 201:  1  0  IR-PCI-MSIX-0000:01:00.0   14-edge      ice-0000:01:00.0:ctrl-TxRx-0'
+  echo ' 217:  1  0  IR-PCI-MSIX-0000:01:00.0   15-edge      irdma-0000:01:00.0-AEQCEQ-0'
+  echo ' 218:  1  0  IR-PCI-MSIX-0000:01:00.0   16-edge      irdma-0000:01:00.0-CEQ-1'
+} > "$fp/interrupts"
+for i in 187 188 189 190 191 192 193 194 195 196 197 198 199 200 201 217 218; do
+  mkdir -p "$fp/irq/$i"
+  echo 1 > "$fp/irq/$i/smp_affinity_list"
+done
+PROC_ROOT=$fp
+list_msi() { printf '%s\n' 187 188 189 190 191 192 193 194 195 196 197 198 199 200 201 217 218; }
+CAPTURE_CPUS=(1 2 3 4)
+cm_out=$(collect_eno1_map; echo "rc=$?")
+printf '%s\n' "$cm_out" | grep -qx 'rc=0' || fail "collect rc: $cm_out"
+collect_eno1_map > /dev/null || fail "collect map"
+[ "${#ENO1_IRQS[@]}" = 15 ] || fail "collect count ${#ENO1_IRQS[@]}"
+printf '%s\n' "$cm_out" | grep -q 'NOTE-irdma-skip 217 irdma-0000:01:00.0-AEQCEQ-0' || fail "irdma skip note"
+printf '%s\n' "$cm_out" | grep -q 'NOTE-irdma-skip 218 ' || fail "irdma skip note 218"
+if printf '%s\n' "$cm_out" | grep -q 'NOTE-irq-fallback'; then
+  fail "fallback on live names: $cm_out"
+fi
+if printf '%s\n' "$cm_out" | grep -q 'NOTE-irq-name'; then
+  fail "irq-name on live names"
+fi
+for i in "${!ENO1_IRQS[@]}"; do
+  case "${ENO1_NAMES[$i]}" in
+    irdma-*) fail "irdma in pin map" ;;
+    ice-eno1np0-TxRx-*)
+      q=${ENO1_NAMES[$i]##*-}
+      [ "${ENO1_CPUS[$i]}" = "${want_cpu[$q]}" ] || fail "map cpu ${ENO1_NAMES[$i]} ${ENO1_CPUS[$i]}"
+      ;;
+    *)
+      [ "${ENO1_CPUS[$i]}" = 1 ] || fail "aux cpu ${ENO1_NAMES[$i]} ${ENO1_CPUS[$i]}"
+      ;;
+  esac
+done
+sed -i 's/ice-eno1np0-TxRx-3$/mystery-vector/' "$fp/interrupts"
+cm_out=$(collect_eno1_map || true)
+printf '%s\n' "$cm_out" | grep -q 'NOTE-irq-fallback 192 mystery-vector' || fail "unknown name fallback"
+sed -i 's/mystery-vector/ice-eno2np1-TxRx-3/' "$fp/interrupts"
+cm_out=$(collect_eno1_map || true)
+printf '%s\n' "$cm_out" | grep -q 'STOP-irq-foreign 192' || fail "foreign stop"
+rm -rf "$fp"
+# shellcheck source=etc/johnny/irq-affinity.sh
+source "$ROOT/etc/johnny/irq-affinity.sh"
+
+S13B="$ROOT/docs/tool-install/step-13b-name-match.sh"
+grep -q 'STEP13B-NAME-MATCH-DONE' "$S13B" || fail "13b done line"
+grep -q 'irq-affinity-before.tsv' "$S13B" || fail "13b backup path"
+if grep -En '>>?[[:space:]]*"?\$BEFORE|>>?[[:space:]]*/var/lib/johnny/irq-affinity-before' "$S13B" | grep -v '^[0-9]*:#'; then
+  fail "13b writes the backup"
+fi
+host_out=$(bash "$S13B" || true)
+printf '%s\n' "$host_out" | grep -qx STOP-host || fail "13b stop host: $host_out"
+if grep -En 'apt-get|apt install|update-grub|update-initramfs|[[:space:]]reboot|ethtool -[LGKX]|ip link set|sysctl -w|pci=noaer|snap install|systemctl (stop|restart|start|mask|disable)' "$S13B" \
+  | grep -v '^[0-9]*:#'; then
+  fail "forbidden in 13b"
+fi
+
 if assign_cpu eno1np0-TxRx-1 >/tmp/step13-assign.out; then
   fail "no cpus should stop"
 fi
@@ -178,8 +293,17 @@ do
   fi
 done
 
+# The c765e01 apply script keeps the old helper hash on purpose. A re-run of
+# that paste now stops with STOP-hash instead of reinstalling the old helper.
 got=$(sha256sum "$ROOT/etc/johnny/irq-affinity.sh" | awk '{print $1}')
-grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.sh" || fail "helper hash"
+if grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.sh"; then
+  fail "old apply script knows the new helper hash"
+fi
+grep -q '^HELPER_SHA256=77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e$' "$ROOT/docs/tool-install/step-13-irq-affinity.sh" || fail "old helper hash moved"
+grep -q "$got" "$S13B" || fail "13b helper hash"
+grep -q '^HELPER_OLD_SHA256=77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e$' "$S13B" || fail "13b old helper hash"
+got=$(sha256sum "$ROOT/etc/systemd/system/johnny-capture-irq.service" | awk '{print $1}')
+grep -q "$got" "$S13B" || fail "13b unit hash"
 got=$(sha256sum "$ROOT/etc/johnny/irqbalance-policy.sh" | awk '{print $1}')
 grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.sh" || fail "policy hash"
 got=$(sha256sum "$ROOT/etc/systemd/system/johnny-capture-irq.service" | awk '{print $1}')
@@ -190,6 +314,8 @@ got=$(sha256sum "$ROOT/etc/johnny/capture-cores" | awk '{print $1}')
 grep -q "$got" "$ROOT/etc/johnny/irq-affinity.sh" || fail "cores hash"
 got=$(sha256sum "$ROOT/docs/tool-install/step-13-irq-affinity.sh" | awk '{print $1}')
 grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook apply hash"
+got=$(sha256sum "$S13B" | awk '{print $1}')
+grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook 13b hash"
 got=$(sha256sum "$ROOT/etc/johnny/irq-affinity.sh" | awk '{print $1}')
 grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook helper hash"
 got=$(sha256sum "$ROOT/docs/tool-install/step-13-revert.sh" | awk '{print $1}')
