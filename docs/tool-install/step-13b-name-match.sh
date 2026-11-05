@@ -79,10 +79,11 @@ same_cpulist() {
   [ -n "$a" ] && [ "$a" = "$b" ]
 }
 
-# True when the cpulist spec includes CPU 0. A bad spec counts as "yes" (fail safe).
+# True when the cpulist spec includes CPU 0. A bad or empty spec counts as "yes" (fail safe).
 cpulist_has_cpu0() {
   local flat
   flat=$(cpulist_flat "$1") || return 0
+  [ -n "${flat// /}" ] || return 0
   case " $flat" in
     *" 0 "*) return 0 ;;
   esac

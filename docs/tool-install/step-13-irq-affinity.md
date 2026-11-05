@@ -155,7 +155,7 @@ ssh aj@192.168.50.152 'systemctl is-active johnny-capture-irq.service; systemd-a
 |---|---|---|---|
 | `/etc/johnny/irq-affinity.sh` | `etc/johnny/irq-affinity.sh` | 0755 | new: `29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530`. Old live: `77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e` |
 | `/etc/systemd/system/johnny-capture-irq.service` | `etc/systemd/system/johnny-capture-irq.service` | 0644 | new: `03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a` (adds `Wants=network-online.target`). Old live: `9df4969fbb8e9000c13d409cc1788846ca9b1acf06275fd7336eb616cd6bb355` |
-| `/home/aj/cis-audit/step-13b-name-match.sh` | `docs/tool-install/step-13b-name-match.sh` | 0755 | repo tip (post-nits): `38ade9098e61a8ab944a506b5832a0cb93834c61b522991df25ea4fc95e4bdf3`. Applied on Johnny from `bf89820`: `da03abac57ac277917ef9b82e3805e885ac19f9b8d2922c635f882b0fb85ee2c` (the copy in `/home/aj/cis-audit/` is that one) |
+| `/home/aj/cis-audit/step-13b-name-match.sh` | `docs/tool-install/step-13b-name-match.sh` | 0755 | repo tip (post-nits, empty-spec fail-safe): `ce751fd2103d0c6c66effa717fd52c1718cf1cb07f5acf48529e21f5d2fe002a`. Applied on Johnny from `bf89820`: `da03abac57ac277917ef9b82e3805e885ac19f9b8d2922c635f882b0fb85ee2c` (the copy in `/home/aj/cis-audit/` is that one) |
 
 The 13b script cannot store its own hash. The row above is the full-file digest and the self-test compares it. The post-nits change touched only the 13b script and the self-test. The helper and unit hashes are unchanged.
 
@@ -169,14 +169,15 @@ The 13b script cannot store its own hash. The row above is the full-file digest 
 
 **Applied once, from tip `bf89820`. Not needed again.** The block below is the post-nits form, for a re-run only (for example if a reboot shows a problem and AJ asks for one). It has had no apply run and needs a fresh review first.
 
-On rock-box. One block, chained with `&&`. Before any `scp` it stops unless the checkout has no uncommitted change under `docs/tool-install` or `etc`, and the three files hash to the values in this runbook (a stale or edited checkout cannot pass, because the hashes are in this paste text, not read from the checkout). It prints the checkout tip so AJ can compare it with the PR head. After `scp` it hashes the three files on Johnny again before `sudo`. `sudo -v` runs on Johnny (a rock-box `sudo -v` would refresh the wrong machine). AJ types Johnny's sudo password at that prompt.
+On rock-box. One block, chained with `&&`. Before any `scp` it stops unless the checkout has no uncommitted change under `docs/tool-install` or `etc`, and the four files (13b script, self-test, helper, unit) hash to the values in this runbook (a stale or edited checkout cannot pass, because the hashes are in this paste text, not read from the checkout). It prints the checkout tip so AJ can compare it with the PR head. After `scp` it hashes the three staged files on Johnny again before `sudo`. `sudo -v` runs on Johnny (a rock-box `sudo -v` would refresh the wrong machine). AJ types Johnny's sudo password at that prompt.
 
 ```bash
 cd /home/aj/Projects/strix-halo-johnny && \
 test -z "$(git status --porcelain -- docs/tool-install etc)" && \
 git rev-parse --short HEAD && \
 printf '%s  %s\n' \
-  38ade9098e61a8ab944a506b5832a0cb93834c61b522991df25ea4fc95e4bdf3 docs/tool-install/step-13b-name-match.sh \
+  ce751fd2103d0c6c66effa717fd52c1718cf1cb07f5acf48529e21f5d2fe002a docs/tool-install/step-13b-name-match.sh \
+  23c8481a8c406d6360f95d1d7c19cff2e428c3af963859df037af2c234886a28 docs/tool-install/step-13-self-test.sh \
   29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530 etc/johnny/irq-affinity.sh \
   03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a etc/systemd/system/johnny-capture-irq.service \
   | sha256sum -c - && \
@@ -185,7 +186,7 @@ ssh aj@192.168.50.152 'mkdir -p /home/aj/cis-audit' && \
 scp docs/tool-install/step-13b-name-match.sh aj@192.168.50.152:/home/aj/cis-audit/step-13b-name-match.sh && \
 scp etc/johnny/irq-affinity.sh aj@192.168.50.152:/home/aj/cis-audit/irq-affinity.sh && \
 scp etc/systemd/system/johnny-capture-irq.service aj@192.168.50.152:/home/aj/cis-audit/johnny-capture-irq.service && \
-ssh -t aj@192.168.50.152 'printf "%s  %s\n" 38ade9098e61a8ab944a506b5832a0cb93834c61b522991df25ea4fc95e4bdf3 /home/aj/cis-audit/step-13b-name-match.sh 29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530 /home/aj/cis-audit/irq-affinity.sh 03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a /home/aj/cis-audit/johnny-capture-irq.service | sha256sum -c - && sudo -v && sudo bash /home/aj/cis-audit/step-13b-name-match.sh'
+ssh -t aj@192.168.50.152 'printf "%s  %s\n" ce751fd2103d0c6c66effa717fd52c1718cf1cb07f5acf48529e21f5d2fe002a /home/aj/cis-audit/step-13b-name-match.sh 29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530 /home/aj/cis-audit/irq-affinity.sh 03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a /home/aj/cis-audit/johnny-capture-irq.service | sha256sum -c - && sudo -v && sudo bash /home/aj/cis-audit/step-13b-name-match.sh'
 ```
 
 **[Assumption]** `git status --porcelain` is empty for those two paths on a clean checkout of the PR head, and `printf` reuses its format for each hash/path pair (bash builtin behavior). The block was not run in this closeout.
