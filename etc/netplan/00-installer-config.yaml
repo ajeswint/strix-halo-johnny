@@ -28,6 +28,8 @@ network:
       accept-ra: false
       link-local: []
       optional: true
+      # step 11: keep this port admin-down (SFP+8 end is out)
+      activation-mode: off
     eno4:
       match:
         macaddress: "38:05:25:3a:a3:70"
