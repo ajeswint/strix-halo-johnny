@@ -1,6 +1,6 @@
 # Step 9 — EDAC (applied)
 
-Applied 2026-11-05 on Johnny. AJ ran both pastes from tip `e08260f`. The main paste printed `STEP9-DONE` at `2026-11-05T18:15:40Z` (~12:15 CT). The optional sudo paste printed `LOGS-DONE`. Grok 4.7 recorded the closeout. Claude reviews and does not edit. Do not run the pastes again.
+Applied 2026-11-05 on Johnny. AJ ran both pastes from tip `e08260f`. The paste he ran is `git show e08260f:docs/tool-install/step-9-edac.md`. This file now holds the post-nit paste. The main paste printed `STEP9-DONE` at `2026-11-05T18:15:40Z` (~12:15 CT). The optional sudo paste printed `LOGS-DONE`. Grok 4.7 recorded the closeout. Claude reviews and does not edit. Do not run the pastes again.
 
 The nit commit after that run (`68b22e7`) is doc-only. It does not change the live result. Three lines in the blocks below were not in the paste AJ executed: `|| true` on the sysfs `head -c`, `STOP-no-denial` on the optional paste, and the SSH command in prose. `NOTE-dmesg-denied` was already in the summary, so the optional run matches the denial that gate now checks. No module was loaded. No sysfs write. No BIOS or RAM change.
 
@@ -16,7 +16,7 @@ Johnny has one DDR5 module. The 2026-10-28 record says that module is non-ECC, w
 
 `MCE-DIR present`. CPU `Intel(R) Core(TM) Ultra 9 285HX`. `EUID 1000`.
 
-`ECC-UNAVAILABLE` and `DIMM-RECORD CT32G56C46S5 non-ECC single-channel 2026-10-28` restate the 2026-10-28 `dmidecode` record. No side-band ECC DIMM is seated. IBECC was not evaluated. `0x7d1c` is not an alias of the four Intel EDAC modules on this kernel. Session copy: `docs/sessions/2026-11-05-step9-edac-applied.md`. Raw logs stay on Johnny at `/home/aj/cis-audit/step9-edac/`.
+`ECC-UNAVAILABLE` and `DIMM-RECORD CT32G56C46S5 non-ECC single-channel 2026-10-28` restate the 2026-10-28 `dmidecode` record. Per that record, no side-band ECC DIMM is seated. The 2026-11-05 probe did not run `dmidecode`. IBECC was not evaluated. `0x7d1c` is not an alias of the four Intel EDAC modules on this kernel. Session copy: `docs/sessions/2026-11-05-step9-edac-applied.md`. Raw logs stay on Johnny at `/home/aj/cis-audit/step9-edac/`.
 
 CIS L1 totals stay **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). Next open items are 12 signed UKI and IRQ affinity later.
 
@@ -43,11 +43,11 @@ Wall time is a few seconds. There is no soak.
 
 ## DIMM record
 
-The 2026-11-05 probe did not run `dmidecode` and did not open `/sys/firmware/dmi/tables`. `ECC-UNAVAILABLE` still restates the 2026-10-28 record. `NOTE-no-mc` is consistent with that record. It is not a new measurement of the DIMM.
+**[Assumption]** The stick is unchanged since the 2026-10-28 read. The 2026-11-05 probe did not run `dmidecode` and did not open `/sys/firmware/dmi/tables`. `ECC-UNAVAILABLE` restates that record. `NOTE-no-mc` is consistent with it. It is not a new measurement of the DIMM.
 
 AJ's `sudo dmidecode -t memory` on 2026-10-28 printed one module: `CT32G56C46S5` (a 5600 part), running at 4800 MT/s, no ECC, single channel (`docs/sessions/Johnny_OS_Session_Log_2026-10-28.csv`). The handoff still says 1× 32GB DDR5 non-ECC. BIOS RAM speed 4800 MT/s is the board maximum and is closed. The parked ECC purchase (2× Kingston `KSM56T46BD8KM-48HM`) has not been bought or seated in this step.
 
-`ECC-UNAVAILABLE` restates that 2026-10-28 record: no side-band ECC DIMM. The probe does not measure it. An empty EDAC tree is recorded separately (`NOTE-no-mc` or `NOTE-mc-present`). A missing `mc*` directory is not the proof of the DIMM type. IBECC is not evaluated: the paste does not load `igen6_edac` and does not read an IBECC activate bit. `NOTE-mc-present` together with `ECC-UNAVAILABLE` is not always a conflict. The first is a driver registration, if one appears. The second is the old DIMM record.
+`ECC-UNAVAILABLE` restates that 2026-10-28 record: per that record, no side-band ECC DIMM. The probe does not measure it. An empty EDAC tree is recorded separately (`NOTE-no-mc` or `NOTE-mc-present`). A missing `mc*` directory is not the proof of the DIMM type. IBECC is not evaluated: the paste does not load `igen6_edac` and does not read an IBECC activate bit. `NOTE-mc-present` together with `ECC-UNAVAILABLE` is not always a conflict. The first is a driver registration, if one appears. The second is the old DIMM record.
 
 ## Sysfs layout
 
@@ -80,7 +80,7 @@ The admin guide's example `modprobe amd76x_edac` is not a Johnny command. This s
 
 Ubuntu resolute's `7.0.0-42.42` annotations build these as modules on amd64: `CONFIG_EDAC_IGEN6`, `CONFIG_EDAC_IE31200`, `CONFIG_EDAC_I10NM`, `CONFIG_EDAC_SKX`. `CONFIG_EDAC_SUPPORT` is `y`. `CONFIG_EDAC_DEBUG` is `n` ([annotations](https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute/plain/debian.master/config/annotations?h=Ubuntu-7.0.0-42.42)). **[Assumption]** The installed `linux-modules` package matches that policy. The paste lists the `.ko` files with `modinfo -n` and does not trust the annotation alone.
 
-`igen6_edac` in that Ubuntu tag is the in-band ECC (IBECC) client driver. Its header says IBECC is what a controller uses when it does not support out-of-band ECC. The Arrow Lake IDs in that file are the U/H compute dies `0x7d06`, `0x7d20`, and `0x7d30`. If IBECC is off on a device the driver did bind, it prints `MC%d In-Band ECC is disabled` and returns `-ENODEV` ([`igen6_edac.c` at `Ubuntu-7.0.0-42.42`](https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute/plain/drivers/edac/igen6_edac.c?h=Ubuntu-7.0.0-42.42)). Johnny has no side-band ECC DIMM seated. This paste does not evaluate IBECC.
+`igen6_edac` in that Ubuntu tag is the in-band ECC (IBECC) client driver. Its header says IBECC is what a controller uses when it does not support out-of-band ECC. The Arrow Lake IDs in that file are the U/H compute dies `0x7d06`, `0x7d20`, and `0x7d30`. If IBECC is off on a device the driver did bind, it prints `MC%d In-Band ECC is disabled` and returns `-ENODEV` ([`igen6_edac.c` at `Ubuntu-7.0.0-42.42`](https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute/plain/drivers/edac/igen6_edac.c?h=Ubuntu-7.0.0-42.42)). Per the 2026-10-28 record, Johnny has no side-band ECC DIMM seated. This probe did not repeat `dmidecode`. This paste does not evaluate IBECC.
 
 `ie31200_edac` in that tag is the older client out-of-band driver. Its newest HX ID there is Raptor Lake-HX `0xa702` (the comment says i9-13950HX). A search of that file for `7d1c`, `7d2d`, and `Arrow Lake` found none ([`ie31200_edac.c` at `Ubuntu-7.0.0-42.42`](https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute/plain/drivers/edac/ie31200_edac.c?h=Ubuntu-7.0.0-42.42)).
 
@@ -169,7 +169,7 @@ Do not commit the raw files. The applied summary is in `docs/sessions/2026-11-05
 
 ## Paste on Johnny
 
-Applied. AJ already ran this probe from tip `e08260f`. Do not paste it again.
+Applied. AJ already ran this probe from tip `e08260f`. The text he ran is `git show e08260f:docs/tool-install/step-9-edac.md`. Do not paste it again.
 
 From rock-box, the SSH command is `ssh -o ServerAliveInterval=30 aj@192.168.50.152`. The one block below is what runs on Johnny as `aj`. It does not prompt for a password. The block includes the post-run `|| true` on `head -c`. The executed paste did not have that `|| true`. The run still reached `STEP9-DONE`.
 
@@ -495,4 +495,4 @@ No Johnny config change. No package install. No module load. Ctrl-C leaves a par
 
 ## After the run
 
-Applied. `STEP9-DONE` at `2026-11-05T18:15:40Z`. `LOGS-DONE`. Host bridge `0x7d1c`. `NOTE-no-mc`. `NOTE-dmesg-denied`. `ECC-UNAVAILABLE` restates the 2026-10-28 non-ECC DIMM record. No side-band ECC DIMM. IBECC was not evaluated. No module load, no sysfs write, no BIOS or RAM change. CIS L1 totals stay **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). Next open items are 12 signed UKI and IRQ affinity later.
+Applied. `STEP9-DONE` at `2026-11-05T18:15:40Z`. `LOGS-DONE`. Host bridge `0x7d1c`. `NOTE-no-mc`. `NOTE-dmesg-denied`. `ECC-UNAVAILABLE` restates the 2026-10-28 non-ECC DIMM record. Per that record, no side-band ECC DIMM. IBECC was not evaluated. No module load, no sysfs write, no BIOS or RAM change. CIS L1 totals stay **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). Next open items are 12 signed UKI and IRQ affinity later.
