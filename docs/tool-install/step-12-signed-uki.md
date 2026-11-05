@@ -144,8 +144,9 @@ These are recorded and do not withhold `STEP12-RESEARCH-DONE`:
 - `NOTE-pcr7-diff`. PCR 7 sha256 does not match the baseline. Bring the summary back. Do not re-enroll.
 - `NOTE-pcr11-zero`. PCR 11 sha256 is all zeros. **[Inference]** that is what a boot that never ran `systemd-stub` looks like. It is not proof by itself, and it is not a cue to build a UKI.
 - `NOTE-pcr11-nonzero`. Bring the summary back. Do not enroll.
-- `NOTE-efi-extra`. An EFI file whose name is not `shimx64.efi`, `grubx64.efi`, `mmx64.efi`, `fbx64.efi`, or `BOOTX64.EFI`. Bring the path back. Do not delete it.
-- `NOTE-efi-errors`. `find` wrote names and also wrote an error. The optional paste lists `/boot` again with sudo. Do not delete a file.
+- `NOTE-efi-extra`. An EFI file whose name is not `shimx64.efi`, `grubx64.efi`, `mmx64.efi`, `fbx64.efi`, or `BOOTX64.EFI`. `find` uses `-iname`, so `BOOTX64.EFI` is listed and matches that allow-list. Bring any other path back. Do not delete it.
+- `NOTE-efi-unreadable`. `find` wrote no names. Expected when `/boot/efi` is root-only. The optional sudo paste is the EFI listing.
+- `NOTE-efi-errors`. `find` wrote some names and also an error. Expected when part of `/boot` is readable and the ESP is not. The optional paste lists `/boot` again. Do not delete a file.
 - `NOTE-crypttab-diff` or `NOTE-crypttab-keyfile`. The live `crypttab` is not the single expected line. A third field other than `none` or `-` is not printed.
 - `NOTE-cmdline-no-aspm` or `NOTE-grub-no-aspm`. The recorded `pcie_aspm=off` setting was not found. Do not edit GRUB.
 - `SLOTS-DONE` is not required for the pass. It only means the optional sudo paste finished.
@@ -153,6 +154,8 @@ These are recorded and do not withhold `STEP12-RESEARCH-DONE`:
 ## Logs
 
 Directory on Johnny: `/home/aj/cis-audit/step12-signed-uki`. If that path already exists, the main paste renames it with a UTC timestamp and starts clean. `aj` can `scp` it. The main paste never calls sudo.
+
+**[Assumption]** The ESP at `/boot/efi` is root-only. The handoff does not record that mode. The main paste then prints `NOTE-efi-errors` or `NOTE-efi-unreadable`. That is the expected result, and `STEP12-RESEARCH-DONE` still stands. The EFI names come from the optional sudo paste (`EFI-FILE-SUDO`). Run that paste when the summary has either note.
 
 | File | Contents |
 |---|---|
@@ -164,6 +167,9 @@ Directory on Johnny: `/home/aj/cis-audit/step12-signed-uki`. If that path alread
 | `efi-files.txt` | EFI binaries found under `/boot/efi/EFI` and `/boot` |
 | `pcr.txt` | `tpm2_pcrread` sha256 banks 7, 11, and 14, if the unprivileged read worked |
 | `luks-slots.txt` | Only if the optional paste ran. Filtered header lines. No digest and no salt. |
+| `luks-dump.err` | Only if the optional paste ran. `cryptsetup` stderr. Not the header. |
+
+The raw `luksDump` is not one of these files. The optional paste writes it to a mode 600 file under `/root` and removes that file before `SLOTS-DONE`.
 
 Do not commit the raw files.
 
@@ -338,7 +344,7 @@ fi
 : > "$OUT/efi-files.err"
 if [ -d /boot ]; then
   find_rc=0
-  find /boot -maxdepth 5 \( -name '*.efi' -o -name '*.efi.signed' \) -printf '%p\n' </dev/null >"$OUT/efi-files.txt" 2>"$OUT/efi-files.err" || find_rc=$?
+  find /boot -maxdepth 5 \( -iname '*.efi' -o -iname '*.efi.signed' \) -printf '%p\n' </dev/null >"$OUT/efi-files.txt" 2>"$OUT/efi-files.err" || find_rc=$?
   if [ "$find_rc" -ne 0 ] && [ ! -s "$OUT/efi-files.txt" ]; then
     note NOTE-efi-unreadable
   elif [ -s "$OUT/efi-files.err" ]; then
@@ -384,7 +390,7 @@ if [ -r /etc/crypttab ]; then
           note "CRYPTTAB-LINE $line"
           ;;
         *)
-          note "NOTE-crypttab-keyfile $1 $2"
+          note "NOTE-crypttab-keyfile ${1:-} ${2:-}"
           ;;
       esac
     done < "$OUT/crypttab-kept.txt"
@@ -455,9 +461,9 @@ EOF
 
 ## Optional sudo paste on Johnny
 
-Run this only after the main paste has printed `STEP12-RESEARCH-DONE`. It is not required for the pass. It reads PCR banks when the unprivileged read failed, lists EFI files when that listing failed, retries `efibootmgr` when that failed, and reads LUKS slot types. `sudo -v` is first so the password prompt happens before the script.
+Run this only after the main paste has printed `STEP12-RESEARCH-DONE`. It is not required for that line. It is the EFI listing: `/boot/efi` is expected to be root-only, so the main paste's `NOTE-efi-errors` or `NOTE-efi-unreadable` is normal. It also reads PCR banks when the unprivileged read failed, retries `efibootmgr` when that failed, and reads LUKS slot types. `sudo -v` is first so the password prompt happens before the script.
 
-It does not call `systemd-cryptenroll`. It does not wipe a slot. It does not enroll. The filtered `luksDump` drops digest and salt lines.
+It does not call `systemd-cryptenroll`. It does not wipe a slot. It does not enroll. `cryptsetup luksDump` writes the raw header to a mode 600 file from `mktemp` under `/root`, filters it, then removes the raw file. The audit directory keeps the filtered lines in `luks-slots.txt`. Digest and salt stay out of that directory and out of the Collect `scp`.
 
 ```bash
 sudo -v
@@ -504,7 +510,11 @@ note() { printf '%s\n' "$*" | tee -a "$OUT/summary.txt"; }
 
 dev=$(readlink -f "$link")
 note "LUKS-DEV $dev"
-if cryptsetup luksDump --batch-mode "$dev" </dev/null >"$OUT/luks-dump.txt" 2>"$OUT/luks-dump.err"; then
+raw=$(mktemp /root/step12-luks-dump.XXXXXX)
+chmod 600 "$raw"
+dump_rc=0
+cryptsetup luksDump --batch-mode "$dev" </dev/null >"$raw" 2>"$OUT/luks-dump.err" || dump_rc=$?
+if [ "$dump_rc" -eq 0 ]; then
   awk '
     length($0) > 200 { next }
     /^Version:/ { print }
@@ -518,10 +528,11 @@ if cryptsetup luksDump --batch-mode "$dev" </dev/null >"$OUT/luks-dump.txt" 2>"$
     /systemd-tpm2/ { print }
     /tpm2-pcrs/ { print }
     /Keyslot:/ { print }
-  ' "$OUT/luks-dump.txt" | tee "$OUT/luks-slots.txt" | while IFS= read -r line; do note "LUKS $line"; done || true
+  ' "$raw" | tee "$OUT/luks-slots.txt" | while IFS= read -r line; do note "LUKS $line"; done || true
 else
   note NOTE-luks-dump-failed
 fi
+rm -f "$raw"
 
 parse_pcr() {
   awk -v i="$1" '
@@ -565,7 +576,7 @@ if grep -Eq '^(NOTE-pcr-unreadable|NOTE-no-tpm2-pcrread|NOTE-pcr-parse)$' "$OUT/
 fi
 
 if grep -Eq '^(NOTE-efi-unreadable|NOTE-efi-errors)$' "$OUT/summary.txt"; then
-  if find /boot -maxdepth 5 \( -name '*.efi' -o -name '*.efi.signed' \) -printf '%p\n' </dev/null >"$OUT/efi-files-sudo.txt" 2>"$OUT/efi-files-sudo.err"; then
+  if find /boot -maxdepth 5 \( -iname '*.efi' -o -iname '*.efi.signed' \) -printf '%p\n' </dev/null >"$OUT/efi-files-sudo.txt" 2>"$OUT/efi-files-sudo.err"; then
     while IFS= read -r path; do
       [ -n "$path" ] || continue
       note "EFI-FILE-SUDO $path"
@@ -616,7 +627,13 @@ mkdir -p /home/aj/johnny-step12
 scp -r aj@192.168.50.152:/home/aj/cis-audit/step12-signed-uki /home/aj/johnny-step12/
 ```
 
-Bring back `summary.txt`. Do not commit the raw directory. Do not treat `STEP12-RESEARCH-DONE` as an apply.
+Bring back `summary.txt`. Do not commit the raw directory. Do not treat `STEP12-RESEARCH-DONE` as an apply. The `scp` is the audit directory only. It does not include `/root`. The raw LUKS header is removed before `SLOTS-DONE`. If the paste stops after creating that file and before removing it, on Johnny:
+
+```bash
+sudo rm -f /root/step12-luks-dump.*
+```
+
+Do not copy that file off the machine.
 
 ## Fleet implications
 

@@ -26,6 +26,23 @@ A PCR line fixture `7 : 0xB6D0F97F…F3FF` parsed to the handoff baseline with t
 
 That check did not read Johnny's TPM and did not write a LUKS slot.
 
+## Nits (same draft, before any closeout)
+
+Claude's four non-blocking nits on `058fc60` are in the runbook. AJ was cleared to run the main paste from that tip. If his transcript is from `058fc60`, that is the paste that ran. These nits do not replace a `STEP12-RESEARCH-DONE` he already printed.
+
+1. The raw `luksDump` goes to a mode 600 file under `/root` and is removed before `SLOTS-DONE`. The audit directory keeps `luks-slots.txt` and `luks-dump.err`. Collect's `scp` does not include `/root`.
+2. Both `find` calls use `-iname`, so `BOOTX64.EFI` is listed and matches the allow-list.
+3. The ESP is treated as root-only. `NOTE-efi-errors` or `NOTE-efi-unreadable` from the main paste is expected. The optional sudo paste is the EFI listing.
+4. `NOTE-crypttab-keyfile` uses `${1:-}` and `${2:-}`, so a short `crypttab` line does not trip `set -u` before `STEP12-RESEARCH-DONE`.
+
+## Nit check
+
+`bash -n` on both pastes exited 0. The unmodified main paste printed `STOP-host` and, under `sudo -n`, `STOP-root`. A one-field line under `set -u` printed `NOTE-crypttab-keyfile` and continued. A fixture file `BOOTX64.EFI` was listed by `find -iname` and missed by `find -name`. The allow-list matched `BOOTX64.EFI`.
+
+The optional copy, gates opened, run with `sudo -n` so `mktemp` under `/root` could run, printed `NOTE-luks-dump-failed` and `SLOTS-DONE` for a file that is not a LUKS volume. The audit directory contained `luks-dump.err` and no raw header. No `/root/step12-luks-dump.*` file remained. A second run printed `STOP-slots-already`. `NOTE-chown-failed` is this VM: it has no account `aj`. The Johnny paste is `sudo bash` on a host where `aj` exists.
+
+That check did not read Johnny's TPM and did not write a LUKS slot.
+
 ## Do not
 
 - Run `ukify`, `dracut --uefi`, or `systemd-cryptenroll` from this draft.
