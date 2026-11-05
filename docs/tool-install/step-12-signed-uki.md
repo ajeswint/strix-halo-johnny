@@ -4,7 +4,7 @@ Research inventory done 2026-11-05 on Johnny. Option D is not applied. Lab TPM u
 
 AJ's main paste printed `STEP12-RESEARCH-DONE` at `2026-11-05T19:24:09Z` (~13:24 CT). The optional sudo paste printed `SLOTS-DONE`. The main paste he ran is `git show 058fc60:docs/tool-install/step-12-signed-uki.md`. The non-blocking nits in `0052cf7` do not require a re-run. This file is the post-nit text. Raw logs stay on Johnny at `/home/aj/cis-audit/step12-signed-uki/`. The summary AJ returned is `docs/sessions/2026-11-05-step12-signed-uki-inventory.md`.
 
-No package was installed. No UKI was built or signed. No LUKS slot was enrolled or wiped. GRUB, the shim holds, and Secure Boot keys are unchanged. rock-box and ABLETON_BOX were not part of this closeout.
+**[Inference]** No package was installed. The pastes do not call apt, and AJ's summary is not a pre/post `dpkg` diff. No UKI was built or signed. No LUKS slot was enrolled or wiped. GRUB, the shim holds, and Secure Boot keys are unchanged. This closeout does not change rock-box or ABLETON_BOX.
 
 Platform owns the boot chain (`docs/agent-team.md` §4). This file is research plus the record of one read-only inventory. It does not switch the lab off option A.
 
@@ -465,7 +465,7 @@ EOF
 
 ## Optional sudo paste on Johnny
 
-Ran. It printed `SLOTS-DONE`. Do not paste it again. The text below is the post-nit paste. The `058fc60` optional find used `-name` and the main summary did not list `BOOTX64.EFI`. The sudo summary AJ returned does list `/boot/efi/EFI/BOOT/BOOTX64.EFI`. **[Inference]** that listing is the `-iname` find from `0052cf7`. A re-run is not required.
+Ran. It printed `SLOTS-DONE`. Do not paste it again. The text below is the post-nit paste. The `058fc60` optional find used `-name` and the main summary did not list `BOOTX64.EFI`. The sudo summary AJ returned does list `/boot/efi/EFI/BOOT/BOOTX64.EFI`. **[Inference]** that listing is the `-iname` find from `0052cf7`. Confirming which `find` printed `EFI-FILE-SUDO` would need the raw logs on Johnny. Those logs stay on Johnny. This closeout does not SSH. A re-run is not required.
 
 Run this only after the main paste has printed `STEP12-RESEARCH-DONE`. It is not required for that line. It is the EFI listing: `/boot/efi` is expected to be root-only, so the main paste's `NOTE-efi-errors` or `NOTE-efi-unreadable` is normal. It also reads PCR banks when the unprivileged read failed, retries `efibootmgr` when that failed, and reads LUKS slot types. `sudo -v` is first so the password prompt happens before the script.
 

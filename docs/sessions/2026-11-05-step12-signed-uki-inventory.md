@@ -1,10 +1,10 @@
 # Step 12 — signed UKI research (inventory done)
 
-Inventory done 2026-11-05 on Johnny. Handoff rev 83. Option D is not applied. Lab TPM unlock stays option A (PCR 7 only). No package was installed. No UKI was built or signed. No LUKS slot was enrolled or wiped. GRUB, the shim holds, and Secure Boot keys are unchanged. No secrets are in this note.
+Inventory done 2026-11-05 on Johnny. Handoff rev 83. Option D is not applied. Lab TPM unlock stays option A (PCR 7 only). **[Inference]** No package was installed. The pastes do not call apt, and AJ's summary is not a pre/post `dpkg` diff. `sbsigntool` `0.9.4-3.1ubuntu9` is the version the inventory printed. No UKI was built or signed. No LUKS slot was enrolled or wiped. GRUB, the shim holds, and Secure Boot keys are unchanged. No secrets are in this note.
 
-AJ ran the main paste from tip `058fc60`. That text is `git show 058fc60:docs/tool-install/step-12-signed-uki.md`. The non-blocking nits in `0052cf7` do not require a re-run. The sudo summary lists `/boot/efi/EFI/BOOT/BOOTX64.EFI`. The `058fc60` find uses `-name` and does not match that name. **[Inference]** the optional paste that printed `EFI-FILE-SUDO` is the `-iname` find from `0052cf7`.
+AJ ran the main paste from tip `058fc60`. That text is `git show 058fc60:docs/tool-install/step-12-signed-uki.md`. The non-blocking nits in `0052cf7` do not require a re-run. The sudo summary lists `/boot/efi/EFI/BOOT/BOOTX64.EFI`. The `058fc60` find uses `-name` and does not match that name. **[Inference]** the optional paste that printed `EFI-FILE-SUDO` is the `-iname` find from `0052cf7`. Confirming which `find` printed that line would need the raw logs on Johnny. Those logs stay at `/home/aj/cis-audit/step12-signed-uki/`. This closeout does not SSH.
 
-rock-box was the SSH client. ABLETON_BOX was not part of this closeout. Raw logs stay on Johnny at `/home/aj/cis-audit/step12-signed-uki/`.
+**[Assumption]** rock-box was the SSH client. AJ's summary does not name the client. ABLETON_BOX was not part of this closeout. Raw logs stay on Johnny at `/home/aj/cis-audit/step12-signed-uki/`.
 
 ## Result
 
