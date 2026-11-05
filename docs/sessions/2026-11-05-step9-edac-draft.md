@@ -1,6 +1,8 @@
-# Step 9 — EDAC (draft)
+# Step 9 — EDAC (draft, historical)
 
-Drafted 2026-11-05 ~12:06 CT. No command from this session has run on Johnny, on rock-box, or on ABLETON_BOX.
+**Historical.** Superseded 2026-11-05 by the applied closeout: `docs/sessions/2026-11-05-step9-edac-applied.md` and handoff rev 81. AJ ran the paste from tip `e08260f` before the nit commit `68b22e7`. Do not treat "not applied" below as current state.
+
+Drafted 2026-11-05 ~12:06 CT. At draft time, no command from that session had run on Johnny, on rock-box, or on ABLETON_BOX.
 
 ## Status
 

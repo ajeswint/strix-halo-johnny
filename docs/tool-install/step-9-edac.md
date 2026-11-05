@@ -1,8 +1,24 @@
-# Step 9 — EDAC (draft, not applied)
+# Step 9 — EDAC (applied)
 
-Drafted 2026-11-05 ~12:06 CT. Nothing in this step has run on Johnny, on rock-box, or on ABLETON_BOX. Grok 4.7 wrote the paste. Claude reviews and does not edit.
+Applied 2026-11-05 on Johnny. AJ ran both pastes from tip `e08260f`. The main paste printed `STEP9-DONE` at `2026-11-05T18:15:40Z` (~12:15 CT). The optional sudo paste printed `LOGS-DONE`. Grok 4.7 recorded the closeout. Claude reviews and does not edit. Do not run the pastes again.
 
-Johnny has one DDR5 module. The 2026-10-28 record says that module is non-ECC, which means no side-band ECC DIMM. This step records what the kernel exposes for EDAC. The paste restates that record as `ECC-UNAVAILABLE`. That line is not a measurement from sysfs. This step does not evaluate IBECC. It does not change BIOS, RAM, modules, or sysfs.
+The nit commit after that run (`68b22e7`) is doc-only. It does not change the live result. Three lines in the blocks below were not in the paste AJ executed: `|| true` on the sysfs `head -c`, `STOP-no-denial` on the optional paste, and the SSH command in prose. `NOTE-dmesg-denied` was already in the summary, so the optional run matches the denial that gate now checks. No module was loaded. No sysfs write. No BIOS or RAM change.
+
+Johnny has one DDR5 module. The 2026-10-28 record says that module is non-ECC, which means no side-band ECC DIMM. `ECC-UNAVAILABLE` restates that record. It is not a measurement from sysfs. IBECC was not evaluated.
+
+## Result
+
+`STEP9-DONE`. `LOGS-DONE`. `NOTE-no-mc`. `NOTE-dmesg-denied`. Host bridge `0000:00:00.0` vendor `0x8086` device `0x7d1c`. `NOTE-no-alias` for `igen6_edac`, `ie31200_edac`, `i10nm_edac`, and `skx_edac`.
+
+`edac_core` printed `KO edac_core not-loaded (builtin)` and `EDAC-POLL-MSEC 1000`. The other seven names (`igen6_edac`, `ie31200_edac`, `i10nm_edac`, `skx_edac`, `sb_edac`, `pnd2_edac`, `amd64_edac`) printed `KO` and `not-loaded`, each with a `.ko.zst` path under `/lib/modules/7.0.0-42-generic/kernel/drivers/edac/`. `MC-DIRS 0`, `CSROW-DIRS 0`, `DIMM-DIRS 0`, `RANK-DIRS 0`. Sysfs had `/sys/devices/system/edac` and `/sys/devices/system/edac/mc`, and no `mc*` controller directory.
+
+`DMESG-RESTRICT 1`. Unprivileged `dmesg` wrote `dmesg: read kernel buffer failed: Operation not permitted`. `GROUPS` includes `adm`. `JOURNAL-EDAC-LINES 1`. That one journal match was `EDAC MC: Ver: 3.0.0` (core present, no controller bound). The sudo paste counted `DMESG-SUDO-LINES 1` and `JOURNAL-SUDO-LINES 1`. The return did not quote those two sudo line bodies, and it did not include `NOTE-dmesg-sudo-stderr`, `NOTE-journal-sudo-stderr`, or `NOTE-chown-failed`.
+
+`MCE-DIR present`. CPU `Intel(R) Core(TM) Ultra 9 285HX`. `EUID 1000`.
+
+`ECC-UNAVAILABLE` and `DIMM-RECORD CT32G56C46S5 non-ECC single-channel 2026-10-28` restate the 2026-10-28 `dmidecode` record. No side-band ECC DIMM is seated. IBECC was not evaluated. `0x7d1c` is not an alias of the four Intel EDAC modules on this kernel. Session copy: `docs/sessions/2026-11-05-step9-edac-applied.md`. Raw logs stay on Johnny at `/home/aj/cis-audit/step9-edac/`.
+
+CIS L1 totals stay **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). Next open items are 12 signed UKI and IRQ affinity later.
 
 ## Machines
 
@@ -27,7 +43,7 @@ Wall time is a few seconds. There is no soak.
 
 ## DIMM record
 
-**[Assumption]** The stick has not been replaced since the 2026-10-28 read. This paste does not run `dmidecode` (that read was root) and does not open `/sys/firmware/dmi/tables`.
+The 2026-11-05 probe did not run `dmidecode` and did not open `/sys/firmware/dmi/tables`. `ECC-UNAVAILABLE` still restates the 2026-10-28 record. `NOTE-no-mc` is consistent with that record. It is not a new measurement of the DIMM.
 
 AJ's `sudo dmidecode -t memory` on 2026-10-28 printed one module: `CT32G56C46S5` (a 5600 part), running at 4800 MT/s, no ECC, single channel (`docs/sessions/Johnny_OS_Session_Log_2026-10-28.csv`). The handoff still says 1× 32GB DDR5 non-ECC. BIOS RAM speed 4800 MT/s is the board maximum and is closed. The parked ECC purchase (2× Kingston `KSM56T46BD8KM-48HM`) has not been bought or seated in this step.
 
@@ -70,9 +86,9 @@ Ubuntu resolute's `7.0.0-42.42` annotations build these as modules on amd64: `CO
 
 `i10nm_edac` is the 10nm server controller driver. `skx_edac` is the Skylake-server family. Neither is the 285HX part.
 
-The paste reads `/sys/bus/pci/devices/*/class` for class `0x060000` (host bridge) and compares each Intel device ID to those modules' `modinfo` aliases. `ALIAS-MATCH` means the on-disk module names that ID. `NOTE-no-alias` means it does not. `modinfo` does not load the module. This draft does not claim Johnny's host-bridge ID. The summary line is the live value.
+The paste reads `/sys/bus/pci/devices/*/class` for class `0x060000` (host bridge) and compares each Intel device ID to those modules' `modinfo` aliases. `ALIAS-MATCH` means the on-disk module names that ID. `NOTE-no-alias` means it does not. `modinfo` does not load the module.
 
-**[Assumption]** A 285HX host bridge is not one of the three Arrow Lake-UH IDs above. If the paste prints `ALIAS-MATCH`, that assumption is wrong and the summary wins.
+The 2026-11-05 run printed host bridge `0000:00:00.0` device `0x7d1c` and `NOTE-no-alias` for `igen6_edac`, `ie31200_edac`, `i10nm_edac`, and `skx_edac`. `0x7d1c` is not one of the three Arrow Lake-UH IDs above.
 
 ## Pass
 
@@ -124,7 +140,7 @@ After that later boot, run this same read-only paste. Do not load a module by ha
 - `NOTE-no-mc` on a machine that was built with ECC DIMMs is a stop for that image. On today's Johnny it is the expected corroboration of the non-ECC stick, not a stop.
 - `NOTE-no-alias` for both `igen6_edac` and `ie31200_edac`, after an ECC install, still with `NOTE-no-mc`, means the 7.0.0-42 tables do not name that host bridge. Record the `HB` line. Do not build or load an out-of-tree EDAC module in this step. Kernel lockdown is on. An out-of-tree module would be a later choice AJ makes, with a MOK, in its own step.
 - `igen6_edac`'s `In-Band ECC is disabled` line, if it shows up in a later log after a bind, means the driver saw the device and IBECC was off. Today's paste does not evaluate IBECC and does not load that module, so that line is not a result of this step.
-- Do not enable an ECC BIOS item on the seated non-ECC stick. This draft does not describe that item and does not ask AJ to look for it.
+- Do not enable an ECC BIOS item on the seated non-ECC stick. This step does not describe that item and does not ask AJ to look for it.
 - ABLETON_BOX stays out of this note. rock-box stays out of this note.
 
 ## Logs and sudo
@@ -149,11 +165,13 @@ The optional sudo paste runs only when the summary already has `STEP9-DONE` and 
 | `journal-edac.txt`, `journal.err` | Matching lines, or the denial |
 | `dmesg-edac-sudo.txt`, `journal-edac-sudo.txt` | Only if the optional sudo paste ran |
 
-Do not commit the raw files. The apply session, after AJ runs the paste, puts `summary.txt` in `docs/sessions/` and a short block in the handoff.
+Do not commit the raw files. The applied summary is in `docs/sessions/2026-11-05-step9-edac-applied.md` and, as a short block, in `docs/os-handoff.md`.
 
 ## Paste on Johnny
 
-From rock-box, open one SSH session to Johnny with `ssh -o ServerAliveInterval=30 aj@192.168.50.152`. On Johnny, as `aj`, paste the one block below. It does not prompt for a password.
+Applied. AJ already ran this probe from tip `e08260f`. Do not paste it again.
+
+From rock-box, the SSH command is `ssh -o ServerAliveInterval=30 aj@192.168.50.152`. The one block below is what runs on Johnny as `aj`. It does not prompt for a password. The block includes the post-run `|| true` on `head -c`. The executed paste did not have that `|| true`. The run still reached `STEP9-DONE`.
 
 ```bash
 bash <<'EOF'
@@ -372,7 +390,9 @@ EOF
 
 ## Optional log paste
 
-Run this only when `summary.txt` contains `NOTE-dmesg-denied` or `NOTE-journal-denied`. It is the sudo the main paste refused to take. It reads the kernel log and appends counts. It does not load a module and does not write EDAC sysfs.
+Applied. AJ already ran this after `NOTE-dmesg-denied`, and it printed `LOGS-DONE`. Do not run it again.
+
+The block below is the sudo the main paste does not take. It reads the kernel log and appends counts. It does not load a module and does not write EDAC sysfs. `STOP-no-denial` was added after the run. The executed paste gated only on `STEP9-DONE`. The summary already contained `NOTE-dmesg-denied`, which is the line this gate now requires.
 
 `sudo -v` prompts once. `sudo bash <<'EOF'` makes the script bash's stdin, so `dmesg` and `journalctl` are given `</dev/null`.
 
@@ -463,7 +483,7 @@ mkdir -p /home/aj/johnny-step9
 scp -r aj@192.168.50.152:/home/aj/cis-audit/step9-edac /home/aj/johnny-step9/
 ```
 
-Read `/home/aj/johnny-step9/step9-edac/summary.txt`. That file is what a later apply session puts in `docs/sessions/` and, as a short block, in `docs/os-handoff.md`.
+The summary AJ returned is already in `docs/sessions/2026-11-05-step9-edac-applied.md`. Raw files stay on Johnny. Do not commit them.
 
 Bring back the `HB` lines, `ALIAS-MATCH` or `NOTE-no-alias`, `MC-DIRS`, `CSROW-DIRS`, `DIMM-DIRS`, `RANK-DIRS`, and `ECC-UNAVAILABLE`. If the optional paste ran, also bring back `DMESG-SUDO-LINES` and `JOURNAL-SUDO-LINES`.
 
@@ -475,4 +495,4 @@ No Johnny config change. No package install. No module load. Ctrl-C leaves a par
 
 ## After the run
 
-Not applied. AJ has not run the paste. When `STEP9-DONE` exists, the apply session records the summary and only then moves this step off "drafted". `NOTE-no-mc` on this stick is the expected corroboration. `NOTE-mc-present` is a stop for interpretation, not a BIOS change. CIS L1 totals stay **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). Next open items after this draft remain 12 signed UKI and IRQ affinity later, plus running this paste when AJ chooses.
+Applied. `STEP9-DONE` at `2026-11-05T18:15:40Z`. `LOGS-DONE`. Host bridge `0x7d1c`. `NOTE-no-mc`. `NOTE-dmesg-denied`. `ECC-UNAVAILABLE` restates the 2026-10-28 non-ECC DIMM record. No side-band ECC DIMM. IBECC was not evaluated. No module load, no sysfs write, no BIOS or RAM change. CIS L1 totals stay **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). Next open items are 12 signed UKI and IRQ affinity later.
