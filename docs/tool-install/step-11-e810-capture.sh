@@ -82,14 +82,32 @@ pick_capture_cpus() {
   printf '%s\n' "${chosen[@]}"
 }
 
-flags_capture_ok() {
+# sysfs flags on this kernel are hex ("0x1003"), not decimal, and do not
+# set IFF_LOWER_UP even when carrier=1 and operstate=up. Link-up is
+# speed, carrier or operstate, and IFF_UP. Promisc and NOARP are separate.
+flags_well_formed() {
   local f=$1
-  [ $((f & 1)) -ne 0 ] && [ $((f & 65536)) -ne 0 ] && [ $((f & 256)) -ne 0 ] && [ $((f & 128)) -ne 0 ]
+  [[ $f =~ ^(0[xX])?[0-9a-fA-F]+$ ]]
 }
 
 flags_admin_up() {
   local f=$1
+  flags_well_formed "$f" || return 1
   [ $((f & 1)) -ne 0 ]
+}
+
+flags_capture_ok() {
+  local f=$1
+  flags_well_formed "$f" || return 1
+  # IFF_UP, IFF_PROMISC (0x100), IFF_NOARP (0x80). Not IFF_LOWER_UP.
+  [ $((f & 1)) -ne 0 ] && [ $((f & 256)) -ne 0 ] && [ $((f & 128)) -ne 0 ]
+}
+
+eno1_link_ok() {
+  local speed=$1 flags=$2 carrier=$3 oper=$4
+  flags_admin_up "$flags" || return 1
+  [ "$speed" = 10000 ] || return 1
+  [ "$carrier" = 1 ] || [ "$oper" = up ]
 }
 
 map_id_from_json() {
@@ -374,19 +392,21 @@ main() {
   done
   ethtool -i eno1np0 | awk 'NR<=6 {print "ETHTOOL " $0}'
 
-  local mtu speed flags
-  mtu=$(tr -d '\n' < /sys/class/net/eno1np0/mtu)
+  local mtu speed flags carrier oper
+  mtu=$(tr -d '[:space:]' < /sys/class/net/eno1np0/mtu)
   if [ "$mtu" -gt 3000 ]; then
     die "STOP-mtu $mtu"
   fi
   echo "MTU $mtu"
-  speed=$(tr -d '\n' < /sys/class/net/eno1np0/speed)
-  flags=$(tr -d '\n' < /sys/class/net/eno1np0/flags)
-  if [[ ! $flags =~ ^[0-9]+$ ]]; then
+  speed=$(tr -d '[:space:]' < /sys/class/net/eno1np0/speed)
+  flags=$(tr -d '[:space:]' < /sys/class/net/eno1np0/flags)
+  carrier=$(tr -d '[:space:]' < /sys/class/net/eno1np0/carrier || true)
+  oper=$(tr -d '[:space:]' < /sys/class/net/eno1np0/operstate || true)
+  if ! flags_well_formed "$flags"; then
     die STOP-flags
   fi
-  if [ "$speed" != 10000 ] || [ $((flags & 1)) -eq 0 ] || [ $((flags & 65536)) -eq 0 ]; then
-    die "STOP-eno1-link speed=$speed flags=$flags"
+  if ! eno1_link_ok "$speed" "$flags" "$carrier" "$oper"; then
+    die "STOP-eno1-link speed=$speed flags=$flags carrier=$carrier oper=$oper"
   fi
   if [ -n "$(ip -4 -o addr show dev eno1np0)" ] || [ -n "$(ip -6 -o addr show dev eno1np0)" ]; then
     die STOP-eno1-addr
@@ -403,7 +423,10 @@ main() {
   if [ -n "$(ip -4 -o addr show dev eno4)" ] || [ -n "$(ip -6 -o addr show dev eno4)" ]; then
     die STOP-eno4-addr
   fi
-  flags=$(tr -d '\n' < /sys/class/net/eno4/flags)
+  flags=$(tr -d '[:space:]' < /sys/class/net/eno4/flags)
+  if ! flags_well_formed "$flags"; then
+    die STOP-flags
+  fi
   if flags_admin_up "$flags"; then
     ENO4_WAS_UP=1
   fi
@@ -680,7 +703,7 @@ EOF
     WROTE*) mark_changed ;;
   esac
 
-  flags=$(tr -d '\n' < /sys/class/net/eno1np0/flags)
+  flags=$(tr -d '[:space:]' < /sys/class/net/eno1np0/flags)
   if flags_capture_ok "$flags"; then
     echo ALREADY-promisc
   else
@@ -709,8 +732,8 @@ EOF
   if ! grep -qx 'ActivationPolicy=always-down' /run/systemd/network/10-netplan-eno2np1.network; then
     die STOP-activation-policy
   fi
-  flags=$(tr -d '\n' < /sys/class/net/eno2np1/flags)
-  if cmp -s /root/step11-pre/eno2np1.network /run/systemd/network/10-netplan-eno2np1.network && ! flags_admin_up "$flags"; then
+  flags=$(tr -d '[:space:]' < /sys/class/net/eno2np1/flags)
+  if flags_well_formed "$flags" && cmp -s /root/step11-pre/eno2np1.network /run/systemd/network/10-netplan-eno2np1.network && ! flags_admin_up "$flags"; then
     echo ALREADY-eno2
   else
     mark_changed
@@ -727,7 +750,7 @@ EOF
   fi
   echo OK-eno3
   if [ "$ENO4_WAS_UP" -eq 1 ]; then
-    flags=$(tr -d '\n' < /sys/class/net/eno4/flags)
+    flags=$(tr -d '[:space:]' < /sys/class/net/eno4/flags)
     if ! flags_admin_up "$flags"; then
       die STOP-eno4-down
     fi
@@ -810,11 +833,13 @@ install_text() {
 }
 
 wait_capture_port() {
-  local i f s
+  local i f s carrier oper
   for i in 1 2 3 4 5 6 7 8 9 10; do
-    f=$(tr -d '\n' < /sys/class/net/eno1np0/flags)
-    s=$(tr -d '\n' < /sys/class/net/eno1np0/speed || true)
-    if flags_capture_ok "$f" && [ "$s" = 10000 ]; then
+    f=$(tr -d '[:space:]' < /sys/class/net/eno1np0/flags)
+    s=$(tr -d '[:space:]' < /sys/class/net/eno1np0/speed || true)
+    carrier=$(tr -d '[:space:]' < /sys/class/net/eno1np0/carrier || true)
+    oper=$(tr -d '[:space:]' < /sys/class/net/eno1np0/operstate || true)
+    if flags_capture_ok "$f" && eno1_link_ok "$s" "$f" "$carrier" "$oper"; then
       if [ -z "$(ip -4 -o addr show dev eno1np0)" ] && [ -z "$(ip -6 -o addr show dev eno1np0)" ]; then
         return 0
       fi
@@ -827,8 +852,8 @@ wait_capture_port() {
 wait_eno2_down() {
   local i f
   for i in 1 2 3 4 5 6 7 8 9 10; do
-    f=$(tr -d '\n' < /sys/class/net/eno2np1/flags)
-    if ! flags_admin_up "$f"; then
+    f=$(tr -d '[:space:]' < /sys/class/net/eno2np1/flags)
+    if flags_well_formed "$f" && ! flags_admin_up "$f"; then
       return 0
     fi
     sleep 1
@@ -839,10 +864,10 @@ wait_eno2_down() {
 wait_eno3() {
   local i f
   for i in 1 2 3 4 5 6 7 8 9 10; do
-    f=$(tr -d '\n' < /sys/class/net/eno3/flags)
+    f=$(tr -d '[:space:]' < /sys/class/net/eno3/flags)
     if ip -4 -o addr show dev eno3 | grep -q 'inet 192\.168\.50\.152/' \
       && ip -4 route show default | grep -q 'dev eno3' \
-      && [ $((f & 1)) -ne 0 ]; then
+      && flags_admin_up "$f"; then
       return 0
     fi
     sleep 1

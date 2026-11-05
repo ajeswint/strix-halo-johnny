@@ -34,6 +34,23 @@ flags_admin_up 1 || fail "admin up"
 if flags_admin_up 65536; then
   fail "lower_up is not admin up"
 fi
+flags_admin_up 0x1003 || fail "hex admin up"
+if flags_capture_ok 0x1003; then
+  fail "hex without promisc"
+fi
+flags_capture_ok 0x1183 || fail "hex promisc noarp"
+if flags_well_formed xyz; then
+  fail "bad flags form"
+fi
+eno1_link_ok 10000 0x1003 1 up || fail "live link gate"
+eno1_link_ok 10000 0x1003 1 down || fail "carrier alone"
+eno1_link_ok 10000 0x1003 0 up || fail "operstate alone"
+if eno1_link_ok 10000 0x1003 0 down; then
+  fail "link without carrier"
+fi
+if eno1_link_ok 1000 0x1003 1 up; then
+  fail "wrong speed"
+fi
 
 orig=$(mktemp)
 python3 - "$ROOT/etc/netplan/00-installer-config.yaml" "$orig" <<'PY'

@@ -167,6 +167,8 @@ ssh aj@192.168.50.152 'ip -br link show eno1np0 eno2np1 eno3; ip -br addr show e
 
 Expect `eno1np0` UP at 10000 with `PROMISC` and `NOARP` and no address line; `eno2np1` without the admin `UP` flag; `eno3` still `192.168.50.152`; both IPv6 sysctls `1`; `all.rp_filter` `1` (the per-NIC value may still be `2`); the tuning unit `active` and `enabled`.
 
+The preflight link gate reads sysfs `flags` as hex or decimal (`0x1003` on this kernel). It does not require `IFF_LOWER_UP`: that bit stays clear here even when `carrier` is 1 and `operstate` is `up`. Link-up is speed `10000`, `carrier` 1 or `operstate` `up`, and `IFF_UP`.
+
 Copy back into the repo after the run, in a later commit: `/etc/johnny/capture-cores`, and confirm the four sha256 lines in the apply log match the table above.
 
 ## Rollback
