@@ -1,6 +1,8 @@
 # Step 12 — signed UKI research (draft)
 
-Drafted 2026-11-05 ~13:05 CT. Handoff rev 82. Not applied. No command from this session ran on Johnny, on rock-box, or on ABLETON_BOX.
+**Historical.** Superseded 2026-11-05 by the inventory closeout: `docs/sessions/2026-11-05-step12-signed-uki-inventory.md` and handoff rev 83. AJ ran the main paste from tip `058fc60`. The "not applied" lines below are the draft, written before that run. Option D is still not applied. The inventory is done.
+
+Drafted 2026-11-05 ~13:05 CT. Handoff rev 82 at draft time. No command from the draft session had run yet on Johnny, on rock-box, or on ABLETON_BOX.
 
 ## Status
 

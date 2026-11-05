@@ -1,8 +1,12 @@
-# Step 12 — signed UKI research (draft, not applied)
+# Step 12 — signed UKI research (inventory done)
 
-Drafted 2026-11-05 ~13:05 CT. Grok 4.7 wrote it. Claude reviews and does not edit. Nothing in this step has been run on Johnny, on rock-box, or on ABLETON_BOX.
+Research inventory done 2026-11-05 on Johnny. Option D is not applied. Lab TPM unlock stays option A (PCR 7 only). Grok 4.7 recorded the closeout. Claude reviews and does not edit. Do not run the pastes again.
 
-Platform owns the boot chain (`docs/agent-team.md` §4). This file is research plus one read-only inventory. It does not switch the lab off option A.
+AJ's main paste printed `STEP12-RESEARCH-DONE` at `2026-11-05T19:24:09Z` (~13:24 CT). The optional sudo paste printed `SLOTS-DONE`. The main paste he ran is `git show 058fc60:docs/tool-install/step-12-signed-uki.md`. The non-blocking nits in `0052cf7` do not require a re-run. This file is the post-nit text. Raw logs stay on Johnny at `/home/aj/cis-audit/step12-signed-uki/`. The summary AJ returned is `docs/sessions/2026-11-05-step12-signed-uki-inventory.md`.
+
+No package was installed. No UKI was built or signed. No LUKS slot was enrolled or wiped. GRUB, the shim holds, and Secure Boot keys are unchanged. rock-box and ABLETON_BOX were not part of this closeout.
+
+Platform owns the boot chain (`docs/agent-team.md` §4). This file is research plus the record of one read-only inventory. It does not switch the lab off option A.
 
 ## Machines
 
@@ -175,7 +179,7 @@ Do not commit the raw files.
 
 ## Paste on Johnny
 
-Not run. The block below is the whole unprivileged inventory. It does not prompt for a password.
+Ran. AJ ran the `058fc60` text. Do not paste it again. The block below is the post-nit inventory. It does not prompt for a password.
 
 ```bash
 bash <<'EOF'
@@ -461,6 +465,8 @@ EOF
 
 ## Optional sudo paste on Johnny
 
+Ran. It printed `SLOTS-DONE`. Do not paste it again. The text below is the post-nit paste. The `058fc60` optional find used `-name` and the main summary did not list `BOOTX64.EFI`. The sudo summary AJ returned does list `/boot/efi/EFI/BOOT/BOOTX64.EFI`. **[Inference]** that listing is the `-iname` find from `0052cf7`. A re-run is not required.
+
 Run this only after the main paste has printed `STEP12-RESEARCH-DONE`. It is not required for that line. It is the EFI listing: `/boot/efi` is expected to be root-only, so the main paste's `NOTE-efi-errors` or `NOTE-efi-unreadable` is normal. It also reads PCR banks when the unprivileged read failed, retries `efibootmgr` when that failed, and reads LUKS slot types. `sudo -v` is first so the password prompt happens before the script.
 
 It does not call `systemd-cryptenroll`. It does not wipe a slot. It does not enroll. `cryptsetup luksDump` writes the raw header to a mode 600 file from `mktemp` under `/root`, filters it, then removes the raw file. The audit directory keeps the filtered lines in `luks-slots.txt`. Digest and salt stay out of that directory and out of the Collect `scp`.
@@ -641,7 +647,7 @@ Option D is a fleet-autoinstall question. It is not a change to the lab image th
 
 Before an autoinstall image adopts it, all of the following have to be true:
 
-1. The image build can install `systemd-ukify` at the same version as `systemd`, plus a signer (`sbsigntool` or `systemd-sbsign` from `systemd-repart`). Those packages are universe components in the citations above. The lab paste has to have shown the candidate, or the image build has to enable the component on purpose.
+1. The image build can install `systemd-ukify` at the same version as `systemd`, plus a signer (`sbsigntool` or `systemd-sbsign` from `systemd-repart`). Those packages are universe components in the citations above. The 2026-11-05 inventory is the package record: `systemd-ukify` is not installed, its candidate is `259.9-0ubuntu0.1` (`NOTE-ukify-candidate-match`), `sbsigntool` `0.9.4-3.1ubuntu9` is already installed, and `systemd-boot-efi-signed` has no candidate. That record does not install anything.
 2. A key ceremony exists for two keys, kept off the ESP and out of git. One signs the UKI for Secure Boot (MOK or `db`). One signs PCR 11 predictions. The PCR private key is what lets a UKI unseal every disk that trusts the matching public key. A shared fleet key and a per-machine key are different risks. Not chosen here.
 3. The UKI `.cmdline` contains the fleet command line, including `pcie_aspm=off` for this hardware class. A GRUB drop-in is not that command line.
 4. The embedded initrd still carries the Johnny dracut policy that matters at boot: `tpm2-tss` present, `thunderbolt` omitted, `dyn-netconf` omitted. A UKI that was built from a generic initrd would boot a different early userspace.
@@ -655,7 +661,7 @@ Before an autoinstall image adopts it, all of the following have to be true:
 
 ## Open questions
 
-AJ decides these later. This draft does not pick.
+AJ decides these later. The inventory does not pick them. Item 8 is closed: the paste ran on 2026-11-05.
 
 1. Keep a literal PCR 7 bind beside the signed PCR 11 policy, or use the signed PCR 11 policy alone? The handoff's name for option D does not drop PCR 7. The cryptenroll default omits literal PCRs when `--tpm2-pcrs` is left off.
 2. Also bind PCR 14 (shim MOK list), as the cryptenroll man page suggests when MOK is in use? Not chosen. Binding it means a MOK list change needs a re-enroll, which is the brittleness option D is trying to avoid for kernel updates.
@@ -664,7 +670,7 @@ AJ decides these later. This draft does not pick.
 5. Boot chain: shim chainloads the UKI, or shim chainloads a locally signed systemd-boot which chainloads the UKI?
 6. Does the old GRUB plus separate-initrd entry stay as a passphrase-only recovery path?
 7. Is an addon / PCR 12 policy in scope before autoinstall, or is the rule "no addon directory"?
-8. Whether to run the inventory paste on Johnny. The paste is ready. It has not been run.
+8. Closed. AJ ran the inventory on Johnny on 2026-11-05. `STEP12-RESEARCH-DONE` at `2026-11-05T19:24:09Z`. `SLOTS-DONE`. Do not run it again.
 
 IRQ affinity stays later. It is not one of these questions.
 
@@ -674,4 +680,14 @@ No Johnny config change. No package install. No key. No slot write. Ctrl-C leave
 
 ## After the run
 
-Not run. When AJ has run it, bring `summary.txt` back. `STEP12-RESEARCH-DONE` means the inventory finished. It does not mean option D is in use. The lab stays option A until a later step AJ chooses. CIS L1 totals stay **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). IRQ affinity stays later.
+Done as a research inventory. `STEP12-RESEARCH-DONE` at `2026-11-05T19:24:09Z`. `SLOTS-DONE`. That is not option D. The lab stays option A until a later step AJ chooses. The open questions above stay open, except item 8.
+
+`HOST johnny`. `KERNEL 7.0.0-42-generic`. `USER aj`. Lockdown `none [integrity] confidentiality`. `NOTE-cmdline-aspm`. `NOTE-grub-aspm`. `CRYPTTAB-MATCH`. Secure Boot enabled. `NOTE-no-bootctl`. `BootCurrent` `0000`, `BootOrder` `0000`, `Boot0000` Ubuntu → `\EFI\ubuntu\shimx64.efi`. Holds `secureboot-db,shim-signed`.
+
+`systemd` `259.9-0ubuntu0.1`. `systemd-ukify` not installed. Candidate `259.9-0ubuntu0.1` (`NOTE-ukify-candidate-match`). `systemd-boot`, `systemd-boot-efi`, `systemd-boot-efi-signed`, `systemd-boot-tools`, and `systemd-repart` are not installed. `systemd-boot`, `systemd-boot-efi`, and `systemd-repart` candidates are `259.9-0ubuntu0.1`. `systemd-boot-efi-signed` candidate is NONE. `sbsigntool` `0.9.4-3.1ubuntu9` is installed. `pesign` is not installed; candidate `116-8.1build1`. `/usr/lib/systemd/systemd-measure` is present (`MEASURE-STATUS-OK`). `linuxx64.efi.stub`, `systemd-bootx64.efi`, and `/usr/bin/ukify` are absent.
+
+`NOTE-efi-errors`. Seven EFI files as `aj`: ubuntu `grubx64.efi`, `shimx64.efi`, `mmx64.efi`; `EFI/BOOT` `fbx64.efi` and `mmx64.efi`; `/boot/grub/x86_64-efi/core.efi` and `grub.efi`. Those last two are `NOTE-efi-extra`. They are GRUB modules. Do not delete them. The sudo listing adds `/boot/efi/EFI/BOOT/BOOTX64.EFI`.
+
+LUKS2 `/dev/nvme0n1p3`. Keyslots 0 and 1 are luks2, `aes-xts-plain64`, normal priority. The filtered token lines are `systemd-tpm2` with keyslot 1, and a `pbkdf2` line. `NOTE-pcr-unreadable` as `aj`. Sudo read: `NOTE-pcr7-baseline` (`B6D0F97FA80D8614711B20726D7FB7B00D77D52F24C3C0251630F925BA07F3FF`), `NOTE-pcr11-zero`, PCR 14 `306F9D8B94F17D93DC6E7CF8F5C79D652EB4C6C4D13DE2DDDC24AF416E13ECAF`. The summary AJ returned has no `NOTE-luks-dump-failed`, `NOTE-pcr-sudo-failed`, `NOTE-efi-sudo-failed`, or `NOTE-chown-failed`.
+
+CIS L1 totals stay **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). Next open item is IRQ affinity later.

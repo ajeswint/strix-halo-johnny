@@ -16,7 +16,7 @@ Option A, the one AJ accepted: install 0.19.2-3 with `--no-install-recommends`, 
 
 The TPM unlock uses PCR 7 only. The passphrase stays as recovery. `/boot` is plaintext and the initrd is unsigned and unmeasured in PCR 7. A physical attacker who can edit the initrd, or boot other media from the boot menu, can receive the key. There is no GRUB password yet (CIS 1.4.1), so a kernel command line such as `init=` at the GRUB menu does not touch PCR 7. That path is understood and untested.
 
-Fleet option D (signed UKI and a signed PCR 11 policy) is research, not a lab acceptance. Options B (PIN) and C (PCR 7+9) were rejected.
+Fleet option D (signed UKI and a signed PCR 11 policy) is research, not a lab acceptance. The 2026-11-05 inventory is done (`STEP12-RESEARCH-DONE`, `SLOTS-DONE`). Option D is not applied. Options B (PIN) and C (PCR 7+9) were rejected.
 
 ## ksmbd
 
