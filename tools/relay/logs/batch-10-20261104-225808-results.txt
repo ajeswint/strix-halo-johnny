@@ -1,0 +1,8 @@
+ALREADY-1.4.1
+BACKUP-KEPT /root/batch10-johnny-cis-net.conf.bak
+MODULE-ADDED blacklist dccp
+MODULE-ADDED install dccp
+MODULE-VERIFY-OK
+RESOLVE-FALLBACK 192.168.50.211 ableton_box
+STOP-collector-514
+No TCP connection to 192.168.50.211:514 (ableton_box). Stand up syslog on ABLETON_BOX so it listens on TCP 514, then rerun. No forwarder was written.

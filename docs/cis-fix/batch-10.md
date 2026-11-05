@@ -97,3 +97,14 @@ sudo bash batch-10.sh 2
 ```
 
 If `/root/batch10-grub-before.tar` is already visible, PASTE 2 only runs `/root/batch10-revert.sh` and does not call `cryptsetup`.
+
+## Results
+
+Run `tools/relay/logs/batch-10-20261104-225808-results.txt` (2026-11-04). The script confirmed the bootloader gate (`ALREADY-1.4.1`), kept `/root/batch10-johnny-cis-net.conf.bak` (`BACKUP-KEPT`), added `blacklist dccp` and `install dccp` (`MODULE-ADDED` twice, `MODULE-VERIFY-OK`), and resolved the collector by the documented fallback (`RESOLVE-FALLBACK 192.168.50.211 ableton_box`). It then stopped: `STOP-collector-514`. No TCP connection to `192.168.50.211:514`. No forwarder was written. `BATCH10-SSH-DONE` was not printed. That stop is the expected result until ABLETON_BOX listens on TCP 514; GRUB and the module lines stay applied.
+
+`docs/cis-26.04-l1-results.csv` (date `2026-11-04` on the four touched rows):
+
+- **1.4.1** FAIL → PASS. Evidence: `password_pbkdf2` / `set superusers` in `grub.cfg`, `--unrestricted` on the first menu entry, hash held in `/etc/grub.d/01_johnny_users` (hash not recorded).
+- **3.2.3** PASS, evidence updated. Still no `dccp` module in this kernel; script added `blacklist dccp` and `install dccp`; `MODULE-VERIFY-OK`; not loaded.
+- **3.2.7** FAIL (manual) → PASS (manual). AJ 2026-11-04 22:18 CT: site deny list is the CIS four (`dccp`, `sctp`, `rds`, `tipc`); `esp4`, `esp6`, and `rxrpc` stay available. Scored from that decision plus `MODULE-VERIFY-OK`.
+- **6.1.2.5** stays FAIL (manual). Evidence now records `STOP-collector-514`: no TCP to `192.168.50.211:514`, no `omfwd` line, rerun after ABLETON_BOX listens.

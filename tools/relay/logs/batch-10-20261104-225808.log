@@ -1,0 +1,25 @@
+[22:58:10 CT] Auto-committed relay logs/state as 7baaa28
+csv: 274 rows, merged 0, bad 0
+[22:58:10 CT] Claude scoring results into docs/cis-26.04-l1-results.csv ...
+csv: 274 rows, merged 0, bad 0
+[22:59:04 CT] Grok (grok-4.7-low-fast) round results ...
+I'll read the batch-10 results log, the CSV diff, and the end of `docs/cis-fix/batch-10.md` so the Results section matches what actually changed.The log shows the script stopped at the collector probe. I'll append one Results section that records that stop and the four CSV rows that changed.## Detail
+
+`docs/cis-fix/batch-10.md` now ends with one `## Results` section. Nothing else in that file was changed.
+
+The 2026-11-04 run log (`batch-10-20261104-225808-results.txt`) shows the script confirmed the bootloader gate (`ALREADY-1.4.1`), kept `/root/batch10-johnny-cis-net.conf.bak`, added `blacklist dccp` and `install dccp` (`MODULE-VERIFY-OK`), and resolved the collector as `192.168.50.211` (`ableton_box`). It then exited on `STOP-collector-514`: no TCP connection to port 514, and no forwarder was written.
+
+CSV (`git diff docs/cis-26.04-l1-results.csv`), all dated 2026-11-04:
+
+- **1.4.1** FAIL → PASS (hash present in GRUB; hash not recorded in the CSV).
+- **3.2.3** stays PASS; evidence now includes the blacklist and install lines.
+- **3.2.7** FAIL (manual) → PASS (manual), scored from the CIS-four deny-list decision.
+- **6.1.2.5** stays FAIL (manual); evidence now records the collector stop.
+
+## Relay
+
+Batch 10 results appended to `docs/cis-fix/batch-10.md` only. Run stopped at `STOP-collector-514` (no TCP 514 on 192.168.50.211; no forwarder). CSV: 1.4.1 FAIL→PASS, 3.2.3 PASS evidence updated, 3.2.7 FAIL(manual)→PASS(manual), 6.1.2.5 still FAIL(manual).
+
+## Outline
+
+- Results se

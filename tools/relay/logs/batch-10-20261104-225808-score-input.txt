@@ -1,0 +1,42 @@
+=== BATCH OUTPUT (/tmp/batch-10-out.txt) ===
+ALREADY-1.4.1
+BACKUP-KEPT /root/batch10-johnny-cis-net.conf.bak
+MODULE-ADDED blacklist dccp
+MODULE-ADDED install dccp
+MODULE-VERIFY-OK
+RESOLVE-FALLBACK 192.168.50.211 ableton_box
+STOP-collector-514
+No TCP connection to 192.168.50.211:514 (ableton_box). Stand up syslog on ABLETON_BOX so it listens on TCP 514, then rerun. No forwarder was written.
+
+=== READ-ONLY SSH SNAPSHOT (no sudo; may be incomplete after harden) ===
+-- listen 22 --
+LISTEN 0      4096   0.0.0.0:22 0.0.0.0:*
+-- sshd modes --
+600 root root /etc/ssh/sshd_config
+700 root root /etc/ssh/sshd_config.d
+-- sshd -T (unprivileged; fails if config 0600) --
+-- issue.net --
+Authorized use only. Activity is monitored.
+
+-- environment PATH --
+PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games"
+-- pam wheel --
+15:# auth       required   pam_wheel.so
+19:# auth       sufficient pam_wheel.so trust
+23:# auth       required   pam_wheel.so deny group=nosu
+63:auth required pam_wheel.so use_uid group=sugroup
+-- sugroup --
+sugroup:x:983:
+-- sudoers.d --
+total 20
+drwxr-xr-x   2 root root   49 Nov  5 01:43 .
+drwxr-xr-x 109 root root 8192 Nov  5 03:14 ..
+-r--r-----   1 root root   30 Nov  5 01:43 60-johnny-cis-timeout
+-r--r-----   1 root root  863 Jan 14  2026 README
+-- sysctl ipv6/martians --
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+net.ipv4.conf.all.log_martians = 1
+net.ipv4.conf.default.log_martians = 1
+-- ufw --
+ERROR: You need to be root to run this script
