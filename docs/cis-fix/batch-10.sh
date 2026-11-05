@@ -344,6 +344,8 @@ action(type="omfwd" target="${LOGIP}" port="514" protocol="tcp" action.resumeRet
 EOF
 )
   if [ -f "$RSYS" ] && [ "$(cat "$RSYS")" = "$want" ]; then
+    # Conf matches, but a prior failed reload may have left the daemon stale.
+    systemctl reload rsyslog || systemctl try-restart rsyslog
     echo RSYSLOG-KEPT
   else
     if [ -f "$RSYS" ] && [ ! -f /root/batch10-60-johnny-remote.conf.bak ]; then
