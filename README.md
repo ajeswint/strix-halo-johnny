@@ -15,7 +15,7 @@ Host `johnny`, 192.168.50.152 (DHCP on `eno3`, reserved on the router), Ubuntu S
 
 ## Sequence
 1. L1 lab: done
-2. **OS: in progress.** Boot, firmware, TPM, closet move, AMT (cabled + isolated), the L1-2 port mirror, tool install, and the E810 capture config (step 11, `STEP11-DONE` 2026-11-05) are done. State: [docs/os-handoff.md](docs/os-handoff.md)
+2. **OS: in progress.** Boot, firmware, TPM, closet move, AMT (cabled + isolated), the L1-2 port mirror, tool install, the AMT power retest (step 6, 2026-11-05; Soft-reset don't-use), and the E810 capture config (step 11, `STEP11-DONE` 2026-11-05) are done. State: [docs/os-handoff.md](docs/os-handoff.md)
 3. Overseer review
 4. Module 1: eBPF fast path
 
