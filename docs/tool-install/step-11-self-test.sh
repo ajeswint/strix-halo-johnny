@@ -17,6 +17,15 @@ out=$(pick_capture_cpus 0-7 0,1)
 [ "$out" = $'2\n3\n4\n5' ] || fail "pick excluding ht: $out"
 out=$(pick_capture_cpus 8-15 0)
 [ "$out" = $'8\n9\n10\n11' ] || fail "pick e-boot: $out"
+if ! cpu_lists_overlap 0-7 8-23 >/tmp/step11-overlap.out; then
+  fail "0-7 vs 8-23 should be disjoint"
+fi
+[ ! -s /tmp/step11-overlap.out ] || fail "disjoint overlap output"
+if cpu_lists_overlap 0-7 6-10 >/tmp/step11-overlap.out; then
+  fail "real overlap should return nonzero"
+fi
+grep -qx 6 /tmp/step11-overlap.out || fail "missing overlap 6"
+grep -qx 7 /tmp/step11-overlap.out || fail "missing overlap 7"
 if pick_capture_cpus 0-2 0 >/tmp/step11-pick.out 2>/tmp/step11-pick.err; then
   fail "short list should stop"
 fi

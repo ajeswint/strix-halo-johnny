@@ -82,6 +82,27 @@ pick_capture_cpus() {
   printf '%s\n' "${chosen[@]}"
 }
 
+# Membership test. comm(1) wants lexicographic order; sort -n on 8-23 is
+# not that order, so comm exits 1 on a real empty overlap and set -e stops.
+# Returns 1 and prints the shared ids when the lists overlap. Returns 0
+# and prints nothing when they do not.
+cpu_lists_overlap() {
+  local left=$1 right=$2 cpu hit=0
+  local -A seen=()
+  while read -r cpu; do
+    [ -n "$cpu" ] || continue
+    seen[$cpu]=1
+  done < <(expand_cpulist "$left")
+  while read -r cpu; do
+    [ -n "$cpu" ] || continue
+    if [ -n "${seen[$cpu]:-}" ]; then
+      printf '%s\n' "$cpu"
+      hit=1
+    fi
+  done < <(expand_cpulist "$right")
+  return "$hit"
+}
+
 # sysfs flags on this kernel are hex ("0x1003"), not decimal, and do not
 # set IFF_LOWER_UP even when carrier=1 and operstate=up. Link-up is
 # speed, carrier or operstate, and IFF_UP. Promisc and NOARP are separate.
@@ -475,8 +496,8 @@ main() {
   if ! expand_cpulist "$pcores" >/dev/null || ! expand_cpulist "$ecores" >/dev/null; then
     die STOP-cpulist
   fi
-  overlap=$(comm -12 <(expand_cpulist "$pcores" | sort -n) <(expand_cpulist "$ecores" | sort -n))
-  if [ -n "$overlap" ]; then
+  if ! overlap=$(cpu_lists_overlap "$pcores" "$ecores"); then
+    printf '%s\n' "$overlap"
     die STOP-hybrid-overlap
   fi
   if ! CAPTURE_TEXT=$(pick_capture_cpus "$pcores" "$sibs"); then
