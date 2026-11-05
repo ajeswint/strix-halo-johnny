@@ -235,6 +235,26 @@ Switch changes (CRS309): `docs/network-map.md`.
 | Account `_aide` (Batch 3 Group C) | uid 982, gid 982, shell `/usr/sbin/nologin`, home `/var/lib/aide` |
 | UEFI | db 2023, dbx 20260707 |
 
+| **Step 7 tools (2026-11-04)** | |
+| bind9-dnsutils | 1:9.20.24-1ubuntu0.4 |
+| bpfcc-tools | 0.35.0+ds-1ubuntu2 |
+| bpftool | 7.7.0+7.0.0-42.42 |
+| bpftrace | 0.25.0-1ubuntu1 |
+| ethtool | 1:6.19-1 |
+| hping3 | 3.a2.ds2-10.1build1 |
+| iperf3 | 3.20-2 |
+| masscan | 2:1.3.2+ds1-2build1 |
+| mtr-tiny | 0.95-1.1ubuntu2 |
+| netsniff-ng | 0.6.9-2 |
+| nmap | 7.98+dfsg-1 |
+| stress-ng | 0.20.01-1 |
+| suricata | 1:8.0.3-1 |
+| tcpdump | 4.99.6-1 |
+| tcpreplay | 4.5.2-1build1 |
+| tshark | 4.6.4-1 |
+| wireshark-common | 4.6.4-1 |
+| dumpcap / suricata notes | `aj` ∈ `wireshark`; dumpcap caps set; `iperf3` disabled; `suricata` enabled+failed → run `systemctl disable --now suricata` |
+
 Versions as of rev 3 except where noted; security updates since may have moved some. Re-read with `dpkg-query` before the tool-install SBOM.
 
 Off-box: Intel DMT Console v1.47.0 (alpha) on rock-box.
