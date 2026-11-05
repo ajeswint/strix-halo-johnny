@@ -117,7 +117,7 @@ The in-tree default package is what enables the pipeline features, including nat
 | `/etc/systemd/system/johnny-capture-tuning.service` | same under `etc/` | `64b3045cf4d9c487265a76c3338253d5b73ad137514ee9868a70389b7b800730` |
 | `/etc/johnny/capture-cores` | not in this commit | discovered on the box |
 | `/var/lib/johnny/capture-tuning-before.tsv` | not mirrored (pre-change values) | written on first apply |
-| `/root/step11-revert.sh` | `docs/tool-install/step-11-revert.sh` | `0218b887e4a9fbb974494a26c4c3ac932cea32b5b5ff7b0c03f240c770ca30d5` |
+| `/root/step11-revert.sh` | `docs/tool-install/step-11-revert.sh` | `16016830c2c288ce80024335c2bd37f00d00c5d1a995718861c6de08e5de8a92` |
 | `/root/00-installer-config.yaml.pre-step11` | the pre-step11 yaml, kept on Johnny | first run only |
 | `/root/step11-apply.log` | the apply transcript | this run |
 
@@ -177,7 +177,7 @@ From SSH or the KVM console:
 sudo bash /root/step11-revert.sh
 ```
 
-That script is installed before any change. It detaches the XDP program if one is still pinned, restores EPP and cpuidle from the save file, disables the unit, deletes the drop-in and the tuning files, restores `/root/00-installer-config.yaml.pre-step11` if the live yaml differs, and runs `netplan apply` only in that case. It then clears promisc and turns ARP back on for `eno1np0`. Safe to run twice. It prints `REVERTED`.
+That script is installed before any change. It detaches the XDP program if one is still pinned, restores EPP and cpuidle from the save file, disables the unit, deletes the drop-in and the tuning files, restores `/root/00-installer-config.yaml.pre-step11` if the live yaml differs, and runs `netplan apply` only in that case. If the yaml is unchanged, it runs `networkctl reload` so networkd drops `Promiscuous=` and `ARP=` from the live config. It then clears promisc and turns ARP back on for `eno1np0`. The apply script ignores SIGHUP and SIGPIPE, and any nonzero exit after a change from this run still starts this rollback. Safe to run twice. It prints `REVERTED`.
 
 The first-run yaml backup is not overwritten on a later run (`BACKUP-KEPT`).
 

@@ -43,6 +43,7 @@ restore_netplan() {
   local live=/etc/netplan/00-installer-config.yaml
   local bak=/root/00-installer-config.yaml.pre-step11
   local drop=/etc/systemd/network/10-netplan-eno1np0.network.d/60-johnny-capture.conf
+  local reload_failed=0
   if [ -f "$drop" ] || [ -L "$drop" ]; then
     rm -f "$drop"
     rmdir /etc/systemd/network/10-netplan-eno1np0.network.d 2>/dev/null || true
@@ -54,6 +55,11 @@ restore_netplan() {
     netplan apply
     echo NETPLAN-RESTORED
   else
+    # Drop-in file is already gone. Reload so networkd drops Promiscuous= and ARP=.
+    if ! networkctl reload; then
+      echo STOP-networkctl-reload
+      reload_failed=1
+    fi
     echo NETPLAN-UNCHANGED
   fi
   if [ -d /sys/class/net/eno1np0 ]; then
@@ -61,6 +67,7 @@ restore_netplan() {
     ip link set dev eno1np0 arp on
     echo ENO1-FLAGS-CLEARED
   fi
+  return "$reload_failed"
 }
 
 detach_xdp || rc=1

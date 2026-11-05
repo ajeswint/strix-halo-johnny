@@ -109,4 +109,36 @@ if grep -nE 'disable_ipv6[[:space:]]*=' "$ROOT/docs/tool-install/step-11-e810-ca
   fail "ipv6 write"
 fi
 
+grep -q "trap '' HUP PIPE" "$ROOT/docs/tool-install/step-11-e810-capture.sh" || fail "missing HUP PIPE trap"
+grep -q 'set -eEuo pipefail' "$ROOT/docs/tool-install/step-11-e810-capture.sh" || fail "missing set -E"
+# shellcheck disable=SC2016
+grep -F -q 'if [ "$rc" -ne 0 ]; then' "$ROOT/docs/tool-install/step-11-e810-capture.sh" || fail "cleanup ignores nonzero rc"
+python3 - "$ROOT/docs/tool-install/step-11-revert.sh" <<'PY'
+import pathlib, sys
+text = pathlib.Path(sys.argv[1]).read_text()
+unchanged = text.split("echo NETPLAN-UNCHANGED", 1)
+if len(unchanged) != 2 or "networkctl reload" not in unchanged[0].split("echo NETPLAN-RESTORED", 1)[-1]:
+    raise SystemExit("reload not in the unchanged branch")
+PY
+
+model=$(bash -c '
+set -euo pipefail
+failed=0
+changed=1
+ready=1
+cleanup() {
+  local rc=$?
+  set +e
+  if [ "$rc" -ne 0 ]; then failed=1; fi
+  if [ "$failed" -eq 1 ] && [ "$ready" -eq 1 ] && [ "$changed" -eq 1 ]; then
+    echo REVERTING
+  fi
+  exit "$rc"
+}
+trap cleanup EXIT
+boom() { false; }
+boom
+' || true)
+printf '%s\n' "$model" | grep -qx REVERTING || fail "function failure did not revert"
+
 echo SELF-TEST-OK

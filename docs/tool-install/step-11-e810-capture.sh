@@ -4,6 +4,7 @@
 #   sudo bash /home/aj/cis-audit/step-11-e810-capture.sh
 # No reboot. No apt. No GRUB. No sudoers. Does not change eno3's netplan stanza.
 # Rollback, including from the KVM console: sudo bash /root/step11-revert.sh
+# SIGHUP and SIGPIPE are ignored so a dropped SSH session still runs that rollback.
 # A failed run that changed the box runs that rollback before it exits.
 # A rerun that changes nothing and then fails leaves the previous config
 # (CONFIG-KEPT). Docs: docs/tool-install/step-11-e810-capture.md
@@ -260,7 +261,8 @@ PY
 }
 
 main() {
-  set -euo pipefail
+  set -eEuo pipefail
+  trap '' HUP PIPE
   export PATH="/usr/sbin:/usr/bin:/sbin:/bin"
   umask 022
 
@@ -286,18 +288,31 @@ main() {
   # shellcheck disable=SC2317
   cleanup() {
     local rc=$?
+    local revert_rc=0
     trap - ERR
     trap - EXIT
+    # A dead SSH pipe must not stop the rollback. ERR is not inherited by
+    # functions unless -E is set; a nonzero exit is still a failure.
+    set +e
+    if [ "$rc" -ne 0 ]; then
+      failed=1
+    fi
     if [ "${xdp_attached:-0}" -eq 1 ]; then
       bpftool net detach xdpdrv dev eno1np0 >/dev/null 2>&1 || true
       xdp_attached=0
     fi
-    rm -f /sys/fs/bpf/johnny_xdp_count
+    rm -f /sys/fs/bpf/johnny_xdp_count || true
     if [ "${failed:-0}" -eq 1 ] && [ "${revert_ready:-0}" -eq 1 ] && [ "${this_run_changed:-0}" -eq 1 ]; then
-      echo REVERTING
-      bash /root/step11-revert.sh || echo STOP-revert-failed
+      echo REVERTING || true
+      bash /root/step11-revert.sh > /root/step11-revert.out 2>&1
+      revert_rc=$?
+      cat /root/step11-revert.out >> /root/step11-apply.log || true
+      cat /root/step11-revert.out || true
+      if [ "$revert_rc" -ne 0 ]; then
+        echo STOP-revert-failed || true
+      fi
     elif [ "${failed:-0}" -eq 1 ] && [ "${revert_ready:-0}" -eq 1 ] && [ "${this_run_changed:-0}" -eq 0 ]; then
-      echo CONFIG-KEPT
+      echo CONFIG-KEPT || true
     fi
     exit "$rc"
   }
@@ -306,7 +321,7 @@ main() {
   on_err() {
     local rc=$?
     failed=1
-    echo "STOP-err line ${BASH_LINENO[0]} rc ${rc}"
+    echo "STOP-err line ${BASH_LINENO[0]} rc ${rc}" || true
     exit "$rc"
   }
   trap on_err ERR
@@ -590,6 +605,7 @@ restore_netplan() {
   local live=/etc/netplan/00-installer-config.yaml
   local bak=/root/00-installer-config.yaml.pre-step11
   local drop=/etc/systemd/network/10-netplan-eno1np0.network.d/60-johnny-capture.conf
+  local reload_failed=0
   if [ -f "$drop" ] || [ -L "$drop" ]; then
     rm -f "$drop"
     rmdir /etc/systemd/network/10-netplan-eno1np0.network.d 2>/dev/null || true
@@ -601,6 +617,11 @@ restore_netplan() {
     netplan apply
     echo NETPLAN-RESTORED
   else
+    # Drop-in file is already gone. Reload so networkd drops Promiscuous= and ARP=.
+    if ! networkctl reload; then
+      echo STOP-networkctl-reload
+      reload_failed=1
+    fi
     echo NETPLAN-UNCHANGED
   fi
   if [ -d /sys/class/net/eno1np0 ]; then
@@ -608,6 +629,7 @@ restore_netplan() {
     ip link set dev eno1np0 arp on
     echo ENO1-FLAGS-CLEARED
   fi
+  return "$reload_failed"
 }
 
 detach_xdp || rc=1
