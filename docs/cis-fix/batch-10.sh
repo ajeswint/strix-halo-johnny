@@ -147,7 +147,8 @@ rm -f /etc/grub.d/01_johnny_users /root/batch10-grub.cfg.new
 rm -f /etc/rsyslog.d/60-johnny-remote.conf
 rm -f /etc/systemd/journald.conf.d/61-batch10-forward-syslog.conf
 if systemctl is-active --quiet rsyslog; then
-  systemctl reload rsyslog
+  # Ubuntu 26.04 rsyslog.service has CanReload=no (no ExecReload).
+  systemctl reload rsyslog || systemctl try-restart rsyslog || true
 fi
 if systemctl is-active --quiet systemd-journald; then
   # No ExecReload on systemd-journald (checked 2026-11-04). A failing reload
@@ -298,7 +299,7 @@ EOF
 
   # --- 6.1.2.5 ableton_box, TCP/514. No write until the probe succeeds. ---
   # Rollback: sudo rm -f /etc/rsyslog.d/60-johnny-remote.conf /etc/systemd/journald.conf.d/61-batch10-forward-syslog.conf
-  #   then: sudo systemctl reload rsyslog; sudo systemctl reload systemd-journald || sudo systemctl try-restart systemd-journald || true
+  #   then: sudo systemctl reload rsyslog || sudo systemctl try-restart rsyslog; sudo systemctl reload systemd-journald || sudo systemctl try-restart systemd-journald || true
   # A helper written by this revision also removes those two files.
   LOGIP=192.168.50.211
   RSYS=/etc/rsyslog.d/60-johnny-remote.conf
@@ -356,7 +357,8 @@ EOF
       echo STOP-rsyslog-syntax
       exit 1
     fi
-    systemctl reload rsyslog
+    # CanReload=no on this unit (checked 2026-11-04). Fall back like journald.
+    systemctl reload rsyslog || systemctl try-restart rsyslog
     echo RSYSLOG-OK
   fi
   if [ ! -d /etc/systemd/journald.conf.d ]; then

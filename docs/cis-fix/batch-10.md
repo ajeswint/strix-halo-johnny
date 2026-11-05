@@ -83,7 +83,7 @@ Syslog and journald drop-ins only, installed root, SSH. This does not undo GRUB 
 # RUNS ON: JOHNNY (SSH)
 # RUNS IN: SSH
 sudo rm -f /etc/rsyslog.d/60-johnny-remote.conf /etc/systemd/journald.conf.d/61-batch10-forward-syslog.conf
-sudo systemctl reload rsyslog
+sudo systemctl reload rsyslog || sudo systemctl try-restart rsyslog
 sudo systemctl reload systemd-journald || sudo systemctl try-restart systemd-journald || true
 ```
 
