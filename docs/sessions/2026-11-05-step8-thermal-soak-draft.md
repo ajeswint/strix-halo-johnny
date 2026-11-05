@@ -1,6 +1,8 @@
-# Step 8 — thermal soak (draft)
+# Step 8 — thermal soak (draft, historical)
 
-Drafted 2026-11-05 ~10:55 CT. Not applied. No command from this session ran on Johnny or on rock-box.
+**Historical.** Superseded 2026-11-05 by the applied closeout: `docs/sessions/2026-11-05-step8-thermal-soak-applied.md` and handoff rev 79. The text below is the draft, written before AJ ran the paste. Do not treat "not applied" in this file as current state.
+
+Drafted 2026-11-05 ~10:55 CT. At draft time, no command from that session had run on Johnny or on rock-box.
 
 ## Status
 

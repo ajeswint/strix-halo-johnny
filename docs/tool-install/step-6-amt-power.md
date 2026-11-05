@@ -20,7 +20,7 @@ AJ ran this from rock-box. MeshCommander `meshcommander@0.9.5-a`, Digest/TLS, to
 
 **DMT rotate done.** AJ ran `docs/tool-install/step-6-dmt-rotate.sh`, said the password rotate was confirmed, then `--shred-backup`. The script printed `SHRED-OK 1`. `jwtKey` and `adminPassword` were rotated. The backups were shredded. The password-manager copy is the runbook step before shred. **[Assumption]** that copy was made. A Devices-page login proof was not stated in chat and is not recorded. **[Assumption]** `ADMIN-USER` is still `standalone`. The values are not in this repo and are not repeated here.
 
-CIS L1 totals are unchanged: **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). As of handoff rev 77, step 8 thermal soak is drafted and not applied. Next open after that run: 9 EDAC, 12 signed UKI, and IRQ affinity later.
+CIS L1 totals are unchanged: **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). As of handoff rev 77, step 8 thermal soak was drafted and not applied. Handoff rev 79 records it applied (`STEP8-DONE`). Next open after that: 9 EDAC, 12 signed UKI, and IRQ affinity later.
 
 The sections below are the rev 1 runbook, with the power-action choice corrected to the result above. AJ decides any later rerun.
 

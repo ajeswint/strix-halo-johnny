@@ -26,7 +26,7 @@ DMT: AJ ran `docs/tool-install/step-6-dmt-rotate.sh`, confirmed the password rot
 
 ## Unchanged
 
-CIS L1 totals stay **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). As of handoff rev 77, step 8 thermal soak is drafted and not applied. Next open after that run: 9 EDAC, 12 signed UKI (option D), and IRQ affinity later. MeshCommander cleanup is closed in that revision, not a new numbered step.
+CIS L1 totals stay **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). As of handoff rev 77, step 8 thermal soak was drafted and not applied. Handoff rev 79 records it applied (`STEP8-DONE`). Next open after that: 9 EDAC, 12 signed UKI (option D), and IRQ affinity later. MeshCommander cleanup is closed in rev 77, not a new numbered step.
 
 ## Record
 

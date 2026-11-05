@@ -1,12 +1,35 @@
-# Step 8 — thermal soak (draft, not applied)
+# Step 8 — thermal soak (applied)
 
-Drafted 2026-11-05 ~10:55 CT. Not applied. AJ has not run the paste. Grok 4.7 wrote it. Claude reviews it and does not edit it. AJ decides and runs it.
+Applied 2026-11-05 on Johnny. AJ ran the paste. It printed `STEP8-DONE`. Grok 4.7 recorded the closeout. Claude reviews and does not edit. The paste below is the one that ran (nits from `5d97dad` included). Do not run it again to chase the throttle note.
 
-Nits from Claude's review of `5d97dad` (APPROVE-WITH-NITS, 2026-11-05) are in the paste. Still not applied. The probe, idle, and soak `turbostat` calls, and the `runuser` `stress-ng` call, read stdin from `/dev/null` so they cannot consume the heredoc. Stopping `turbostat` is `kill -INT`, about 15 seconds of `kill -0`, then `kill -TERM`, then `kill -KILL`, then `wait`, in the main path and in `cleanup`.
+Summary on Johnny: `/home/aj/cis-audit/step8-thermal-soak/summary.txt`. Raw `soak-turbostat.txt`, `idle-turbostat.txt`, and `transcript.txt` stay there. They are not in git. Session copy of the summary: `docs/sessions/2026-11-05-step8-thermal-soak-applied.md`.
+
+## Result
+
+Paste clock `2026-11-05T17:11:19Z` (~11:11 CT). Soak start `2026-11-05T17:12:22Z` (~11:12 CT). `STRESS-ELAPSED-SEC 1800`, so the stress command returned about `2026-11-05T17:42:22Z` (~11:42 CT). That end time is start plus 1800 seconds. The summary does not print a separate end stamp.
+
+- `HOST johnny`, kernel `7.0.0-42-generic`, `NPROC 24`, `NPROC-CONF 24`
+- `STRESS-NG 0.20.01-1`, `STRESS-RC 0`, `STRESS-SUCCESS-LINE`, `dispatching hogs: 24 cpu`
+- `TOOLS-PRESENT`, `PKGS-ADDED-NONE`. Versions already on the box: `linux-tools-common` `7.0.0-42.42`, `linux-tools-7.0.0-42` `7.0.0-42.42`, `linux-tools-7.0.0-42-generic` `7.0.0-42.42`
+- `PROBE-OK`, `IDLE-DONE`, `TURBOSTAT-STOPPED`, `SOAK-SUMMARIES 180`, `SOAK-ROWS 4500` (180 intervals × 25 rows)
+- `TUNING-BEFORE-OK`, `TUNING-UNCHANGED`. CPU 0 EPP stayed `balance_performance`. Capture tuning was not written.
+- `thermald` active and enabled, version `2.5.11-0ubuntu1.1`. Record only.
+
+Idle sample (one 60 second shot): max CoreTmp 44, PkgTmp 44, PkgWatt 9.23, CorWatt 2.40, GFXWatt 0.00, Busy% 0.08, CoreThr 0, PKG_% 0.00, RAM_% 0.00.
+
+Soak max across the 10 second samples: CoreTmp 92, PkgTmp 92, PkgWatt 121.06, CorWatt 114.03, GFXWatt 0.00, Busy% 99.76, CoreThr 4484, PKG_% 6.76, RAM_% 0.00.
+
+`NOTE-throttled`. `NOTE-throttle-sysfs-changed`. `NOTE-no-throttle-journal`. No Celsius or watt limit was set. These notes are the record. They are not a rollback and not a reason to run `/root/step11-revert.sh`.
+
+**[Assumption]** The summary awk takes the maximum of each column over every data row, including the system-summary row. Upstream `turbostat(8)` says a count column on the summary row is the sum across CPUs. `SOAK-MAX-CoreThr 4484` is that maximum. It may be one interval's sum, not 4484 events on one core. `PKG_%` 6.76 is the largest sample of the RAPL package-throttle percent.
+
+Zones were read after `TURBOSTAT-STOPPED`, so they are the end snapshot, not the 92°C sample max. Millidegrees in the summary: `acpitz` 27800, `INT3400 Thermal` 20000, `TCPU` 66050, `TCPU_PCI` 66000, `x86_pkg_temp` 67000. Divided by 1000, that is 27.8°C, 20.0°C, 66.05°C, 66.0°C, and 67.0°C.
+
+The probe, idle, and soak `turbostat` calls, and the `runuser` `stress-ng` call, read stdin from `/dev/null`. Stopping `turbostat` is `kill -INT`, about 15 seconds, then `kill -TERM`, then `kill -KILL`, then `wait`, in the main path and in `cleanup`.
 
 Ownership: Assurance owns the measurement (`throughput-soak` in `docs/agent-team.md`). Platform owns the apt names (`ubuntu-2604-packages`). This is one paste so AJ does not run two sudo blocks.
 
-`stress-ng` 0.20.01-1 is already on Johnny (`docs/tool-install/step-7-apt.md`). This paste does not reinstall it. `turbostat` is not in that SBOM. The paste installs it only when the binary for kernel `7.0.0-42-generic` is missing.
+`stress-ng` 0.20.01-1 was already on Johnny (`docs/tool-install/step-7-apt.md`). The paste did not reinstall it. The three `linux-tools` packages were already present (`TOOLS-PRESENT`, `PKGS-ADDED-NONE`). The handoff SBOM now lists those versions from the summary.
 
 ## Goal
 
@@ -686,6 +709,8 @@ If the paste installed `linux-tools-common` and `linux-tools-7.0.0-42-generic` (
 
 Ctrl-C leaves partial files and does not print `STEP8-DONE`. It does not need a revert script. Do not run `/root/step11-revert.sh` because the soak looked hot. That script undoes capture tuning.
 
-## After AJ runs it
+## After the run
 
-A later session, not this draft, records the summary and any new package versions in `docs/os-handoff.md` and bumps the handoff from drafted to applied. CIS L1 totals are not part of this step. Next open items after a pass stay 9 EDAC, 12 signed UKI, and IRQ affinity later.
+Applied. The paste printed `STEP8-DONE`. `NOTE-throttled` is a finding, not a failed step and not a cue to change BIOS, fans, or capture tuning. `PKGS-ADDED-NONE`: apt installed nothing. The three `linux-tools` versions and `thermald` `2.5.11-0ubuntu1.1` were already on Johnny; the handoff SBOM records them from this summary. CIS L1 totals are unchanged. Next open items are 9 EDAC, 12 signed UKI, and IRQ affinity later.
+
+Raw logs stay on Johnny under `/home/aj/cis-audit/step8-thermal-soak/`. The rock-box `scp` in the collect section is how a copy already left the box. Do not commit `soak-turbostat.txt`.
