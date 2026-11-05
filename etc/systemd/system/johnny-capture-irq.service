@@ -9,7 +9,8 @@ ConditionPathExists=/etc/johnny/irq-affinity.sh
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/etc/johnny/irq-affinity.sh apply
-TimeoutStartSec=30
+# Helper waits up to 100s for eno1np0 and 60s for tuning (step 13c).
+TimeoutStartSec=210
 
 [Install]
 WantedBy=multi-user.target

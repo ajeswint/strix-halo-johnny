@@ -329,6 +329,10 @@ do
   fi
 done
 
+# Historical pins (retired scripts keep the hashes they were applied with).
+HELPER_13B=29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530
+UNIT_CYCLE=a191cdbb7a2391ba8e8b91b3dd36235b0a344799d948a6db74d27ad21958953a
+
 # The c765e01 apply script keeps the old helper hash on purpose. A re-run of
 # that paste now stops with STOP-hash instead of reinstalling the old helper.
 got=$(sha256sum "$ROOT/etc/johnny/irq-affinity.sh" | awk '{print $1}')
@@ -336,14 +340,12 @@ if grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.sh"; then
   fail "old apply script knows the new helper hash"
 fi
 grep -q '^HELPER_SHA256=77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e$' "$ROOT/docs/tool-install/step-13-irq-affinity.sh" || fail "old helper hash moved"
-grep -q "$got" "$S13B" || fail "13b helper hash"
+grep -q "$HELPER_13B" "$S13B" || fail "13b helper hash"
 grep -q '^HELPER_OLD_SHA256=77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e$' "$S13B" || fail "13b old helper hash"
-got=$(sha256sum "$ROOT/etc/systemd/system/johnny-capture-irq.service" | awk '{print $1}')
-grep -q "$got" "$S13B" || fail "13b unit hash"
+grep -q "$UNIT_CYCLE" "$S13B" || fail "13b unit hash"
 got=$(sha256sum "$ROOT/etc/johnny/irqbalance-policy.sh" | awk '{print $1}')
 grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.sh" || fail "policy hash"
-got=$(sha256sum "$ROOT/etc/systemd/system/johnny-capture-irq.service" | awk '{print $1}')
-grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.sh" || fail "unit hash"
+grep -q "$UNIT_CYCLE" "$ROOT/docs/tool-install/step-13-irq-affinity.sh" || fail "unit hash"
 got=$(sha256sum "$ROOT/docs/tool-install/step-13-revert.sh" | awk '{print $1}')
 grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.sh" || fail "revert hash"
 got=$(sha256sum "$ROOT/etc/johnny/capture-cores" | awk '{print $1}')
@@ -352,8 +354,7 @@ got=$(sha256sum "$ROOT/docs/tool-install/step-13-irq-affinity.sh" | awk '{print 
 grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook apply hash"
 got=$(sha256sum "$S13B" | awk '{print $1}')
 grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook 13b hash"
-got=$(sha256sum "$ROOT/etc/johnny/irq-affinity.sh" | awk '{print $1}')
-grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook helper hash"
+grep -q "$HELPER_13B" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook helper hash"
 got=$(sha256sum "$ROOT/docs/tool-install/step-13-revert.sh" | awk '{print $1}')
 grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook revert hash"
 
@@ -366,13 +367,80 @@ grep -q '^After=multi-user.target$' "$ROOT/etc/systemd/system/johnny-capture-tun
 CYC="$ROOT/docs/tool-install/step-13b-unit-cycle-fix.sh"
 bash -n "$CYC" || fail "cycle-fix script syntax"
 grep -q 'STEP13B-IRQ-UNIT-CYCLE-FIXED' "$CYC" || fail "cycle-fix done token"
-got=$(sha256sum "$IRQU" | awk '{print $1}')
-grep -q "^UNIT_NEW_SHA256=$got\$" "$CYC" || fail "cycle-fix unit hash"
-got=$(sha256sum "$ROOT/etc/johnny/irq-affinity.sh" | awk '{print $1}')
-grep -q "^HELPER_SHA256=$got\$" "$CYC" || fail "cycle-fix helper hash"
+grep -q "^UNIT_NEW_SHA256=$UNIT_CYCLE\$" "$CYC" || fail "cycle-fix unit hash"
+grep -q "^HELPER_SHA256=$HELPER_13B\$" "$CYC" || fail "cycle-fix helper hash"
 got=$(sha256sum "$CYC" | awk '{print $1}')
 grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook cycle-fix hash"
+grep -q "$UNIT_CYCLE" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook cycle-fix unit hash"
+
+# Step 13c: boot-race waits. Stub systemctl and sysfs; no sleeping.
+WAIT_STEP_SEC=0
+WAIT_ENO1_TRIES=2
+WAIT_TUNING_TRIES=2
+WAIT_NOTE_EVERY=1
+SYSFS_NET=$(mktemp -d)
+mkdir -p "$SYSFS_NET/eno1np0"
+# Link down: flags without UP, speed unreadable (a real NIC returns EINVAL; a directory fails the same way here).
+printf '0x1002\n' > "$SYSFS_NET/eno1np0/flags"
+mkdir "$SYSFS_NET/eno1np0/speed"
+printf 'down\n' > "$SYSFS_NET/eno1np0/operstate"
+errs=$(read_trim "$SYSFS_NET/eno1np0/speed" 2>&1 >/dev/null)
+[ -z "$errs" ] || fail "read_trim spams on bad sysfs: $errs"
+[ -z "$(read_trim "$SYSFS_NET/eno1np0/nope")" ] || fail "read_trim missing file"
+out=$(wait_eno1_link 2>&1) && fail "eno1 wait should time out"
+printf '%s\n' "$out" | grep -q '^NOTE-wait-eno1 try=0 speed= flags=0x1002 carrier= oper=down$' || fail "eno1 wait note: $out"
+if printf '%s\n' "$out" | grep -q 'Invalid input'; then fail "eno1 wait spam"; fi
+# Link comes up: admin-up, noarp, promisc, 10G, carrier.
+rmdir "$SYSFS_NET/eno1np0/speed"
+printf '10000\n' > "$SYSFS_NET/eno1np0/speed"
+printf '0x1583\n' > "$SYSFS_NET/eno1np0/flags"
+printf '1\n' > "$SYSFS_NET/eno1np0/carrier"
+printf 'up\n' > "$SYSFS_NET/eno1np0/operstate"
+wait_eno1_link >/dev/null || fail "eno1 wait should pass"
+rm -rf "$SYSFS_NET"
+# Tuning wait: activating then active passes; never active times out; failed stops early.
+CAPTURE_CPUS=()
+STUB_STATE_FILE=$(mktemp)
+systemctl() {
+  local st
+  st=$(cat "$STUB_STATE_FILE")
+  if [ "$st" = flip ]; then
+    echo activating
+    echo active > "$STUB_STATE_FILE"
+  else
+    echo "$st"
+  fi
+}
+echo flip > "$STUB_STATE_FILE"
+wait_tuning_ready >/dev/null || fail "tuning wait flip"
+echo activating > "$STUB_STATE_FILE"
+out=$(wait_tuning_ready) && fail "tuning wait should time out"
+printf '%s\n' "$out" | grep -q '^NOTE-wait-tuning try=0 state=activating' || fail "tuning wait note: $out"
+echo failed > "$STUB_STATE_FILE"
+out=$(wait_tuning_ready) && fail "tuning wait failed"
+printf '%s\n' "$out" | grep -q '^NOTE-wait-tuning failed' || fail "tuning failed note: $out"
+unset -f systemctl
+rm -f "$STUB_STATE_FILE"
+# Waits are bounded and preflight calls them. 2s x (50 + 30) = 160s; unit timeout covers it.
+grep -q '^WAIT_ENO1_TRIES=50$' "$ROOT/etc/johnny/irq-affinity.sh" || fail "eno1 tries"
+grep -q '^WAIT_TUNING_TRIES=30$' "$ROOT/etc/johnny/irq-affinity.sh" || fail "tuning tries"
+grep -q '^  wait_eno1_link || true$' "$ROOT/etc/johnny/irq-affinity.sh" || fail "preflight eno1 wait"
+grep -q '^  wait_tuning_ready || true$' "$ROOT/etc/johnny/irq-affinity.sh" || fail "preflight tuning wait"
+grep -q '^TimeoutStartSec=210$' "$IRQU" || fail "irq unit TimeoutStartSec"
+if grep -E '^(After|Requires|Wants|BindsTo)=.*johnny-capture-tuning' "$IRQU"; then fail "irq unit orders on tuning"; fi
+S13C="$ROOT/docs/tool-install/step-13c-eno1-wait.sh"
+bash -n "$S13C" || fail "13c syntax"
+grep -q 'STEP13B-ENO1-WAIT-FIXED' "$S13C" || fail "13c done token"
+MD="$ROOT/docs/tool-install/step-13-irq-affinity.md"
+got=$(sha256sum "$ROOT/etc/johnny/irq-affinity.sh" | awk '{print $1}')
+grep -q "^HELPER_NEW_SHA256=$got\$" "$S13C" || fail "13c helper hash"
+grep -q "^HELPER_OLD_SHA256=$HELPER_13B\$" "$S13C" || fail "13c old helper hash"
+grep -q "$got" "$MD" || fail "runbook 13c helper hash"
 got=$(sha256sum "$IRQU" | awk '{print $1}')
-grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook cycle-fix unit hash"
+grep -q "^UNIT_NEW_SHA256=$got\$" "$S13C" || fail "13c unit hash"
+grep -q "^UNIT_OLD_SHA256=$UNIT_CYCLE\$" "$S13C" || fail "13c old unit hash"
+grep -q "$got" "$MD" || fail "runbook 13c unit hash"
+got=$(sha256sum "$S13C" | awk '{print $1}')
+grep -q "$got" "$MD" || fail "runbook 13c script hash"
 
 echo SELF-TEST-OK
