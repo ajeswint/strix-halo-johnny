@@ -1,0 +1,63 @@
+[18:27:24 CT] Batch batch-7 base 2e120dbfea45988051819f238371abf58f94f6b4 dry=0
+[18:27:24 CT] Grok (grok-4.7-low-fast) round 1 ...
+I'll draft Batch 7 as an IPv6-disable script from the handoff and CIS results, and I'll only read Johnny and the repo before writing the plan and script.The CSV treats 3.1.1 as a manual IPv6-off check and 3.3.2.1–.8 as N/A once that is true. I’ll read Johnny’s listeners and sysctl before writing the script.CIS treats IPv6 as off when `disable_ipv6=1` is set on `all` and `default`. `0.0.0.0:22` is a separate socket from `[::]:22`, so this batch can do that with sysctl and skip GRUB.The sysctl append path can write the keys twice. I’ll collapse that into one edit before the script is reviewable.Batch 7 is drafted and has not been run. It turns IPv6 off with sysctl only. There is no GRUB change, no `ipv6.disable=1`, and no reboot.
+
+## Detail
+
+`docs/cis-fix/batch-7.md` and `docs/cis-fix/batch-7.sh` are the draft. Scope is CIS 3.1.1 plus 3.3.2.1–3.3.2.8. The local audit in `docs/cis-local/cis-3-audit.sh` prints "IPv6 is not enabled" when `net.ipv6.conf.all.disable_ipv6` and `net.ipv6.conf.default.disable_ipv6` are both `1`. That is the method this batch uses. `ipv6.disable=1` is the other way that script accepts, and it needs a cmdline change and a reboot. This batch does not do that.
+
+Read-only SSH on 2026-11-04, no sudo: `eno3` is `192.168.50.152/24`, default route via `eno3`, three SSH sessions from `192.168.50.223`. `ss` shows TCP `0.0.0.0:22` and `[::]:22`. `ssh.socket` has both `ListenStream` lines and `BindIPv6Only=ipv6-only`, so the IPv4 socket does not depend on the IPv6 
+[18:29:16 CT] Claude review round 1 (diff vs 2e120dbfea45988051819f238371abf58f94f6b4) ...
+[18:29:57 CT] Claude verdict: {"verdict": "changes", "issues": ["BLOCKER: The paste blocks in docs/cis-fix/batch-7.md do not have the required first line. The ```bash block with `sudo bash ~/cis-audit/batch-7.sh` is PASTE 1 and has no `# RUNS ON: JOHNNY (SSH)` first line. PASTE 2 (`sudo bash ~/cis-audit/batch-7.sh 2`) is only mentioned in prose and has no fenced block at all. It needs its own numbered block starting with `# RUNS ON: JOHNNY (KVM)`, followed by `# RUNS IN: KVM`. The `# RUNS ON` comments that exist sit inside batch-7.sh, which is not what AJ copies or types. Fix: make each fenced block's line 1 `# RUNS ON: JOHNNY (SSH)` / `# RUNS ON: JOHNNY (KVM)` and line 2 `# RUNS IN: ...`. Also label the scp block `# RUNS ON: LAPTOP` and add it as a pre-step, since it is not a Johnny paste.", "Everything else I checked is sound. Safe direction: every failure mode I found stops the script rather than risking the SSH session. Not a BLOCKER: the sshd [::]:22 socket stays bound and 0.0.0.0:22 is verified before and after the change. There is no GRUB, initrd or reboot change. The backup is written before the edit and kept across reruns. The sysctl change reverts itself if IPv4 SSH is lost. The repo copies etc/netplan/00-installer-config.yaml (no dhcp6: true) and etc/ufw/sysctl.conf (no disable_ipv6 override) match what the script assumes. etc/sysctl.d/60-johnny-cis-network.conf is also in the repo, which I did not read.", "Nit: the auto-revert after a failed IPv4 check sets the live keys back to 0 but leaves the two lines appended to 60-johnny-cis-network.conf. A reboot would re-apply them. The ## Rollback section covers it, but the STOP-ipv4-ssh message could say to run the rollback block.", "Nit: persistence is not verified. Nothing checks that no later sysctl.d file overrides disable_ipv6 at boot. I found none in the repo copies. Consider running `sysctl --system 2>&1 | grep disable_ipv6` in the verify block, or confirming at the post-batch re-audit.", "Nit: under pipefail, `ss ... | awk ... | grep -qx` can false-fail on SIGPIPE. That would give a spurious STOP-no-v4-ssh. It fails safe, and rerunning fixes it.", "Nit: AGENTS.md says repo copies under etc/ update in the same commit. Add the new etc/systemd/system/ssh.socket.d/60-johnny-cis-ipv4.conf and the updated etc/sysctl.d/60-johnny-cis-network.conf after the run."]}
+[18:29:57 CT] Grok (grok-4.7-low-fast) round 2 ...
+I'll read the batch-7 draft, the handoff notes, and the live IPv6 state so the paste headers and stop messages match what the reviewer asked for.The reviewer wants the commands AJ actually copies to carry the run-location comments. I’ll put those on the fenced blocks and tighten the script’s stop and verify paths.## Detail
+
+Batch 7 is still the IPv6 disable for CIS 3.1.1 and the N/A path for 3.3.2.1–3.3.2.8. No GRUB, no `ipv6.disable=1`, no reboot. The script `docs/cis-fix/batch-7.sh` is what runs on Johnny. `docs/cis-fix/batch-7.md` now has three fenced blocks AJ copies, each starting with the location comments the review asked for.
+
+From the laptop:
+
+```bash
+# RUNS ON: LAPTOP
+# RUNS IN: LAPTOP
+scp docs/cis-fix/batch-7.sh aj@192.168.50.152:cis-audit/batch-7.sh
+```
+
+From SSH, with a second session from `192.168.50.0/24` already open:
+
+```bash
+# RUNS ON: JOHNNY (SSH)
+# RUNS IN: SSH
+# PASTE 1
+sudo bash ~/cis-audit/batch-7.sh
+```
+
+At the KVM console, only if PASTE 1 dropped IPv4 SSH:
+
+```bash
+# RUNS ON: JOHNNY (KVM)
+# RUNS IN: KVM
+# PASTE 2
+sudo bash ~/cis-audit/batch-7.sh 2
+```
+
+Script changes from the review notes:
+
+- `STOP-ipv4-ssh` still sets the live keys back to `0`, and it now says to run the `## Rollback` block before a reboot, because the two lines can remain in `/etc/sysctl.d/60-johnny-cis-network.conf`.
+- The verify block runs `sysctl --system` and exits `STOP-sysctl-override` if either `disable_ipv6` key is not still `1`.
+- The `0.0.0.0:22` and chrony `127.0.0.1:323`
+[18:30:43 CT] Claude review round 2 (diff vs 2e120dbfea45988051819f238371abf58f94f6b4) ...
+[18:31:34 CT] Claude verdict: {"verdict": "changes", "issues": ["BLOCKER: The established-SSH peer parse in docs/cis-fix/batch-7.sh uses `ss -H -tn state established sport = :22 | awk '{print $5}'`. I could not run ss here (Bash was denied), so this is from my memory of iproute2. When a single-state filter is given, ss drops the State column. The columns would then be Recv-Q Send-Q Local Peer, and $5 would be empty. The loop would skip every row, `lan_ssh` would stay 0, and the script would exit STOP-no-lan-ssh on Johnny even with three LAN sessions open. It fails closed, so nothing is changed. It is still a likely dead deliverable. Fix: drop the state filter and select the state in awk. `ss -H -tn sport = :22 | awk '$1==\"ESTAB\"{print $5}' | sed 's/:[0-9]*$//'`. Ask Grok to confirm the column layout with a read-only `ss -H -tn state established sport = :22` on Johnny before the paste is handed over.", "Nit (not blocking): PASTE 2 restores the sysctl file from the backup before it runs the live `sysctl -w ...=0`. If the backup is missing it exits STOP-no-backup before any live undo. Do the two `sysctl -w` calls first, then the file restore. This is only reachable if the script died before `backup_once`, in which case nothing was changed. The ordering is still better for a console recovery.", "Nit: `backup_once` keeps an old `/root/60-johnny-cis-network.conf.pre-batch7` forever (BACKUP-KEPT). If the run is repeated after a later batch edits the johnny file, the rollback would restore a stale copy. Consider a timestamped suffix, or warn when the kept backup differs from the live file.", "Nit: the first line of the scp paste in the .md is `# RUNS ON: LAPTOP`, not one of the two required JOHNNY values. A laptop step is unavoidable under the scp delivery convention, so I am not blocking on it. The .sh itself starts with a shebang and carries its RUNS ON markers inside the `if` blocks. That is acceptable because the .md paste blocks have the exact first lines `# RUNS ON: JOHNNY (SSH)` and `# RUNS ON: JOHNNY (KVM)`.", "Nit: the `sysctl --system` in VERIFY re-applies every sysctl.d file on the box, not just the two IPv6 keys. It is harmless here, but say so in the Plan. If a later file overrides the keys, the script exits STOP-sysctl-override with IPv6 state left as it is and no auto-revert.", "Confirmed OK: no reboot, no GRUB, no ipv6.disable=1, and the Plan says so loudly. The IPv4 SSH guard (`0.0.0.0:22` plus the BindIPv6Only=ipv6-only ssh.socket) is sound. The live keys are auto-reverted on loss of IPv4 SSH. The ssh.socket drop-in is written but the socket is not restarted. `## Rollback` is present in the .md. The script is idempotent: SKIP paths re-check live state, and the drop-in is compared with `cmp`. Once the peer parse is fixed, this is approvable."]}
+[18:31:34 CT] Grok (grok-4.7-low-fast) round 3 ...
+I'll revise batch 7 from the review notes, starting with the live `ss` column layout on Johnny and the current script.The live `ss` output matches the review: with a state filter the peer is field 4, so `$5` is empty. I'll switch the parse to select `ESTAB` in awk and apply the two rollback nits.## Detail
+
+The established-SSH check was a fail-closed dead end, and the live `ss` output on Johnny confirms it. With `ss -H -tn state established sport = :22`, iproute2 drops the State column. Three current sessions print as four fields (`Recv-Q`, `Send-Q`, local, peer), so awk `$5` is empty, `lan_ssh` stays 0, and PASTE 1 exits `STOP-no-lan-ssh` before it changes anything. Without the state filter the same sockets print `ESTAB` in field 1 and the peer in field 5 (`192.168.50.223` on all three). Listening sockets still keep `LISTEN` in field 1 and the local address in field 4, so the `0.0.0.0:22` checks were already correct and were left alone.
+
+PASTE 1 now uses:
+
+`ss -H -tn sport = :22 | awk '$1=="ESTAB"{print $5}' | sed 's/:[0-9]*$//'`
+
+PASTE 2 now runs the two `sysctl -w …=0` calls before it looks for `/root/60-johnny-cis-network.conf.pre-batch7`. A missing backup still stops with `STOP-no-backup`, after the live keys are back to 0.
+
+`backup_once` still refuses to overwrite that backup. If the live johnny file no longer matches the kept copy, it prints `BACKUP-DIFFERS` and says rollback restores the kept copy. The stable path stays so the rollback block does not have to hunt for a
+[18:32:19 CT] Claude review round 3 (diff vs 2e120dbfea45988051819f238371abf58f94f6b4) ...
+[18:32:49 CT] Claude verdict: {"verdict": "approve", "issues": ["NIT: The scp paste's first line is '# RUNS ON: LAPTOP', not '# RUNS ON: JOHNNY (SSH)' or '(KVM)'. It runs on the laptop, so I did not block on it. If you want the rule applied literally, turn the scp into a prose step or accept LAPTOP as a third label.", "NIT: scp targets 'cis-audit/batch-7.sh' under aj's home. It assumes ~/cis-audit already exists on Johnny, which earlier batches presumably created.", "NIT: The ssh.socket IPv4-only drop-in is not required for CIS 3.1.1. It sits close to Batch 8's SSH scope. It is harmless: it is not restarted, it is cleanly removable, and the rollback covers it. The Plan states it clearly.", "NIT: PASTE 2 does not remove the ssh.socket drop-in. That is fine, since it only takes effect at the next socket start and still listens on 0.0.0.0:22.", "NIT: Verify block runs a bare 'listen_v4_22', which would exit silently under set -e if it failed. It was just checked a few lines earlier, so this is not a real risk.", "NIT: Safety checks confirmed. The script is idempotent: it re-checks live state, the backup is kept once in /root, and the drop-in is compared with cmp. It stops on unexpected listeners and on non-LAN SSH peers. It auto-reverts the live keys if IPv4 or 0.0.0.0:22 is lost. It uses no GRUB, initrd or reboot, and the KVM fallback (PASTE 2) is present. Netplan path /etc/netplan/00-installer-config.yaml matches the repo copy."]}

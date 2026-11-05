@@ -1,0 +1,324 @@
+=== NEW FILE docs/cis-fix/batch-7.md
+# CIS L1 fix pass, Batch 7: IPv6 disable
+
+**Status:** DRAFT rev 1 (Grok, 2026-11-04). Nothing in this batch has run on Johnny.
+
+**Rules in scope (9):** 3.1.1 IPv6 status matches site policy (AJ, 2026-10-31: no IPv6). 3.3.2.1–3.3.2.8 become N/A once 3.1.1 reports IPv6 is not enabled. The local audit body is `docs/cis-local/cis-3-audit.sh`: "IPv6 is not enabled" if `/sys/module/ipv6/parameters/disable` is not `0`, or if both `net.ipv6.conf.all.disable_ipv6` and `net.ipv6.conf.default.disable_ipv6` are `1`.
+
+**Not in this batch:** `ipv6.disable=1`, GRUB, initrd, and reboot. Wireless (3.1.2, 3.1.3). ufw enable, `IPV6=no`, and any `ufw reload`. SSH daemon settings (Batch 8). Per-NIC capture sysctl on `eno1np0` (step 11).
+
+## Plan
+
+The run AJ copies and executes is [`batch-7.sh`](batch-7.sh).
+
+```bash
+scp docs/cis-fix/batch-7.sh aj@192.168.50.152:cis-audit/batch-7.sh
+```
+
+From an SSH session on Johnny, with a second SSH session from `192.168.50.0/24` already open:
+
+```bash
+sudo bash ~/cis-audit/batch-7.sh
+```
+
+That command is PASTE 1 only (`# RUNS ON: JOHNNY (SSH)` and `# RUNS IN: SSH`). PASTE 2 is the console recovery (`# RUNS ON: JOHNNY (KVM)` and `# RUNS IN: KVM`). It runs only as `sudo bash ~/cis-audit/batch-7.sh 2` at the KVM console, and only if PASTE 1 dropped IPv4 SSH.
+
+**No reboot. No GRUB edit. No `ipv6.disable=1`.** The CIS check passes on the two sysctl keys. Those keys apply immediately with `sysctl -w` and persist in `/etc/sysctl.d/60-johnny-cis-network.conf`, which `systemd-sysctl` reads at the next boot. The kernel cmdline is unchanged, so the initrd is unchanged.
+
+Live read, 2026-11-04, no sudo: kernel `7.0.0-42-generic`. Cmdline has `pcie_aspm=off` and `crashkernel=…` and no `ipv6.disable`. `ss` shows TCP `0.0.0.0:22` and `[::]:22`. `ssh.socket` is `ListenStream=0.0.0.0:22`, `ListenStream=[::]:22`, `BindIPv6Only=ipv6-only`, so the IPv4 listener does not depend on the IPv6 socket. Three established SSH sessions were `192.168.50.152:22` from `192.168.50.223`. `eno3` is `192.168.50.152/24` via DHCP, default route `192.168.50.1`. IPv6 is link-local `fe80::/64` on `eno3` and `::1` on `lo`. No IPv6 default route. `disable_ipv6` is `0` on `all`, `default`, `lo`, `eno1np0`, `eno2np1`, `eno3`, and `eno4`. Other listeners are IPv4, plus chrony UDP `[::1]:323` beside `127.0.0.1:323`. `/etc/ufw/ufw.conf` is `ENABLED=yes` and `/etc/default/ufw` is `IPV6=yes`. This batch does not reload ufw. **[Assumption]** leaving `IPV6=yes` while `disable_ipv6=1` does not drop the existing IPv4 SSH sockets. Unverified until PASTE 1's verify block.
+
+PASTE 1 is idempotent. It prints `STATE`, then:
+
+1. Stops unless `eno3` has `192.168.50.152/24`, the default route is via `eno3`, at least one established SSH peer is in `192.168.50.0/24` on local `192.168.50.152:22`, and `0.0.0.0:22` is listening. A peer of `192.168.50.152` is `NOTE-ssh-self` and is not counted. Any established SSH peer outside `192.168.50.0/24` is `STOP-ssh-peer`.
+2. Stops on an unexpected listener. Allowed: TCP/UDP `127.0.0.53:53` and `127.0.0.54:53`, UDP `192.168.50.152:68`, UDP `127.0.0.1:323`, UDP `[::1]:323`, TCP `0.0.0.0:22`, TCP `[::]:22`. `[::]:22` and `[::1]:323` are allowed only because those IPv4 twins exist. Anything else is `STOP-listener`.
+3. Stops if the live netplan file contains `dhcp6: true`.
+4. Writes `/etc/systemd/system/ssh.socket.d/60-johnny-cis-ipv4.conf` so a later boot or socket start listens on `0.0.0.0:22` only. It runs `systemctl daemon-reload` and does **not** restart `ssh.socket` or `ssh.service`. The current `[::]:22` socket stays until that unit is restarted. Do not restart it in this batch.
+5. If both sysctl keys are already `1` in the johnny file and in the kernel, it prints `SKIP-disable-ipv6`. Otherwise it copies `/etc/sysctl.d/60-johnny-cis-network.conf` to `/root/60-johnny-cis-network.conf.pre-batch7` and appends the two `disable_ipv6 = 1` lines if they are absent. A different value already in the file is `STOP-sysctl-file`. It then runs `sysctl -w` on those two keys only. It does not run `sysctl -p` on the johnny file.
+6. Re-checks `192.168.50.152/24` on `eno3` and `0.0.0.0:22`. If either is gone, it sets both keys back to `0` and exits `STOP-ipv4-ssh`. Then it checks `all`, `default`, and every interface under `/proc/sys/net/ipv6/conf` are `1`.
+
+`OK-batch-7` means the sysctl change is in effect now. The ssh.socket drop-in is on disk and is not the listening socket yet. No reboot is required for 3.1.1. The next boot applies the drop-in and the sysctl file together. Governance re-audits after AJ sends the output. Verdicts stay in the CSV until that re-audit.
+
+## Rollback
+
+Not part of the paste. Use PASTE 2 at the console if IPv4 SSH is already dead. If SSH still works, this is the undo:
+
+```bash
+sudo cp -a /root/60-johnny-cis-network.conf.pre-batch7 /etc/sysctl.d/60-johnny-cis-network.conf
+sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0
+sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0
+sudo rm -f /etc/systemd/system/ssh.socket.d/60-johnny-cis-ipv4.conf
+sudo rmdir /etc/systemd/system/ssh.socket.d 2>/dev/null || true
+sudo systemctl daemon-reload
+```
+
+Do not restart `ssh.socket` in the same step as the undo. `0.0.0.0:22` must still be listening before the session is closed.
+=== NEW FILE docs/cis-fix/batch-7.sh
+#!/bin/bash
+# CIS L1 Batch 7. The deliverable AJ runs from SSH, no argument, is PASTE 1 only:
+#   sudo bash ~/cis-audit/batch-7.sh
+# PASTE 2 is KVM recovery and does not run unless AJ passes 2:
+#   sudo bash ~/cis-audit/batch-7.sh 2
+# NO REBOOT. This script does not set ipv6.disable=1, does not edit GRUB,
+# and does not rebuild the initrd. CIS 3.1.1 is met by disable_ipv6=1.
+# Rollback: docs/cis-fix/batch-7.md ## Rollback.
+
+set -euo pipefail
+
+if [ "$#" -gt 1 ]; then
+  echo STOP-args
+  exit 1
+fi
+paste=1
+if [ "$#" -eq 1 ]; then
+  paste=$1
+fi
+case "$paste" in
+  1|2) ;;
+  *)
+    echo STOP-args
+    exit 1
+    ;;
+esac
+
+if [ "$paste" = 1 ]; then
+# RUNS ON: JOHNNY (SSH)
+# PASTE 1
+# RUNS IN: SSH
+set -euo pipefail
+# Rollback: docs/cis-fix/batch-7.md ## Rollback.
+# Immediate: sysctl -w. Persistent: 60-johnny-cis-network.conf at next boot.
+# The ssh.socket drop-in is not applied to the live socket. Do not restart
+# ssh.socket here. No GRUB. No ipv6.disable=1. No reboot.
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo STOP-not-root
+  exit 1
+fi
+
+JOHNNY=/etc/sysctl.d/60-johnny-cis-network.conf
+BACKUP=/root/60-johnny-cis-network.conf.pre-batch7
+DROPIN_DIR=/etc/systemd/system/ssh.socket.d
+DROPIN=$DROPIN_DIR/60-johnny-cis-ipv4.conf
+NETPLAN=/etc/netplan/00-installer-config.yaml
+KEY_ALL='net.ipv6.conf.all.disable_ipv6 = 1'
+KEY_DEF='net.ipv6.conf.default.disable_ipv6 = 1'
+
+backup_once() {
+  src=$1
+  dest=$2
+  if [ -e "$dest" ]; then
+    echo "BACKUP-KEPT $dest"
+    return 0
+  fi
+  if [ ! -e "$src" ]; then
+    echo "STOP-backup-missing $src"
+    exit 1
+  fi
+  if ! cp -a "$src" "$dest"; then
+    echo "STOP-backup $src"
+    exit 1
+  fi
+  echo "BACKUP $dest"
+}
+
+ipv4_ok() {
+  ip -4 -o addr show dev eno3 | grep -q 'inet 192\.168\.50\.152/24 '
+}
+
+listen_v4_22() {
+  ss -H -lnt sport = :22 | awk '{print $4}' | grep -qx '0.0.0.0:22'
+}
+
+echo "=== STATE ==="
+ip -4 -o addr show dev eno3 || true
+ip -4 route show default || true
+ss -H -lntu || true
+sysctl net.ipv6.conf.all.disable_ipv6 net.ipv6.conf.default.disable_ipv6
+echo "=== END STATE ==="
+
+if ! ipv4_ok; then
+  echo STOP-eno3-addr
+  exit 1
+fi
+if ! ip -4 route show default | grep -q 'dev eno3'; then
+  echo STOP-default-route
+  exit 1
+fi
+if [ ! -f "$NETPLAN" ]; then
+  echo STOP-netplan-missing
+  exit 1
+fi
+if grep -q 'dhcp6: true' "$NETPLAN"; then
+  echo STOP-dhcp6
+  exit 1
+fi
+
+lan_ssh=0
+while read -r peer; do
+  [ -n "$peer" ] || continue
+  case "$peer" in
+    192.168.50.152)
+      echo NOTE-ssh-self
+      ;;
+    192.168.50.*)
+      lan_ssh=1
+      ;;
+    *)
+      echo "STOP-ssh-peer $peer"
+      exit 1
+      ;;
+  esac
+done < <(ss -H -tn state established sport = :22 | awk '{print $5}' | sed 's/:[0-9]*$//')
+
+if [ "$lan_ssh" -ne 1 ]; then
+  echo STOP-no-lan-ssh
+  exit 1
+fi
+if ! listen_v4_22; then
+  echo STOP-no-v4-ssh
+  exit 1
+fi
+
+while read -r netid local; do
+  [ -n "${netid:-}" ] || continue
+  case "$netid $local" in
+    "tcp 0.0.0.0:22"|"tcp [::]:22"|"tcp 127.0.0.54:53"|"tcp 127.0.0.53%lo:53"|"tcp 127.0.0.53:53")
+      ;;
+    "udp 127.0.0.54:53"|"udp 127.0.0.53%lo:53"|"udp 127.0.0.53:53"|"udp 192.168.50.152%eno3:68"|"udp 127.0.0.1:323"|"udp [::1]:323")
+      ;;
+    *)
+      echo "STOP-listener $netid $local"
+      exit 1
+      ;;
+  esac
+done < <(ss -H -lntu | awk '{print $1, $5}')
+
+if ! ss -H -lnt sport = :22 | awk '{print $4}' | grep -qx '0.0.0.0:22'; then
+  echo STOP-no-v4-ssh
+  exit 1
+fi
+if ! ss -H -lnu sport = :323 | awk '{print $4}' | grep -qx '127.0.0.1:323'; then
+  echo STOP-chrony-v4
+  exit 1
+fi
+
+if [ ! -f "$JOHNNY" ]; then
+  echo STOP-sysctl-missing
+  exit 1
+fi
+
+if [ -f "$DROPIN" ]; then
+  if ! cmp -s - "$DROPIN" <<'EOF'
+[Socket]
+ListenStream=
+ListenStream=0.0.0.0:22
+EOF
+  then
+    echo STOP-ssh-dropin
+    exit 1
+  fi
+  echo SKIP-ssh-dropin
+else
+  install -d -m 0755 -o root -g root "$DROPIN_DIR"
+  cat > "$DROPIN" <<'EOF'
+[Socket]
+ListenStream=
+ListenStream=0.0.0.0:22
+EOF
+  chmod 0644 "$DROPIN"
+  echo "WROTE $DROPIN"
+fi
+systemctl daemon-reload
+echo SKIP-ssh-restart
+
+have_all=0
+have_def=0
+if grep -Fxq -- "$KEY_ALL" "$JOHNNY"; then
+  have_all=1
+fi
+if grep -Fxq -- "$KEY_DEF" "$JOHNNY"; then
+  have_def=1
+fi
+if grep -E -q '^[[:space:]]*net\.ipv6\.conf\.(all|default)\.disable_ipv6[[:space:]]*=' "$JOHNNY"; then
+  if [ "$have_all" -ne 1 ] || [ "$have_def" -ne 1 ]; then
+    echo STOP-sysctl-file
+    exit 1
+  fi
+fi
+
+run_all=$(sysctl -n net.ipv6.conf.all.disable_ipv6)
+run_def=$(sysctl -n net.ipv6.conf.default.disable_ipv6)
+if [ "$have_all" -eq 1 ] && [ "$have_def" -eq 1 ] && [ "$run_all" = 1 ] && [ "$run_def" = 1 ]; then
+  echo SKIP-disable-ipv6
+else
+  backup_once "$JOHNNY" "$BACKUP"
+  if [ "$have_all" -ne 1 ] || [ "$have_def" -ne 1 ]; then
+    if [ "$have_all" -eq 1 ] || [ "$have_def" -eq 1 ]; then
+      echo STOP-sysctl-file
+      exit 1
+    fi
+    printf '\n%s\n%s\n%s\n' \
+      '# 3.1.1. IPv6 disabled. 3.3.2.1-3.3.2.8 are N/A while this stays 1. No ipv6.disable=1.' \
+      "$KEY_ALL" \
+      "$KEY_DEF" >> "$JOHNNY"
+    echo APPENDED-disable-ipv6
+  fi
+fi
+
+if [ "$(sysctl -n net.ipv6.conf.all.disable_ipv6)" != 1 ] || [ "$(sysctl -n net.ipv6.conf.default.disable_ipv6)" != 1 ]; then
+  sysctl -w net.ipv6.conf.default.disable_ipv6=1
+  sysctl -w net.ipv6.conf.all.disable_ipv6=1
+fi
+
+if ! ipv4_ok || ! listen_v4_22; then
+  sysctl -w net.ipv6.conf.all.disable_ipv6=0 || true
+  sysctl -w net.ipv6.conf.default.disable_ipv6=0 || true
+  echo STOP-ipv4-ssh
+  exit 1
+fi
+
+for d in /proc/sys/net/ipv6/conf/*; do
+  v=$(cat "$d/disable_ipv6")
+  if [ "$v" != 1 ]; then
+    echo "STOP-disable-ipv6 $(basename "$d") $v"
+    exit 1
+  fi
+done
+
+echo "=== VERIFY ==="
+sysctl net.ipv6.conf.all.disable_ipv6 net.ipv6.conf.default.disable_ipv6
+ip -4 -o addr show dev eno3
+ss -H -lnt sport = :22
+ip -6 addr show || true
+echo "=== END VERIFY ==="
+echo OK-batch-7
+exit 0
+fi
+
+# RUNS ON: JOHNNY (KVM)
+# PASTE 2
+# RUNS IN: KVM
+set -euo pipefail
+# Rollback: docs/cis-fix/batch-7.md ## Rollback.
+# Use only if PASTE 1 left no IPv4 SSH. This does not touch GRUB.
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo STOP-not-root
+  exit 1
+fi
+
+JOHNNY=/etc/sysctl.d/60-johnny-cis-network.conf
+BACKUP=/root/60-johnny-cis-network.conf.pre-batch7
+if [ ! -f "$BACKUP" ]; then
+  echo STOP-no-backup
+  exit 1
+fi
+cp -a "$BACKUP" "$JOHNNY"
+sysctl -w net.ipv6.conf.all.disable_ipv6=0
+sysctl -w net.ipv6.conf.default.disable_ipv6=0
+if ! ss -H -lnt sport = :22 | awk '{print $4}' | grep -qx '0.0.0.0:22'; then
+  echo STOP-no-v4-ssh
+  exit 1
+fi
+echo OK-paste-2
+exit 0
