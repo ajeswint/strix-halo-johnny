@@ -75,6 +75,25 @@ fi
 if same_cpulist '' 1; then
   fail "empty list same"
 fi
+# Two bad specs must not compare equal (both flatten to STOP-cpulist).
+if same_cpulist 'x' 'x'; then
+  fail "two bad specs same"
+fi
+if same_cpulist '3-1' '3-1'; then
+  fail "two reversed ranges same"
+fi
+if same_cpulist 'x' 1 || same_cpulist 1 'x'; then
+  fail "one bad spec same"
+fi
+if cpulist_flat 'a-b' >/dev/null; then
+  fail "cpulist_flat bad spec rc"
+fi
+cpulist_has_cpu0 0-23 || fail "cpu0 in 0-23"
+cpulist_has_cpu0 0 || fail "cpu0 alone"
+cpulist_has_cpu0 'x' || fail "bad spec is not cpu0-clear"
+if cpulist_has_cpu0 1; then fail "cpu1 has cpu0"; fi
+if cpulist_has_cpu0 10-12; then fail "10-12 has cpu0"; fi
+if cpulist_has_cpu0 1,2,3,4; then fail "1,2,3,4 has cpu0"; fi
 # collect_eno1_map against a fake /proc built from the live Johnny names.
 fp=$(mktemp -d)
 mkdir -p "$fp/irq"
@@ -138,6 +157,22 @@ if grep -En '>>?[[:space:]]*"?\$BEFORE|>>?[[:space:]]*/var/lib/johnny/irq-affini
 fi
 host_out=$(bash "$S13B" || true)
 printf '%s\n' "$host_out" | grep -qx STOP-host || fail "13b stop host: $host_out"
+# Rollback restores this run's entry copies, never PREV.
+if grep -n 'install .*\$PREV' "$S13B" | grep -v '^[0-9]*:#'; then
+  fail "13b rollback installs from PREV"
+fi
+grep -q 'install -m 0755 -o root -g root "\$ENTRY_DIR/irq-affinity.sh"' "$S13B" || fail "13b entry rollback helper"
+grep -q 'install -m 0644 -o root -g root "\$ENTRY_DIR/johnny-capture-irq.service"' "$S13B" || fail "13b entry rollback unit"
+grep -q 'STOP-prev-helper' "$S13B" || fail "13b PREV hash check"
+grep -q 'STOP-queue-count' "$S13B" || fail "13b queue count stop"
+grep -q 'STOP-spread-sum' "$S13B" || fail "13b spread sum stop"
+grep -qx '  echo ICE-CPU0-CLEAR' "$S13B" || fail "13b ice cpu0 line"
+if grep -En '^[[:space:]]*echo CPU0-CLEAR' "$S13B"; then
+  fail "13b unconditional CPU0-CLEAR"
+fi
+if grep -n 'step13b-apply\.log' "$S13B" | grep -v '^[0-9]*:#'; then
+  fail "13b fixed log name"
+fi
 if grep -En 'apt-get|apt install|update-grub|update-initramfs|[[:space:]]reboot|ethtool -[LGKX]|ip link set|sysctl -w|pci=noaer|snap install|systemctl (stop|restart|start|mask|disable)' "$S13B" \
   | grep -v '^[0-9]*:#'; then
   fail "forbidden in 13b"

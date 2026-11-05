@@ -1,5 +1,7 @@
 #!/bin/bash
-# Johnny step 13b: name-match follow-up to step 13. Not applied by this commit.
+# Johnny step 13b: name-match follow-up to step 13.
+# Applied on Johnny from tip bf89820 (STEP13B-NAME-MATCH-DONE). This file is the
+# post-review rev (nits 1-5); it has not run. A re-run would use this rev.
 # AJ runs it on Johnny, as root, after three files are in /home/aj/cis-audit/.
 # Docs: docs/tool-install/step-13-irq-affinity.md (section "Step 13b").
 # Replaces /etc/johnny/irq-affinity.sh (c765e01 blob) and the unit (adds
@@ -9,7 +11,8 @@
 # Does NOT re-run the c765e01 paste. Does not touch the backup file, irqbalance,
 # netplan, eno2np1, eno3, RSS, RPS, XPS, GRUB, or apt. No reboot.
 # SIGHUP and SIGPIPE are ignored. A failure after a change puts back the masks
-# and the helper and unit this run saw on entry.
+# and the helper and unit this run saw on entry (per-run copies, not PREV).
+# One log per run: /root/step13b-apply-<UTC stamp>.log, never rotated over.
 
 AUDIT=/home/aj/cis-audit
 HELPER_SRC=$AUDIT/irq-affinity.sh
@@ -17,6 +20,7 @@ UNIT_SRC=$AUDIT/johnny-capture-irq.service
 STAGE_HELPER=/root/step13b-helper.sh
 STAGE_UNIT=/root/step13b-unit.service
 PREV=/var/lib/johnny/step13b-prev
+WANT_QUEUES=12
 BEFORE=/var/lib/johnny/irq-affinity-before.tsv
 LIVE_HELPER=/etc/johnny/irq-affinity.sh
 LIVE_UNIT=/etc/systemd/system/johnny-capture-irq.service
@@ -58,17 +62,31 @@ irdma_backup_lines() {
   done < "$file"
 }
 
+# Prints the CPUs of a cpulist spec on one line. Fails on a bad spec.
 cpulist_flat() {
   local spec=$1 out
   out=$(expand_affinity "$spec" | tr '\n' ' ' || true)
+  case "$out" in
+    *STOP-cpulist*) return 1 ;;
+  esac
   printf '%s\n' "$out"
 }
 
 same_cpulist() {
   local a b
-  a=$(cpulist_flat "$1")
-  b=$(cpulist_flat "$2")
+  a=$(cpulist_flat "$1") || return 1
+  b=$(cpulist_flat "$2") || return 1
   [ -n "$a" ] && [ "$a" = "$b" ]
+}
+
+# True when the cpulist spec includes CPU 0. A bad spec counts as "yes" (fail safe).
+cpulist_has_cpu0() {
+  local flat
+  flat=$(cpulist_flat "$1") || return 0
+  case " $flat" in
+    *" 0 "*) return 0 ;;
+  esac
+  return 1
 }
 
 main() {
@@ -97,10 +115,13 @@ main() {
     exit 1
   fi
   export JOHNNY_STEP13_LOCKED=1
-  if [ -f /root/step13b-apply.log ]; then
-    mv -f /root/step13b-apply.log /root/step13b-apply.log.1
+  LOG=/root/step13b-apply-$(date -u +%Y%m%dT%H%M%SZ).log
+  if [ -e "$LOG" ]; then
+    echo "STOP-log-exists $LOG"
+    exit 1
   fi
-  exec > >(tee /root/step13b-apply.log) 2>&1
+  exec > >(tee "$LOG") 2>&1
+  echo "LOG $LOG"
 
   set -eEuo pipefail
   # Globals on purpose: the EXIT trap runs after main returns.
@@ -108,6 +129,7 @@ main() {
   failed=0
   PRE_MASKS=
   ENO2SNAP=
+  ENTRY_DIR=
 
   # Invoked by the EXIT trap, which shellcheck cannot see.
   # shellcheck disable=SC2317
@@ -130,12 +152,14 @@ main() {
         done < "$PRE_MASKS"
         echo MASKS-PUT-BACK
       fi
-      if [ -f "$PREV/irq-affinity.sh" ]; then
-        install -m 0755 -o root -g root "$PREV/irq-affinity.sh" "$LIVE_HELPER"
+      # This run's own entry copies, so a re-run that started on the NEW files
+      # goes back to NEW, not to the c765e01 files kept in PREV.
+      if [ -n "${ENTRY_DIR:-}" ] && [ -f "$ENTRY_DIR/irq-affinity.sh" ]; then
+        install -m 0755 -o root -g root "$ENTRY_DIR/irq-affinity.sh" "$LIVE_HELPER"
         echo HELPER-PUT-BACK
       fi
-      if [ -f "$PREV/johnny-capture-irq.service" ]; then
-        install -m 0644 -o root -g root "$PREV/johnny-capture-irq.service" "$LIVE_UNIT"
+      if [ -n "${ENTRY_DIR:-}" ] && [ -f "$ENTRY_DIR/johnny-capture-irq.service" ]; then
+        install -m 0644 -o root -g root "$ENTRY_DIR/johnny-capture-irq.service" "$LIVE_UNIT"
         systemctl daemon-reload
         echo UNIT-PUT-BACK
       fi
@@ -143,6 +167,10 @@ main() {
       echo NO-CHANGE-13B
     fi
     rm -f "${PRE_MASKS:-}" "${ENO2SNAP:-}" "$STAGE_HELPER" "$STAGE_UNIT" || true
+    if [ -n "${ENTRY_DIR:-}" ]; then
+      rm -f "$ENTRY_DIR/irq-affinity.sh" "$ENTRY_DIR/johnny-capture-irq.service" || true
+      rmdir "$ENTRY_DIR" 2>/dev/null || true
+    fi
     exit "$rc"
   }
   # shellcheck disable=SC2317
@@ -242,6 +270,9 @@ main() {
   if [ "$nq" -lt 1 ]; then
     die STOP-no-queue-names
   fi
+  if [ "$nq" -ne "$WANT_QUEUES" ]; then
+    die "STOP-queue-count $nq want $WANT_QUEUES"
+  fi
   echo "PLAN-QUEUES $nq"
 
   # irdma restore plan, from the first-run save. The IRQ number must still
@@ -286,15 +317,38 @@ main() {
   fi
   echo PRE-MASKS-SAVED
 
-  # Save the files this run replaces. Never overwrite a previous save.
+  # PREV is the write-once record of the c765e01 files. If it exists it must
+  # still be those files. It is not used for rollback.
   mkdir -p "$PREV"
-  if [ ! -f "$PREV/irq-affinity.sh" ]; then
+  if [ -f "$PREV/irq-affinity.sh" ]; then
+    sha_ok "$PREV/irq-affinity.sh" "$HELPER_OLD_SHA256" || die STOP-prev-helper
+  fi
+  if [ -f "$PREV/johnny-capture-irq.service" ]; then
+    sha_ok "$PREV/johnny-capture-irq.service" "$UNIT_OLD_SHA256" || die STOP-prev-unit
+  fi
+  # Save the c765e01 files only when the live files are still those files.
+  if [ ! -f "$PREV/irq-affinity.sh" ] && [ "$(sha_of "$LIVE_HELPER")" = "$HELPER_OLD_SHA256" ]; then
     cp -p "$LIVE_HELPER" "$PREV/irq-affinity.sh"
   fi
-  if [ ! -f "$PREV/johnny-capture-irq.service" ]; then
+  if [ ! -f "$PREV/johnny-capture-irq.service" ] && [ "$(sha_of "$LIVE_UNIT")" = "$UNIT_OLD_SHA256" ]; then
     cp -p "$LIVE_UNIT" "$PREV/johnny-capture-irq.service"
   fi
   echo PREV-SAVED
+
+  # This run's entry copies, for this run's rollback. Hash-checked: the live
+  # files were OLD or NEW at the gate above.
+  ENTRY_DIR=$(mktemp -d /var/lib/johnny/step13b-entry.XXXXXX)
+  cp -p "$LIVE_HELPER" "$ENTRY_DIR/irq-affinity.sh"
+  cp -p "$LIVE_UNIT" "$ENTRY_DIR/johnny-capture-irq.service"
+  have=$(sha_of "$ENTRY_DIR/irq-affinity.sh")
+  if [ "$have" != "$HELPER_OLD_SHA256" ] && [ "$have" != "$HELPER_NEW_SHA256" ]; then
+    die STOP-entry-helper
+  fi
+  have=$(sha_of "$ENTRY_DIR/johnny-capture-irq.service")
+  if [ "$have" != "$UNIT_OLD_SHA256" ] && [ "$have" != "$UNIT_NEW_SHA256" ]; then
+    die STOP-entry-unit
+  fi
+  echo ENTRY-SAVED
 
   this_run_changed=1
   if cmp -s "$STAGE_HELPER" "$LIVE_HELPER"; then
@@ -352,14 +406,18 @@ main() {
       printf 'SPREAD %s %s cpu %s\n' "$irq" "$name" "$got"
     fi
   done < <(awk '$1 ~ /^[0-9]+:$/ && $NF ~ /^ice-eno1np0-TxRx-[0-9]+$/ { irq=$1; sub(/:$/, "", irq); print irq, $NF }' /proc/interrupts)
-  local spread=""
+  local spread="" total=0
   for c in "${CAPTURE_CPUS[@]}"; do
     spread="$spread cpu${c}=${COUNT[c]}"
+    total=$((total + COUNT[c]))
     if [ "${COUNT[c]}" -lt 1 ]; then
       die "STOP-spread-empty cpu $c"
     fi
   done
   echo "SPREAD-COUNT$spread"
+  if [ "$total" -ne "$nq" ]; then
+    die "STOP-spread-sum $total want $nq"
+  fi
 
   eno2_unchanged "$ENO2SNAP" || die STOP-eno2-irq-moved
   eno3_ok || die STOP-eno3
@@ -375,7 +433,13 @@ main() {
     echo LOCKDOWN-UNCHANGED
   fi
   echo ENO3-OK
-  echo CPU0-CLEAR
+  # ice vectors only. The irdma vectors are back on 0-23 on purpose.
+  for i in "${!ENO1_IRQS[@]}"; do
+    if cpulist_has_cpu0 "$(read_affinity "${ENO1_IRQS[$i]}")"; then
+      die "STOP-ice-cpu0 ${ENO1_IRQS[$i]}"
+    fi
+  done
+  echo ICE-CPU0-CLEAR
   echo STEP13B-NAME-MATCH-DONE
 }
 

@@ -80,20 +80,20 @@ Draft. Branch `claude/step13b-name-match`, PR against `claude/practical-ritchie-
 
 `docs/tool-install/step-13b-name-match.sh`, run as root on Johnny. One script, fail-fast, no reboot.
 
-1. Gates: host `johnny`, kernel `7.0.0-42-generic`, root, `SUDO_USER` `aj` or empty, lock `/run/johnny-capture-irq.lock`. Log `/root/step13b-apply.log`.
+1. Gates: host `johnny`, kernel `7.0.0-42-generic`, root, `SUDO_USER` `aj` or empty, lock `/run/johnny-capture-irq.lock`. One log per run: `/root/step13b-apply-<UTC stamp>.log` (`STOP-log-exists` if the name is taken; nothing is rotated over). The applied run on `bf89820` wrote `/root/step13b-apply.log` (old fixed name) and that file is left alone.
 2. Stages the new helper and unit under `/root` and checks their sha256 (below).
 3. Live helper must be `77b899e3…` (or already the new one); live unit must be `9df4969f…` (or already the new one); the backup TSV must exist and not be a symlink; `johnny-capture-irq.service` must be enabled. `irqbalance` active is `STOP-irqbalance-active`: this script does not re-do the ban/hold logic.
-4. Runs the new helper's `preflight` and builds the map. Prints one `PLAN irq name cpu` line per pinned vector. No queue name in the map is `STOP-no-queue-names`.
+4. Runs the new helper's `preflight` and builds the map. Prints one `PLAN irq name cpu` line per pinned vector. No queue name in the map is `STOP-no-queue-names`. A queue count other than 12 is `STOP-queue-count` (12 is the live RX/TX combined count).
 5. Builds the irdma restore plan from the backup TSV (`irdma-0000:01:00.0-*` lines). Each IRQ number must still carry the same name in `/proc/interrupts` (`STOP-irdma-renamed` if not).
-6. Saves current masks of every `eno1np0` PCI vector (ice and irdma) for its own rollback, and saves the old helper and unit to `/var/lib/johnny/step13b-prev/` (never overwritten).
+6. Saves current masks of every `eno1np0` PCI vector (ice and irdma) for its own rollback. `/var/lib/johnny/step13b-prev/` is the write-once record of the `c765e01` helper and unit: if it exists it must hash to the OLD values (`STOP-prev-helper`, `STOP-prev-unit`), and it is only written while the live files are still OLD. Then it copies the live helper and unit (hash-checked, OLD or NEW) to a per-run `/var/lib/johnny/step13b-entry.XXXXXX/` (`ENTRY-SAVED`). Rollback uses that entry copy, not PREV, and removes it on exit.
 7. Installs the new helper and unit, `systemctl daemon-reload`, runs `/etc/johnny/irq-affinity.sh apply`.
 8. Writes the backup masks (`0-23`) back to the irdma vectors and reads them back.
-9. Reads the spread from `/proc/interrupts` independently (`SPREAD irq name cpu n`, then `SPREAD-COUNT cpu1=3 cpu2=3 cpu3=3 cpu4=3`). Any capture CPU with zero queues is a stop.
-10. Checks `eno2np1` masks unchanged, `eno3` address/route, queue counts and RPS/XPS strings unchanged, lockdown unchanged.
+9. Reads the spread from `/proc/interrupts` independently (`SPREAD irq name cpu n`, then `SPREAD-COUNT cpu1=3 cpu2=3 cpu3=3 cpu4=3`). Any capture CPU with zero queues is a stop, and the per-CPU counts must sum to the queue count (`STOP-spread-sum`).
+10. Checks `eno2np1` masks unchanged, `eno3` address/route, queue counts and RPS/XPS strings unchanged, lockdown unchanged. Then checks that no **ice** vector in the map has CPU 0 in its mask and prints `ICE-CPU0-CLEAR`. The irdma vectors are back on `0-23` on purpose, so the line says ice only. (The `bf89820` run printed plain `CPU0-CLEAR` here; that was an unconditional echo and is replaced.)
 
 Does not: write `/var/lib/johnny/irq-affinity-before.tsv`, touch `irqbalance`, edit netplan, change `capture-cores`, `systemctl start/stop` anything, reboot, or run `apt`. The unit is replaced but not started: `IRQUNIT inactive enabled` stays true until the next boot.
 
-On a stop after the first install, it prints `REVERTING-13B`, writes the saved pre-run masks back, and reinstalls the saved helper and unit (`MASKS-PUT-BACK`, `HELPER-PUT-BACK`, `UNIT-PUT-BACK`). A stop before any change prints `NO-CHANGE-13B`.
+On a stop after the first install, it prints `REVERTING-13B`, writes the saved pre-run masks back, and reinstalls the helper and unit this run saw on entry (`MASKS-PUT-BACK`, `HELPER-PUT-BACK`, `UNIT-PUT-BACK`). A re-run that started on the NEW files therefore rolls back to the NEW files. A stop before any change prints `NO-CHANGE-13B`.
 
 **[Assumption]** Writing `0-23` to an irdma vector is accepted, as the kernel set that mask itself at boot. If the write fails the script stops and rolls back (irdma back to CPU 1).
 
@@ -103,9 +103,9 @@ On a stop after the first install, it prints `REVERTING-13B`, writes the saved p
 |---|---|---|---|
 | `/etc/johnny/irq-affinity.sh` | `etc/johnny/irq-affinity.sh` | 0755 | new: `29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530`. Old live: `77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e` |
 | `/etc/systemd/system/johnny-capture-irq.service` | `etc/systemd/system/johnny-capture-irq.service` | 0644 | new: `03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a` (adds `Wants=network-online.target`). Old live: `9df4969fbb8e9000c13d409cc1788846ca9b1acf06275fd7336eb616cd6bb355` |
-| `/home/aj/cis-audit/step-13b-name-match.sh` | `docs/tool-install/step-13b-name-match.sh` | 0755 | `da03abac57ac277917ef9b82e3805e885ac19f9b8d2922c635f882b0fb85ee2c` |
+| `/home/aj/cis-audit/step-13b-name-match.sh` | `docs/tool-install/step-13b-name-match.sh` | 0755 | repo tip (post-nits): `38ade9098e61a8ab944a506b5832a0cb93834c61b522991df25ea4fc95e4bdf3`. Applied on Johnny from `bf89820`: `da03abac57ac277917ef9b82e3805e885ac19f9b8d2922c635f882b0fb85ee2c` (the copy in `/home/aj/cis-audit/` is that one) |
 
-The 13b script cannot store its own hash. The row above is the full-file digest and the self-test compares it.
+The 13b script cannot store its own hash. The row above is the full-file digest and the self-test compares it. The post-nits change touched only the 13b script and the self-test. The helper and unit hashes are unchanged.
 
 ### Preconditions
 
@@ -115,18 +115,30 @@ The 13b script cannot store its own hash. The row above is the full-file digest 
 
 ### Paste
 
-On rock-box. One block, chained with `&&` so a failed self-test, `scp`, or `ssh` stops the rest. `sudo -v` is the first thing the Johnny command runs, on Johnny (a rock-box `sudo -v` would refresh the wrong machine). AJ types Johnny's sudo password at that prompt.
+**Applied once, from tip `bf89820`. Not needed again.** The block below is the post-nits form, for a re-run only (for example if a reboot shows a problem and AJ asks for one). It has had no apply run and needs a fresh review first.
+
+On rock-box. One block, chained with `&&`. Before any `scp` it stops unless the checkout has no uncommitted change under `docs/tool-install` or `etc`, and the three files hash to the values in this runbook (a stale or edited checkout cannot pass, because the hashes are in this paste text, not read from the checkout). It prints the checkout tip so AJ can compare it with the PR head. After `scp` it hashes the three files on Johnny again before `sudo`. `sudo -v` runs on Johnny (a rock-box `sudo -v` would refresh the wrong machine). AJ types Johnny's sudo password at that prompt.
 
 ```bash
-bash /home/aj/Projects/strix-halo-johnny/docs/tool-install/step-13-self-test.sh && \
+cd /home/aj/Projects/strix-halo-johnny && \
+test -z "$(git status --porcelain -- docs/tool-install etc)" && \
+git rev-parse --short HEAD && \
+printf '%s  %s\n' \
+  38ade9098e61a8ab944a506b5832a0cb93834c61b522991df25ea4fc95e4bdf3 docs/tool-install/step-13b-name-match.sh \
+  29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530 etc/johnny/irq-affinity.sh \
+  03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a etc/systemd/system/johnny-capture-irq.service \
+  | sha256sum -c - && \
+bash docs/tool-install/step-13-self-test.sh && \
 ssh aj@192.168.50.152 'mkdir -p /home/aj/cis-audit' && \
-scp /home/aj/Projects/strix-halo-johnny/docs/tool-install/step-13b-name-match.sh aj@192.168.50.152:/home/aj/cis-audit/step-13b-name-match.sh && \
-scp /home/aj/Projects/strix-halo-johnny/etc/johnny/irq-affinity.sh aj@192.168.50.152:/home/aj/cis-audit/irq-affinity.sh && \
-scp /home/aj/Projects/strix-halo-johnny/etc/systemd/system/johnny-capture-irq.service aj@192.168.50.152:/home/aj/cis-audit/johnny-capture-irq.service && \
-ssh -t aj@192.168.50.152 'sudo -v && sudo bash /home/aj/cis-audit/step-13b-name-match.sh'
+scp docs/tool-install/step-13b-name-match.sh aj@192.168.50.152:/home/aj/cis-audit/step-13b-name-match.sh && \
+scp etc/johnny/irq-affinity.sh aj@192.168.50.152:/home/aj/cis-audit/irq-affinity.sh && \
+scp etc/systemd/system/johnny-capture-irq.service aj@192.168.50.152:/home/aj/cis-audit/johnny-capture-irq.service && \
+ssh -t aj@192.168.50.152 'printf "%s  %s\n" 38ade9098e61a8ab944a506b5832a0cb93834c61b522991df25ea4fc95e4bdf3 /home/aj/cis-audit/step-13b-name-match.sh 29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530 /home/aj/cis-audit/irq-affinity.sh 03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a /home/aj/cis-audit/johnny-capture-irq.service | sha256sum -c - && sudo -v && sudo bash /home/aj/cis-audit/step-13b-name-match.sh'
 ```
 
-Success ends with `STEP13B-NAME-MATCH-DONE`. Pass lines: `STAGED-OK`, `PLAN-QUEUES 12`, `IRDMA-RESTORE-PLAN 13`, `PRE-MASKS-SAVED`, `PREV-SAVED`, `INSTALLED` for the helper and the unit, `PIN-OK`, `IRDMA-RESTORED`, twelve `SPREAD` lines, `SPREAD-COUNT cpu1=3 cpu2=3 cpu3=3 cpu4=3`, `ENO2-IRQ-UNCHANGED`, `ENO3-OK`, `LOCKDOWN-UNCHANGED`, `CPU0-CLEAR`. `NOTE-irdma-skip` appears 13 times (IRQs 217–229) and `NOTE-irq-aux` three times (187, 188, 201). The 13 and the 3 are what the live name list says. A different count is a note to read, not a stop.
+**[Assumption]** `git status --porcelain` is empty for those two paths on a clean checkout of the PR head, and `printf` reuses its format for each hash/path pair (bash builtin behavior). The block was not run in this closeout.
+
+Success ends with `STEP13B-NAME-MATCH-DONE`. Pass lines: `STAGED-OK`, `PLAN-QUEUES 12`, `IRDMA-RESTORE-PLAN 13`, `PRE-MASKS-SAVED`, `PREV-SAVED`, `INSTALLED` for the helper and the unit, `ENTRY-SAVED`, `PIN-OK`, `IRDMA-RESTORED`, twelve `SPREAD` lines, `SPREAD-COUNT cpu1=3 cpu2=3 cpu3=3 cpu4=3`, `ENO2-IRQ-UNCHANGED`, `ENO3-OK`, `LOCKDOWN-UNCHANGED`, `ICE-CPU0-CLEAR` (not `CPU0-CLEAR`; that was the `bf89820` wording). `NOTE-irdma-skip` appears 13 times (IRQs 217–229) and `NOTE-irq-aux` three times (187, 188, 201). The 13 and the 3 are what the live name list says. A different count is a note to read, not a stop.
 
 The helper prints the same `printf: write error: Broken pipe` noise on line 28 as before. That is SIGPIPE ignored in `expand_affinity`, not a failed pin.
 
@@ -146,7 +158,7 @@ Not part of the paste. On Johnny, second SSH session or KVM, as before: `sudo ba
 
 ### Stops (13b)
 
-`STOP-host`, `STOP-kernel`, `STOP-not-root`, `STOP-user`, `STOP-locked`, `STOP-hash <file>`, `STOP-live-helper-hash`, `STOP-live-unit-hash`, `STOP-live-symlink`, `STOP-no-affinity-backup`, `STOP-irq-unit-not-enabled`, `STOP-irqbalance-active`, `STOP-preflight` (the helper's own `STOP-*` line comes first), `STOP-map`, `STOP-no-queue-names`, `STOP-irdma-gone|ro|name|renamed`, `STOP-no-irdma-backup`, `STOP-no-pre-masks`, `STOP-install-hash`, `STOP-irdma-write|restore`, `STOP-spread`, `STOP-spread-empty`, `STOP-eno2-irq-moved`, `STOP-eno3`, `STOP-queues-changed`, `STOP-lockdown`.
+`STOP-host`, `STOP-kernel`, `STOP-not-root`, `STOP-user`, `STOP-locked`, `STOP-hash <file>`, `STOP-live-helper-hash`, `STOP-live-unit-hash`, `STOP-live-symlink`, `STOP-no-affinity-backup`, `STOP-irq-unit-not-enabled`, `STOP-irqbalance-active`, `STOP-preflight` (the helper's own `STOP-*` line comes first), `STOP-map`, `STOP-no-queue-names`, `STOP-queue-count`, `STOP-log-exists`, `STOP-prev-helper`, `STOP-prev-unit`, `STOP-entry-helper`, `STOP-entry-unit`, `STOP-spread-sum`, `STOP-ice-cpu0`, `STOP-irdma-gone|ro|name|renamed`, `STOP-no-irdma-backup`, `STOP-no-pre-masks`, `STOP-install-hash`, `STOP-irdma-write|restore`, `STOP-spread`, `STOP-spread-empty`, `STOP-eno2-irq-moved`, `STOP-eno3`, `STOP-queues-changed`, `STOP-lockdown`.
 
 The sections below are the procedure AJ ran (`c765e01`), plus the later wording from `b19ab07`. They are not a second apply.
 
@@ -164,7 +176,7 @@ Ownership: Fast Path owns the capture-unit path `etc/systemd/system/johnny-captu
 
 ## Goal
 
-Pin every MSI-X IRQ of the capture NIC `eno1np0` onto the CPUs listed in `/etc/johnny/capture-cores`, one CPU per IRQ, and make that pin survive `irqbalance` and a reboot. CPU 0 stays out of those masks. `eno3` stays `192.168.50.152/24` with its default route. The paste prints `STEP13-IRQ-DONE` only after that pin is in place and the checks below have passed. A draft, a stopped run, or a revert does not print it.
+Pin every MSI-X IRQ of the capture NIC `eno1np0` onto the CPUs listed in `/etc/johnny/capture-cores`, one CPU per IRQ, and make that pin survive `irqbalance` and a reboot. CPU 0 stays out of those masks (step 13 text; after step 13b that holds for the **ice** vectors only. The 13 irdma vectors of the same PCI function are intentionally back on `0-23`, the kernel's own mask, and are not pinned). `eno3` stays `192.168.50.152/24` with its default route. The paste prints `STEP13-IRQ-DONE` only after that pin is in place and the checks below have passed. A draft, a stopped run, or a revert does not print it.
 
 ## Pass
 
@@ -172,7 +184,7 @@ All of these, from the script's own output:
 
 - `CAPTURE-CPUS 1 2 3 4`
 - `OK-tuning`
-- `CPU0-CLEAR`
+- `CPU0-CLEAR` (step 13 / `c765e01`; the 13b script prints `ICE-CPU0-CLEAR` instead, for the ice vectors only)
 - `ENO2-IRQ-UNCHANGED`
 - `ENO3-OK`
 - `LOCKDOWN-UNCHANGED` (or `NOTE-no-lockdown` if that file cannot be read)
