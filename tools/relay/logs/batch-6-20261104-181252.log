@@ -1,0 +1,17 @@
+csv: 274 rows, merged 0, bad 0
+[18:12:52 CT] Claude scoring results into docs/cis-26.04-l1-results.csv ...
+csv: 274 rows, merged 0, bad 0
+[18:13:32 CT] Grok (grok-4.7-low-fast) round results ...
+I'll read the batch-6 results log, the CSV diff, and the end of `docs/cis-fix/batch-6.md` so the Results section matches what actually changed.The log ends at `OK-batch-6` and the CSV moves five rules from fail to pass. I'll append that as `## Results` only.## Detail
+
+`docs/cis-fix/batch-6.md` now ends with one `## Results` section. Nothing else in that file was changed. The CSV and the script were not touched.
+
+The section records `tools/relay/logs/batch-6-20261104-181252-results.txt`: the run printed `OK-batch-6`, did not arm `johnny-ufw-rollback.timer`, and skipped the sysctl, martian, SSH-rule, input-policy, and enable steps because the host already matched. Verify shows ufw active, logging on (low), incoming deny, one IPv4 allow (`22/tcp` on `eno3` from `192.168.50.0/24`), no IPv6 user rule, both `log_martians` keys at 1, `ip_forward=0`, and `eno1np0` still up. Both SSH peers were `192.168.50.223`.
+
+The CSV diff moves five rows, all dated 2026-11-04: `3.3.1.16` and `3.3.1.17` from FAIL to PASS, `4.1.2` and `4.1.3` from FAIL to PASS, and `4.1.5` from FAIL to PASS (manual). The ping-mirror check and the `etc/` mirror commit stay open; they are not in this log.
+
+## Relay
+
+Batch 6 results are in `docs/cis-fix/batch-6.md` under `## Results` only. Log `batch-6-20261104-181252-results.txt` ends `OK-batch-6`; rollback timer was not armed. CSV: 3.3.1.16, 3.3.1.17, 4.1.2, 4.1.3 PASS; 4.1.5 PASS (manual). Ping-mirror check and `etc/` mirror commit still open. No other edits.
+
+## Ou

@@ -388,3 +388,31 @@ sudo cp -a /root/ufw.user6.rules.pre-batch6 /etc/ufw/user6.rules
 sudo sysctl -w net.ipv4.conf.all.log_martians=0
 sudo sysctl -w net.ipv4.conf.default.log_martians=0
 ```
+
+## Results
+
+Source: `tools/relay/logs/batch-6-20261104-181252-results.txt` (2026-11-04). The run printed `OK-batch-6`. It did not arm `johnny-ufw-rollback.timer` (`SKIP-rollback-timer`; `rollback-timer inactive`; `timer_active=0`).
+
+Pre-checks that the script skipped because the host already matched: ufw sysctl comments (`SKIP-ufw-sysctl-comment`), martian file and running values (`SKIP-log-martians-file`, `SKIP-log-martians-running`), the SSH allow (`SKIP-ssh-rule` then `SSH-RULE-OK`), input policy (`SKIP-input-policy`), and enable (`SKIP-enable`). Two established SSH sessions were both from `192.168.50.223` (`SSH-PEER-COUNT 2`).
+
+Verify:
+
+- `ufw_active=1`, `enabled_file=yes`, `input_drop=1`, `log_all=1`, `log_default=1`, `ip_forward=0`.
+- `ufw status`: active; logging on (low); default deny (incoming), allow (outgoing), disabled (routed). One allow: `22/tcp on eno3` from `192.168.50.0/24`.
+- `ufw show added`: `ufw allow in on eno3 from 192.168.50.0/24 to any port 22 proto tcp`.
+- `log_martians_all=1` and `log_martians_default=1`. `/etc/ufw/sysctl.conf` still has the stock assignments commented (lines 29 and 30). `/etc/sysctl.d/60-johnny-cis-network.conf` sets both keys to 1 (lines 22 and 23).
+- `eno1np0` stayed UP with no address line in the verify output.
+- IPv4 `user.rules` has one accept: tcp/22 from `192.168.50.0/24` in on `eno3`. IPv6 `user6.rules` has an empty rules section.
+- Hashes printed for `ufw.conf`, `user.rules`, `user6.rules`, `ufw/sysctl.conf`, `60-johnny-cis-network.conf`, and `/etc/default/ufw`.
+
+CSV (`git diff docs/cis-26.04-l1-results.csv`), all dated 2026-11-04:
+
+| id | before | after |
+| --- | --- | --- |
+| 3.3.1.16 | FAIL (running 0) | PASS (running 1, line 22 of `60-johnny-cis-network.conf`) |
+| 3.3.1.17 | FAIL (running 0) | PASS (running 1, line 23 of the same file) |
+| 4.1.2 | FAIL (inactive, `ENABLED=no`) | PASS (active, `ENABLED=yes`, one SSH allow, timer inactive) |
+| 4.1.3 | FAIL (no Default line while inactive) | PASS (deny incoming) |
+| 4.1.5 | FAIL | PASS (manual): status shows `disabled (routed)`, `ip_forward=0`; `DEFAULT_FORWARD_POLICY` was not reprinted this run |
+
+The ping-mirror check and the `etc/` mirror commit are still open. They are described above this section and are not in this log.

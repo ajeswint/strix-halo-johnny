@@ -1,0 +1,121 @@
+STATE ufw_active=1 enabled_file=yes input_drop=1 log_all=1 log_default=1 ip_forward=0 timer_active=0
+SKIP-ufw-sysctl-comment
+SKIP-log-martians-file
+SKIP-log-martians-running
+SSH-SOCK local=192.168.50.152:22 peer=192.168.50.223:35022
+SSH-PEER 192.168.50.223
+SSH-SOCK local=192.168.50.152:22 peer=192.168.50.223:35074
+SSH-PEER 192.168.50.223
+SSH-PEER-COUNT 2
+SKIP-ssh-rule
+SSH-RULE-OK
+SKIP-input-policy
+SKIP-enable
+=== VERIFY ===
+Status: active
+Logging: on (low)
+Default: deny (incoming), allow (outgoing), disabled (routed)
+New profiles: skip
+
+To                         Action      From
+--                         ------      ----
+22/tcp on eno3             ALLOW IN    192.168.50.0/24           
+=== SHOW ADDED ===
+Added user rules (see 'ufw status' for running firewall):
+ufw allow in on eno3 from 192.168.50.0/24 to any port 22 proto tcp
+log_martians_all=1
+log_martians_default=1
+29:# net/ipv4/conf/all/log_martians=0
+30:# net/ipv4/conf/default/log_martians=0
+22:net.ipv4.conf.all.log_martians = 1
+23:net.ipv4.conf.default.log_martians = 1
+rollback-timer inactive
+eno1np0          UP             38:05:25:3a:ac:da <BROADCAST,MULTICAST,UP,LOWER_UP> 
+eno1np0          UP             
+BEGIN-user.rules
+*filter
+:ufw-user-input - [0:0]
+:ufw-user-output - [0:0]
+:ufw-user-forward - [0:0]
+:ufw-before-logging-input - [0:0]
+:ufw-before-logging-output - [0:0]
+:ufw-before-logging-forward - [0:0]
+:ufw-user-logging-input - [0:0]
+:ufw-user-logging-output - [0:0]
+:ufw-user-logging-forward - [0:0]
+:ufw-after-logging-input - [0:0]
+:ufw-after-logging-output - [0:0]
+:ufw-after-logging-forward - [0:0]
+:ufw-logging-deny - [0:0]
+:ufw-logging-allow - [0:0]
+:ufw-user-limit - [0:0]
+:ufw-user-limit-accept - [0:0]
+### RULES ###
+
+### tuple ### allow tcp 22 0.0.0.0/0 any 192.168.50.0/24 in_eno3
+-A ufw-user-input -i eno3 -p tcp --dport 22 -s 192.168.50.0/24 -j ACCEPT
+
+### END RULES ###
+
+### LOGGING ###
+-A ufw-after-logging-input -j LOG --log-prefix "[UFW BLOCK] " -m limit --limit 3/min --limit-burst 10
+-A ufw-after-logging-forward -j LOG --log-prefix "[UFW BLOCK] " -m limit --limit 3/min --limit-burst 10
+-I ufw-logging-deny -m conntrack --ctstate INVALID -j RETURN -m limit --limit 3/min --limit-burst 10
+-A ufw-logging-deny -j LOG --log-prefix "[UFW BLOCK] " -m limit --limit 3/min --limit-burst 10
+-A ufw-logging-allow -j LOG --log-prefix "[UFW ALLOW] " -m limit --limit 3/min --limit-burst 10
+### END LOGGING ###
+
+### RATE LIMITING ###
+-A ufw-user-limit -m limit --limit 3/minute -j LOG --log-prefix "[UFW LIMIT BLOCK] "
+-A ufw-user-limit -j REJECT
+-A ufw-user-limit-accept -j ACCEPT
+### END RATE LIMITING ###
+COMMIT
+END-user.rules
+BEGIN-user6.rules
+*filter
+:ufw6-user-input - [0:0]
+:ufw6-user-output - [0:0]
+:ufw6-user-forward - [0:0]
+:ufw6-before-logging-input - [0:0]
+:ufw6-before-logging-output - [0:0]
+:ufw6-before-logging-forward - [0:0]
+:ufw6-user-logging-input - [0:0]
+:ufw6-user-logging-output - [0:0]
+:ufw6-user-logging-forward - [0:0]
+:ufw6-after-logging-input - [0:0]
+:ufw6-after-logging-output - [0:0]
+:ufw6-after-logging-forward - [0:0]
+:ufw6-logging-deny - [0:0]
+:ufw6-logging-allow - [0:0]
+:ufw6-user-limit - [0:0]
+:ufw6-user-limit-accept - [0:0]
+### RULES ###
+
+### END RULES ###
+
+### LOGGING ###
+-A ufw6-after-logging-input -j LOG --log-prefix "[UFW BLOCK] " -m limit --limit 3/min --limit-burst 10
+-A ufw6-after-logging-forward -j LOG --log-prefix "[UFW BLOCK] " -m limit --limit 3/min --limit-burst 10
+-I ufw6-logging-deny -m conntrack --ctstate INVALID -j RETURN -m limit --limit 3/min --limit-burst 10
+-A ufw6-logging-deny -j LOG --log-prefix "[UFW BLOCK] " -m limit --limit 3/min --limit-burst 10
+-A ufw6-logging-allow -j LOG --log-prefix "[UFW ALLOW] " -m limit --limit 3/min --limit-burst 10
+### END LOGGING ###
+
+### RATE LIMITING ###
+-A ufw6-user-limit -m limit --limit 3/minute -j LOG --log-prefix "[UFW LIMIT BLOCK] "
+-A ufw6-user-limit -j REJECT
+-A ufw6-user-limit-accept -j ACCEPT
+### END RATE LIMITING ###
+COMMIT
+END-user6.rules
+254cb3ad232ca318498ed64ffaee96e2659e0e67228602b644b6357cd26c7e58  /etc/ufw/ufw.conf
+6c1665538c262f25c6091afc96d7a3918150f63a2d4e4ab8a823a10300652776  /etc/ufw/user.rules
+028886bbab99bb6a7d8a4c16853dada474d248f5d9c769d869263582351ea12d  /etc/ufw/user6.rules
+9ffb3c8abeebb2b678cc8103aeb8a4ba796aca1288bb755b68f30fed3d3d23d3  /etc/ufw/sysctl.conf
+b9e2aad124dbaa02aa229207c08b93658ea15eddd888bd5db481c8ad79931254  /etc/sysctl.d/60-johnny-cis-network.conf
+07db07bb07e5ac1388707b7c59dabfbce8ad06d5001236248fbf3f93b79c2ed7  /etc/default/ufw
+=== END VERIFY ===
+SKIP-rollback-timer
+This run did not arm johnny-ufw-rollback.timer.
+OK-batch-6
