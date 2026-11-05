@@ -1,6 +1,19 @@
-# Step 11 — E810 capture config (draft, not applied)
+# Step 11 — E810 capture config (applied 2026-11-05 ~08:26 CT)
 
-Rev 1, 2026-11-04 23:55 CT. Repo only. Johnny is unchanged until AJ runs the paste below, after Claude's review. Grok 4.7 wrote this. Claude Code reviews and does not edit it.
+Rev 2, 2026-11-05 ~08:26 CT. Applied on Johnny. AJ's paste printed `STEP11-DONE`. Grok 4.7 recorded the closeout. The paste below is the one that ran (PR #4, merged). After `STEP11-DONE`, leave it unless a rollback to the first-run netplan backup is acceptable.
+
+Live result (AJ, 2026-11-05 ~08:26 America/Chicago):
+
+- `CAPTURE-CPUS 1 2 3 4`
+- `XDP-OK` (mode `driver`; the counter rose). The script detaches and checks the program is gone before it prints `XDP-OK`.
+- `OK-promisc`, `OK-eno2`, `OK-eno3`, `OK-eno1`, `OK-tuning`, `CPU0-UNCHANGED`, `VERIFY-TUNED` 1–4
+- `MARTIAN-BEFORE 2475` / `MARTIAN-AFTER 2477` (delta 2; a note)
+- `STEP11-DONE`; log `/root/step11-apply.log`
+- Post-apply: `eno1np0` UP with `PROMISC`+`NOARP`; `eno2np1` DOWN (no admin UP); `eno3` still `192.168.50.152/24`; `johnny-capture-tuning.service` active and enabled
+
+Live sha256 from Johnny matches the table below, including `etc/johnny/capture-cores`. `etc/johnny/capture-tuning.sh` was already `1aa19b9f…` and was left as-is.
+
+Rev 1, 2026-11-04 23:55 CT, was the draft. Grok 4.7 wrote it. Claude Code reviewed it.
 
 Ownership for this one paste: Platform owns Johnny's netplan and the helper under `etc/johnny/`. Fast Path owns `etc/systemd/system/johnny-capture-tuning.service` (the capture-unit path in `docs/agent-team.md` §4). The step is one recoverable script, so the writer put both in the same paste.
 
@@ -115,7 +128,7 @@ The in-tree default package is what enables the pipeline features, including nat
 | `/etc/systemd/network/10-netplan-eno1np0.network.d/60-johnny-capture.conf` | same under `etc/` | `78939fd5bbb8b0dc7336661ca748de9d6342260beab32a4f4da843330c9c0b1a` |
 | `/etc/johnny/capture-tuning.sh` | `etc/johnny/capture-tuning.sh` | `1aa19b9f20dc713aa7556e7ef0bb95a3c377a76b805442f6f36b5874dbb264a6` |
 | `/etc/systemd/system/johnny-capture-tuning.service` | same under `etc/` | `64b3045cf4d9c487265a76c3338253d5b73ad137514ee9868a70389b7b800730` |
-| `/etc/johnny/capture-cores` | not in this commit | discovered on the box |
+| `/etc/johnny/capture-cores` | `etc/johnny/capture-cores` | `16fbd7d1f18d2fedb247d73edc3bc6aa040f5ab99bd3b48c35b79e543d22179b` |
 | `/var/lib/johnny/capture-tuning-before.tsv` | not mirrored (pre-change values) | written on first apply |
 | `/root/step11-revert.sh` | `docs/tool-install/step-11-revert.sh` | `16016830c2c288ce80024335c2bd37f00d00c5d1a995718861c6de08e5de8a92` |
 | `/root/00-installer-config.yaml.pre-step11` | the pre-step11 yaml, kept on Johnny | first run only |
@@ -169,7 +182,7 @@ Expect `eno1np0` UP at 10000 with `PROMISC` and `NOARP` and no address line; `en
 
 The preflight link gate reads sysfs `flags` as hex or decimal (`0x1003` on this kernel). It does not require `IFF_LOWER_UP`: that bit stays clear here even when `carrier` is 1 and `operstate` is `up`. Link-up is speed `10000`, `carrier` 1 or `operstate` `up`, and `IFF_UP`.
 
-Copy back into the repo after the run, in a later commit: `/etc/johnny/capture-cores`, and confirm the four sha256 lines in the apply log match the table above.
+Copied back in the closeout commit: `etc/johnny/capture-cores` (`1` through `4`, sha256 `16fbd7d1f18d2fedb247d73edc3bc6aa040f5ab99bd3b48c35b79e543d22179b`). AJ's live hashes for the yaml, the drop-in, `capture-tuning.sh`, and the unit match the table. The tuning script in the repo was already that hash.
 
 ## Rollback
 
@@ -194,6 +207,6 @@ The first-run yaml backup is not overwritten on a later run (`BACKUP-KEPT`).
 - Per-CPU cpuidle `disable`: <https://www.kernel.org/doc/Documentation/cpuidle/sysfs.txt>
 - Hybrid PMU cpumasks `/sys/devices/cpu_core/cpus` and `/sys/devices/cpu_atom/cpus`: <https://lists.openwall.net/linux-kernel/2021/03/29/237>. **[Assumption]** those paths still exist on 7.0.0-42. The script stops if they do not.
 
-## Relay
+## Closeout
 
-Claude Code, review only. Do not edit this draft. The paste AJ would run is the one fenced block in `docs/tool-install/step-11-e810-capture.md`. Script: `docs/tool-install/step-11-e810-capture.sh`. Rollback: `docs/tool-install/step-11-revert.sh`. Johnny was not changed. `eno3` is cmp-guarded before `netplan apply`. No per-iface `disable_ipv6` write. No `rp_filter` write. DDP COMMS is not in the paste. XDP is `xdpdrv` only, then detached. Capture CPUs are the lowest four `cpu_core` IDs after dropping CPU 0's sibling list; EPP `performance`; cpuidle states other than `POLL` and shallow C1 (`C1` or `C1_ACPI`) disabled; governor unchanged. IRQ affinity is not in this paste. Local check that passed here: `bash docs/tool-install/step-11-self-test.sh` and `shellcheck -x` on the four shell files. Please flag anything that should stop AJ running it.
+Applied 2026-11-05 ~08:26 CT. PR #4 was the paste. This revision records the result and adds `etc/johnny/capture-cores`. Live sha256 values match the table. IRQ affinity stays later.
