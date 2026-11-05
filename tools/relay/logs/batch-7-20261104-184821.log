@@ -13,3 +13,5 @@ The run log `tools/relay/logs/batch-7-20261104-184821-results.txt` ends with `OK
 ## Relay
 
 Batch 7 closed `OK-batch-7` (log `batch-7-20261104-184821`). Both `disable_ipv6` keys are 1 and persisted; IPv4 SSH stayed up; ssh.socket was not restarted (`[::]:22` still listening). CSV: 3.1.1 PASS (manual); 3.3.2.1–8 N/A. `etc/` mirrors of 
+[18:49:12 CT] Committed+pushed aa6d802
+Counter({'PASS': 189, 'FAIL': 36, 'N/A': 31, 'PASS (manual)': 12, 'FAIL (manual)': 6})
