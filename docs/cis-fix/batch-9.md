@@ -110,4 +110,10 @@ systemctl stop johnny-cis-batch9-revert.timer
 
 ## Results
 
-Not run.
+Run `batch-9-20261104-211507` finished with the timer kept off and the new stack kept. Log: `tools/relay/logs/batch-9-20261104-211507-results.txt`.
+
+PASTE 1: `SSH-LAN 2`, backups kept (`/root/batch9-pam-security.tar`, `/root/batch9-chage.before`), `PEERS-SAVED 2`, `TIMER-ARMED 300`, `SKIP-apt-already` (packages already installed), `NOTE-pam-old-present`, wrote `60-johnny-cis.conf`, set faillock `deny` and `unlock_time`, pwhistory `remember` and `enforce_for_root`, `SET-PASS_MAX_DAYS`, `SET-UMASK`, wrote `/etc/profile.d/60-johnny-cis-shell.sh`, `PAM-AUTH-UPDATE-OK`, `CHAGE-LAST-UNCHANGED` (Oct 29, 2026), `STACK-OK`, `ROOT-SUDO-N-OK`, `FAILLOCK-RESET-aj`, `OK-batch-9-pending`.
+
+PASTE 2 (new session `192.168.50.223:52674`): `ROOT-SUDO-N-OK`, `STACK-OK`, `TIMER-STOPPED`, `FAILLOCK-RESET-aj`, `OK-batch-9`. PASTE 3 was not used.
+
+CSV (`git diff docs/cis-26.04-l1-results.csv`), date `2026-11-04`, evidence from this run's markers: all 24 in-scope rules moved off FAIL. Straight PASS: 5.3.1.3, 5.3.1.4, 5.3.2.2, 5.3.2.3, 5.3.2.4, 5.3.3.1.1, 5.3.3.1.2, 5.3.3.2.1, 5.3.3.2.2, 5.3.3.2.4, 5.3.3.2.5, 5.3.3.2.8, 5.3.3.3.1, 5.3.3.3.2, 5.3.3.3.3, 5.3.3.4.1, 5.3.3.4.4, 5.4.1.1, 5.4.1.5, 5.4.3.2. PASS (manual): 5.3.3.2.3, 5.3.3.2.6, 5.3.3.2.7, 5.4.3.3 (umask evidence notes it was not live-checked in the snapshot). Rules already PASS were not rewritten. `/etc` copies in this repo are not part of that diff.

@@ -1,0 +1,12 @@
+[21:15:09 CT] Auto-committed relay logs/state as c04607d
+csv: 274 rows, merged 0, bad 0
+[21:15:09 CT] Claude scoring results into docs/cis-26.04-l1-results.csv ...
+csv: 274 rows, merged 0, bad 0
+[21:16:33 CT] Grok (grok-4.7-low-fast) round results ...
+I'll append one Results section to the batch 9 doc from the relay log and the CSV diff, and leave every other section and file alone.The doc already has a stub `## Results` that says the batch was not run. I'll replace that stub with the run summary so there is still only one Results section.**Detail**
+
+`docs/cis-fix/batch-9.md` already ended with a `## Results` stub that said the batch had not run. A second heading would have left two Results sections, so that stub was replaced. No other section or file was edited.
+
+The log `tools/relay/logs/batch-9-20261104-211507-results.txt` is a completed keep. PASTE 1 saw two LAN SSH sessions, kept the existing tar and `chage` backup, armed the 300-second timer, skipped apt because the packages were already installed, noted the leftover `common-*.pam-old` files, wrote the pwquality drop-in, faillock, pwhistory, `PASS_MAX_DAYS`, umask, and shell timeout file, and got `PAM-AUTH-UPDATE-OK`, an unchanged last-change date of Oct 29, 2026, `STACK-OK`, and `OK-batch-9-pending`. PASTE 2 came from a new session (`192.168.50.223:52674`), checked the stack again, stopped the timer, reset faillock for `aj`, and printed `OK-batch-9`. PASTE 3 was not used.
+
+The CSV diff flips all 24 in-scope rules off FAIL, dated 2026-11-04, with evidence taken from those markers. Twenty are PASS. Four stay PASS (manual): password complexity (5.3.3.2.3), dictionary check (5.3.3.2.6), quality enforcement (5.3.3.2.7), and default umask (5.4.3.3). The umask row says the

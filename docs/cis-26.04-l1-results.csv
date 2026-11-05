@@ -194,33 +194,33 @@ id,title,level,result,evidence,date
 5.2.7,Ensure access to the su command is restricted,L1,PASS,"re-audit read-only: /etc/pam.d/su line ""auth required pam_wheel.so use_uid group=sugroup""; getent group sugroup → sugroup:x:983: (empty)",2026-11-04
 5.3.1.1,Ensure latest version of pam is installed,L1,PASS,libpam-runtime 1.7.0-5ubuntu3.2 installed; apt list --upgradable: no libpam-runtime (apt lists refreshed 2026-10-31 02:43),2026-10-31
 5.3.1.2,Ensure latest version of libpam-modules is installed,L1,PASS,libpam-modules 1.7.0-5ubuntu3.2 installed; apt list --upgradable: no libpam-modules (apt lists refreshed 2026-10-31 02:43),2026-10-31
-5.3.1.3,Ensure latest version of libpam-pwquality is installed,L1,FAIL,dpkg-query: libpam-pwquality not installed,2026-10-31
-5.3.1.4,Ensure latest version of cracklib-runtime is installed,L1,FAIL,dpkg-query: cracklib-runtime not installed,2026-10-31
+5.3.1.3,Ensure latest version of libpam-pwquality is installed,L1,PASS,libpam-pwquality installed (SKIP-apt-already; dpkg configure ok; OK-batch-9; batch-9 out.txt 2026-11-04),2026-11-04
+5.3.1.4,Ensure latest version of cracklib-runtime is installed,L1,PASS,cracklib-runtime installed (SKIP-apt-already; dpkg configure ok; OK-batch-9; batch-9 out.txt 2026-11-04),2026-11-04
 5.3.2.1,Ensure pam_unix module is enabled,L1,PASS,"pam_unix.so present in common-account, common-auth, common-password, common-session, common-session-noninteractive",2026-10-31
-5.3.2.2,Ensure pam_faillock module is enabled,L1,FAIL,"grep pam_faillock.so in common-auth and common-account: no output; /usr/share/pam-configs has only capability, mkhomedir, systemd, unix",2026-10-31
-5.3.2.3,Ensure pam_pwquality module is enabled,L1,FAIL,grep pam_pwquality.so in common-password: no output (libpam-pwquality not installed),2026-10-31
-5.3.2.4,Ensure pam_pwhistory module is enabled,L1,FAIL,grep pam_pwhistory.so in common-password: no output,2026-10-31
-5.3.3.1.1,Ensure password failed attempts lockout is configured,L1,FAIL,faillock.conf deny grep: no output (faillock.conf has no active lines); common-auth deny override grep: no output; pam_faillock not enabled (5.3.2.2); threshold (<= 5) is site policy,2026-10-31
-5.3.3.1.2,Ensure password unlock time is configured,L1,FAIL,faillock.conf unlock_time grep: no output (no active lines); common-auth override grep: no output; value (0 or >= 900) is site policy,2026-10-31
-5.3.3.2.1,Ensure password number of changed characters is configured,L1,FAIL,difok grep: no output; /etc/security/pwquality.conf and pwquality.conf.d/ do not exist (libpam-pwquality not installed); value (>= 2) is site policy,2026-10-31
-5.3.3.2.2,Ensure password length is configured,L1,FAIL,minlen grep: no output; pwquality.conf and pwquality.conf.d/ do not exist; value (>= 14) is site policy,2026-10-31
-5.3.3.2.3,Ensure password complexity is configured,L1,FAIL (manual),"minclass/[dulo]credit grep: no output; pwquality.conf and pwquality.conf.d/ do not exist and pam_pwquality is not in the stack, so no complexity rule is enforced; policy is site choice",2026-10-31
-5.3.3.2.4,Ensure password same consecutive characters is configured,L1,FAIL,maxrepeat grep: no output; pwquality.conf and pwquality.conf.d/ do not exist; value (1-3) is site policy,2026-10-31
-5.3.3.2.5,Ensure password maximum sequential characters is configured,L1,FAIL,maxsequence grep: no output; pwquality.conf and pwquality.conf.d/ do not exist; value (1-3) is site policy,2026-10-31
-5.3.3.2.6,Ensure password dictionary check is enabled,L1,FAIL (manual),"both dictcheck=0 greps empty only because pwquality.conf, pwquality.conf.d/ and the pam_pwquality line do not exist; libpam-pwquality and cracklib-runtime not installed, so no dictionary check runs; expected to pass on re-audit once pwquality is installed and enabled (default dictcheck=1)",2026-10-31
-5.3.3.2.7,Ensure password quality checking is enforced,L1,FAIL (manual),"both enforcing=0 greps empty only because pwquality is absent (no config files, no pam_pwquality line); nothing is enforced; expected to pass on re-audit once pwquality is installed and enabled (default enforcing=1)",2026-10-31
-5.3.3.2.8,Ensure password quality is enforced for the root user,L1,FAIL,enforce_for_root grep: no output; pwquality.conf and pwquality.conf.d/ do not exist,2026-10-31
-5.3.3.3.1,Ensure password history remember is configured,L1,FAIL,pwhistory.conf remember grep: no output (pwhistory.conf has no active lines); no pam_pwhistory line in common-password; value (>= 24) is site policy,2026-10-31
-5.3.3.3.2,Ensure password history is enforced for the root user,L1,FAIL,enforce_for_root: not in pwhistory.conf (no active lines) and no pam_pwhistory line in common-password,2026-10-31
-5.3.3.3.3,Ensure pam_pwhistory includes use_authtok,L1,FAIL,use_authtok: not in pwhistory.conf (no active lines) and no pam_pwhistory line in common-password,2026-10-31
-5.3.3.4.1,Ensure pam_unix does not include nullok,L1,FAIL,/etc/pam.d/common-auth: auth [success=1 default=ignore] pam_unix.so nullok,2026-10-31
+5.3.2.2,Ensure pam_faillock module is enabled,L1,PASS,"faillock profiles enabled via pam-auth-update; PAM-AUTH-UPDATE-OK, STACK-OK x2, OK-batch-9 (batch-9 out.txt 2026-11-04)",2026-11-04
+5.3.2.3,Ensure pam_pwquality module is enabled,L1,PASS,"pwquality profile enabled via pam-auth-update; PAM-AUTH-UPDATE-OK, STACK-OK x2, OK-batch-9 (batch-9 out.txt 2026-11-04)",2026-11-04
+5.3.2.4,Ensure pam_pwhistory module is enabled,L1,PASS,"pwhistory profile enabled via pam-auth-update; PAM-AUTH-UPDATE-OK, STACK-OK x2, OK-batch-9 (batch-9 out.txt 2026-11-04)",2026-11-04
+5.3.3.1.1,Ensure password failed attempts lockout is configured,L1,PASS,SET /etc/security/faillock.conf deny (5; site policy); STACK-OK; OK-batch-9 (batch-9 out.txt 2026-11-04),2026-11-04
+5.3.3.1.2,Ensure password unlock time is configured,L1,PASS,SET /etc/security/faillock.conf unlock_time (900; site policy); STACK-OK; OK-batch-9 (batch-9 out.txt 2026-11-04),2026-11-04
+5.3.3.2.1,Ensure password number of changed characters is configured,L1,PASS,difok=2 (site policy) in WROTE /etc/security/pwquality.conf.d/60-johnny-cis.conf; STACK-OK; OK-batch-9 (batch-9 out.txt 2026-11-04),2026-11-04
+5.3.3.2.2,Ensure password length is configured,L1,PASS,minlen=14 (site policy) in WROTE /etc/security/pwquality.conf.d/60-johnny-cis.conf; STACK-OK; OK-batch-9 (batch-9 out.txt 2026-11-04),2026-11-04
+5.3.3.2.3,Ensure password complexity is configured,L1,PASS (manual),"d/u/l/ocredit=0 in WROTE /etc/security/pwquality.conf.d/60-johnny-cis.conf with pam_pwquality in stack; STACK-OK; OK-batch-9; complexity is site choice (batch-9 out.txt 2026-11-04)",2026-11-04
+5.3.3.2.4,Ensure password same consecutive characters is configured,L1,PASS,maxrepeat=3 (site policy) in WROTE /etc/security/pwquality.conf.d/60-johnny-cis.conf; STACK-OK; OK-batch-9 (batch-9 out.txt 2026-11-04),2026-11-04
+5.3.3.2.5,Ensure password maximum sequential characters is configured,L1,PASS,maxsequence=3 (site policy) in WROTE /etc/security/pwquality.conf.d/60-johnny-cis.conf; STACK-OK; OK-batch-9 (batch-9 out.txt 2026-11-04),2026-11-04
+5.3.3.2.6,Ensure password dictionary check is enabled,L1,PASS (manual),"no dictcheck=0 written (module default 1); libpam-pwquality and cracklib-runtime installed; pam_pwquality in stack; STACK-OK; OK-batch-9 (batch-9 out.txt 2026-11-04)",2026-11-04
+5.3.3.2.7,Ensure password quality checking is enforced,L1,PASS (manual),"no enforcing=0 written (module default 1); pam_pwquality requisite in stack; STACK-OK; OK-batch-9 (batch-9 out.txt 2026-11-04)",2026-11-04
+5.3.3.2.8,Ensure password quality is enforced for the root user,L1,PASS,enforce_for_root in WROTE /etc/security/pwquality.conf.d/60-johnny-cis.conf; STACK-OK; OK-batch-9 (batch-9 out.txt 2026-11-04),2026-11-04
+5.3.3.3.1,Ensure password history remember is configured,L1,PASS,SET /etc/security/pwhistory.conf remember (24; site policy); STACK-OK; OK-batch-9 (batch-9 out.txt 2026-11-04),2026-11-04
+5.3.3.3.2,Ensure password history is enforced for the root user,L1,PASS,SET /etc/security/pwhistory.conf enforce_for_root; STACK-OK; OK-batch-9 (batch-9 out.txt 2026-11-04),2026-11-04
+5.3.3.3.3,Ensure pam_pwhistory includes use_authtok,L1,PASS,"pwhistory profile line carries use_authtok; PAM-AUTH-UPDATE-OK, STACK-OK x2, OK-batch-9 (batch-9 out.txt 2026-11-04)",2026-11-04
+5.3.3.4.1,Ensure pam_unix does not include nullok,L1,PASS,"johnny-unix (no nullok) enabled and stock unix disabled; PAM-AUTH-UPDATE-OK, STACK-OK x2, OK-batch-9 (batch-9 out.txt 2026-11-04)",2026-11-04
 5.3.3.4.2,Ensure pam_unix does not include remember,L1,PASS,remember= grep on pam_unix lines in common-*: no output,2026-10-31
 5.3.3.4.3,Ensure pam_unix includes a strong password hashing algorithm,L1,PASS,/etc/pam.d/common-password: password [success=1 default=ignore] pam_unix.so obscure yescrypt,2026-10-31
-5.3.3.4.4,Ensure pam_unix includes use_authtok,L1,FAIL,common-password pam_unix line is 'pam_unix.so obscure yescrypt': no use_authtok (no pwquality/pwhistory module ahead of it in the stack),2026-10-31
-5.4.1.1,Ensure password expiration is configured,L1,FAIL,/etc/login.defs PASS_MAX_DAYS 99999 (must be 1-365); /etc/shadow: aj max 99999 (only account with a password hash); value is site policy,2026-10-31
+5.3.3.4.4,Ensure pam_unix includes use_authtok,L1,PASS,"pam_unix password line has use_authtok via johnny-unix profile behind pwquality/pwhistory; PAM-AUTH-UPDATE-OK, STACK-OK x2, OK-batch-9 (batch-9 out.txt 2026-11-04)",2026-11-04
+5.4.1.1,Ensure password expiration is configured,L1,PASS,SET-PASS_MAX_DAYS 365 in login.defs; chage -M 365 aj (only account with a password hash); CHAGE-LAST-UNCHANGED; OK-batch-9 (batch-9 out.txt 2026-11-04),2026-11-04
 5.4.1.3,Ensure password expiration warning days is configured,L1,PASS,login.defs PASS_WARN_AGE 7; /etc/shadow warn check: no output (aj warn 7),2026-10-31
 5.4.1.4,Ensure strong password hashing algorithm is configured,L1,PASS,/etc/login.defs: ENCRYPT_METHOD YESCRYPT,2026-10-31
-5.4.1.5,Ensure inactive password lock is configured,L1,FAIL,useradd -D: INACTIVE=-1 (disabled; must be 0-45); /etc/shadow: aj inactive field empty (no lock); value is site policy,2026-10-31
+5.4.1.5,Ensure inactive password lock is configured,L1,PASS,useradd -D -f 45 (INACTIVE=45) and chage -I 45 aj; OK-batch-9 (batch-9 out.txt 2026-11-04),2026-11-04
 5.4.1.6,Ensure all users last password change date is in the past,L1,PASS,CIS chage script: no output; aj last change day 20755 (2026-10-29),2026-10-31
 5.4.2.1,Ensure root is the only UID 0 account,L1,PASS,UID 0 in /etc/passwd: root only,2026-10-31
 5.4.2.2,Ensure root is the only GID 0 account,L1,PASS,primary GID 0 in /etc/passwd: root:0 only,2026-10-31
@@ -230,8 +230,8 @@ id,title,level,result,evidence,date
 5.4.2.6,Ensure root user umask is configured,L1,PASS,"umask grep on /root/.profile and /root/.bashrc: no output; neither file sets a umask, so root falls back to the system default, which 5.4.3.3 judges (FAIL); assumption: root's effective umask is 0022",2026-10-31
 5.4.2.7,Ensure system accounts do not have a valid login shell,L1,PASS,CIS script: no output; only root (bash) and aj (bash) have valid shells,2026-10-31
 5.4.2.8,Ensure accounts without a valid login shell are locked,L1,PASS,CIS script: no output; every nologin/false account has shadow '*' or '!',2026-10-31
-5.4.3.2,Ensure default user shell timeout is configured,L1,FAIL,"CIS script: TMOUT is not configured (no TMOUT in /etc/*bashrc, /etc/profile, /etc/profile.d/*.sh); value (<= 900) is site policy",2026-10-31
-5.4.3.3,Ensure default user umask is configured,L1,FAIL (manual),"both CIS greps empty only because no umask is set anywhere: no umask in /etc/profile or /etc/profile.d/, no UMASK line in /etc/login.defs (USERGROUPS_ENAB yes at line 192); pam_umask active (common-session:26, common-session-noninteractive:27); aj session umask 0002 (plain SSH and bash -lc), not 027 or stricter",2026-10-31
+5.4.3.2,Ensure default user shell timeout is configured,L1,PASS,WROTE /etc/profile.d/60-johnny-cis-shell.sh (TMOUT=900 readonly export; site policy); OK-batch-9 (batch-9 out.txt 2026-11-04),2026-11-04
+5.4.3.3,Ensure default user umask is configured,L1,PASS (manual),"SET-UMASK 027 in login.defs and WROTE /etc/profile.d/60-johnny-cis-shell.sh (umask 027); OK-batch-9 (batch-9 out.txt 2026-11-04); not live-checked in snapshot",2026-11-04
 6.1.1.1.1,Ensure journald service is active,L1,PASS,systemctl is-active systemd-journald.service: active,2026-10-31
 6.1.1.1.2,Ensure systemd-journal-remote service is not in use,L1,N/A,"journald-only rule (CIS: do not apply if rsyslog is used); AJ chose rsyslog as the logging method 2026-10-31; for the record: package systemd-journal-remote not installed, socket/service not-found, both greps empty",2026-10-31
 6.1.1.1.3,Ensure journald is configured to send logs to rsyslog,L1,PASS,cat-config grep: ForwardToSyslog=yes (vendor drop-in /usr/lib/systemd/journald.conf.d/syslog.conf; main file has #ForwardToSyslog=no); list-units: rsyslog.service and systemd-journald.service loaded active running,2026-10-31

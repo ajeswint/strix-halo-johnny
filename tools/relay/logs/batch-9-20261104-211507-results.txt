@@ -1,0 +1,29 @@
+SSH-LAN 2
+BACKUP-KEPT /root/batch9-pam-security.tar
+BACKUP-KEPT /root/batch9-chage.before
+PEERS-SAVED 2
+Running timer as unit: johnny-cis-batch9-revert.timer
+Will run service as unit: johnny-cis-batch9-revert.service
+TIMER-ARMED 300
+SKIP-apt-already
+NOTE-pam-old-present
+WROTE /etc/security/pwquality.conf.d/60-johnny-cis.conf
+SET /etc/security/faillock.conf deny
+SET /etc/security/faillock.conf unlock_time
+SET /etc/security/pwhistory.conf remember
+SET /etc/security/pwhistory.conf enforce_for_root
+SET-PASS_MAX_DAYS
+SET-UMASK
+WROTE /etc/profile.d/60-johnny-cis-shell.sh
+PAM-AUTH-UPDATE-OK
+CHAGE-LAST-UNCHANGED Last password change					: Oct 29, 2026
+STACK-OK
+ROOT-SUDO-N-OK
+FAILLOCK-RESET-aj
+OK-batch-9-pending
+ROOT-SUDO-N-OK
+NEW-SESSION 192.168.50.223:52674
+STACK-OK
+TIMER-STOPPED
+FAILLOCK-RESET-aj
+OK-batch-9
