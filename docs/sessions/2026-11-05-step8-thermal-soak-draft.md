@@ -4,7 +4,11 @@ Drafted 2026-11-05 ~10:55 CT. Not applied. No command from this session ran on J
 
 ## Status
 
-Handoff rev 77. Step 8 is **drafted, not applied**. Runbook: `docs/tool-install/step-8-thermal-soak.md`. AJ has not run the paste. CIS L1 totals unchanged: **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274).
+Handoff rev 78. Step 8 is **drafted, not applied**. Runbook: `docs/tool-install/step-8-thermal-soak.md`. AJ has not run the paste. CIS L1 totals unchanged: **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274).
+
+Claude reviewed tip `5d97dad` APPROVE-WITH-NITS. The nit commit redirects the probe, idle, and soak `turbostat` calls and the `runuser` `stress-ng` call from the heredoc with `</dev/null`. `turbostat` is stopped with INT, about 15 seconds, TERM, KILL, then `wait`, in the main path and in `cleanup`. The heartbeat subshell is stopped before its `sleep` can keep the transcript pipe. `tmux new -s step8` is a suggestion when `tmux` is already installed. This step does not install it.
+
+Claude's read-only check on Johnny, soak not started: all three `turbostat` paths present, capture map matched (`POLL` `C1_ACPI` `C2_ACPI` `C3_ACPI`), `TZ` `Etc/UTC`, `nproc` and `_NPROCESSORS_CONF` both 24, stress-ng `0.20.01`, `thermald` active. `--cpu 0` is every configured CPU.
 
 MeshCommander cleanup on rock-box is **closed** (AJ, 2026-11-05): computer deleted, node killed, Chrome site data for `http://127.0.0.1:3000` cleared. This draft did not watch that desktop.
 

@@ -1,6 +1,8 @@
 # Step 8 — thermal soak (draft, not applied)
 
-Drafted 2026-11-05 ~10:55 CT. Not applied. Nothing in this file has been run on Johnny or on rock-box. Grok 4.7 wrote the paste. Claude reviews it and does not edit it. AJ decides and runs the paste.
+Drafted 2026-11-05 ~10:55 CT. Not applied. AJ has not run the paste. Grok 4.7 wrote it. Claude reviews it and does not edit it. AJ decides and runs it.
+
+Nits from Claude's review of `5d97dad` (APPROVE-WITH-NITS, 2026-11-05) are in the paste. Still not applied. The probe, idle, and soak `turbostat` calls, and the `runuser` `stress-ng` call, read stdin from `/dev/null` so they cannot consume the heredoc. Stopping `turbostat` is `kill -INT`, about 15 seconds of `kill -0`, then `kill -TERM`, then `kill -KILL`, then `wait`, in the main path and in `cleanup`.
 
 Ownership: Assurance owns the measurement (`throughput-soak` in `docs/agent-team.md`). Platform owns the apt names (`ubuntu-2604-packages`). This is one paste so AJ does not run two sudo blocks.
 
@@ -52,13 +54,13 @@ These are recorded and do not by themselves withhold `STEP8-DONE`:
 
 CPUs 1–4 stay in the scheduler's set. They will be busy for the half hour. The tuning service is not stopped, and this paste does not change their EPP or idle bits. SPAN frames can still arrive on `eno1np0`. **[Assumption]** Module 1 is not carrying production capture yet, so a half hour of busy capture CPUs is the measurement AJ asked for. The paste prints `nproc` (online) and `getconf _NPROCESSORS_CONF` (configured). It does not require either number to be 24.
 
-**[Assumption]** The 285HX still has no SMT, so configured and online counts match. The paste does not enforce that.
+Claude's read-only check on Johnny (2026-11-05, paste tip `5d97dad`) found both counts at 24, and agreed `--cpu 0` means every configured CPU. **[Assumption]** That is still true when AJ runs. The paste does not enforce 24.
 
 ## Why turbostat is sampled alongside, at 10 seconds
 
 Upstream `turbostat(8)` has two modes. A forked command is one sample, printed when the command exits. Omitting the command prints a sample every interval (default 5 seconds). SIGINT ends interval mode and prints the current interval before exit ([turbostat.8](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/tools/power/x86/turbostat/turbostat.8)).
 
-A single 30 minute sample would report package power as the average over the whole run, and `CoreTmp` / `PkgTmp` as one reading at the end. That misses the peak. The paste therefore runs interval mode in parallel with `stress-ng`, at 10 seconds, and sends SIGINT when `stress-ng` returns.
+A single 30 minute sample would report package power as the average over the whole run, and `CoreTmp` / `PkgTmp` as one reading at the end. That misses the peak. The paste therefore runs interval mode in parallel with `stress-ng`, at 10 seconds, and sends SIGINT when `stress-ng` returns. Non-interactive bash starts a background job with SIGINT ignored. Upstream `turbostat` installs its own handler, which is what makes `kill -INT` work. If that handler is not in place, `wait` on the pid can sit there. The paste polls for about 15 seconds, then sends TERM, then KILL, then `wait`. `kill -0` stays true for a zombie, so state `Z` in `/proc/PID/stat` counts as already exited and is reaped at once. The same function is in `cleanup`.
 
 Ten seconds is enough for a closet fan curve and a package thermal time constant. It keeps the log small: on the order of 180 summary rows, plus one row per logical CPU. **[Assumption]** `CoreTmp` and `PkgTmp` are end-of-interval readings, so the recorded maximum is the maximum of those samples, not a proven peak between samples. `PkgWatt` is the RAPL energy delta over that 10 second window, so the recorded maximum is the hottest 10 second average, not an instantaneous spike. Throttle counters cover events between samples.
 
@@ -82,9 +84,20 @@ The wrapper on the resolute branch looks up `/usr/lib/linux-tools/$(uname -r)/` 
 
 `linux-tools-common` recommends `linux-perf` and `bpftool` ([package page](https://packages.ubuntu.com/resolute/amd64/linux-tools-common)). The paste uses `--no-install-recommends`. `bpftool` is already installed (step 7). Do not pull `linux-perf` for this step.
 
-`thermald` exists in resolute ([package page](https://packages.ubuntu.com/resolute/thermald); Launchpad also shows `2.5.11-0ubuntu1.1` in updates). It is a Recommends of `linux-image-generic-hwe-26.04` ([package page](https://packages.ubuntu.com/resolute/linux-image-generic-hwe-26.04)). **[Assumption]** The server install may have skipped that Recommends. The paste records `is-active`, `is-enabled`, and the version. It does not install `thermald`.
+`thermald` exists in resolute ([package page](https://packages.ubuntu.com/resolute/thermald); Launchpad also shows `2.5.11-0ubuntu1.1` in updates). It is a Recommends of `linux-image-generic-hwe-26.04` ([package page](https://packages.ubuntu.com/resolute/linux-image-generic-hwe-26.04)). Claude's read-only check on Johnny (2026-11-05) found `thermald` **active**. The paste still only records `is-active`, `is-enabled`, and the version. It does not install, start, stop, or restart `thermald`.
 
-**[Assumption]** Johnny's cached apt lists still name `linux-tools-7.0.0-42-generic`, because that is the tools package built with the installed kernel. The paste does not run `apt-get update`. If the candidate is `(none)`, it prints `STOP-no-candidate` and does not start the soak.
+**[Assumption]** Johnny's cached apt lists still name `linux-tools-7.0.0-42-generic`, because that is the tools package built with the installed kernel. The paste does not run `apt-get update`. If the candidate is `(none)`, it prints `STOP-no-candidate` and does not start the soak. Claude's same read-only check found all three `turbostat` paths executable, so the apt branch is not taken on that box. The paste still checks.
+
+## Read-only check (Claude, 2026-11-05)
+
+Claude checked Johnny read-only against paste tip `5d97dad`. The soak was not started. Recorded here so the apt branch and the capture gate are not still guesses:
+
+- All three `turbostat` paths were present. The paste would print `TOOLS-PRESENT` and would not run apt.
+- The capture map matched the gate. Idle names were `POLL`, `C1_ACPI`, `C2_ACPI`, `C3_ACPI`.
+- Timezone `Etc/UTC`.
+- `nproc` and `getconf _NPROCESSORS_CONF` were both 24. `--cpu 0` is every configured CPU, not a pin to CPU 0.
+- `stress-ng` reported `0.20.01`. The SBOM package is `0.20.01-1` (Debian revision on that upstream version).
+- `thermald` was active. The paste still only records it.
 
 ## Safety
 
@@ -95,6 +108,14 @@ From rock-box, twice (two terminals):
 ```bash
 ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=120 aj@192.168.50.152
 ```
+
+`ServerAliveInterval` only notices a dead TCP session. A drop still delivers SIGHUP to the foreground paste and ends the soak. On Johnny, after login, if `tmux` is already installed, run the paste in a session:
+
+```bash
+tmux new -s step8
+```
+
+That session keeps going across the drop. This step does not install `tmux`. **[Assumption]** The server image may not have it (`tmux` is not in the SBOM). If that command is not found, skip it and leave the SSH session open.
 
 If the soak session dies and the second session also fails, the out-of-band path is AMT KVM. The working video path on record is the Johnny KVM icon on rock-box (Intel DMT Console, `docs/os-handoff.md` step 5). MeshCommander cleanup is closed (AJ, 2026-11-05): the computer was deleted, the node was killed, and Chrome site data for `http://127.0.0.1:3000` was cleared. MeshCommander is not sitting open. This step does not start it again.
 
@@ -134,7 +155,7 @@ Raw `soak-turbostat.txt` stays on Johnny and on rock-box. Do not commit it. Comm
 
 ## Paste on Johnny
 
-One block, in the first SSH session. `sudo -v` prompts once. The rest is root for the half hour, so the sudo timestamp does not have to survive 30 minutes. Heartbeats print every 5 minutes (`SOAK-HEARTBEAT`).
+One block, in the first SSH session (or inside `tmux new -s step8` when `tmux` is already there). `sudo -v` prompts once. The rest is root for the half hour, so the sudo timestamp does not have to survive 30 minutes. Heartbeats print every 5 minutes (`SOAK-HEARTBEAT`). `sudo bash <<'EOF'` makes the script bash's stdin. The probe, the idle sample, the soak `turbostat`, and `runuser` each have `</dev/null` so a child cannot read the rest of the script.
 
 ```bash
 sudo -v
@@ -180,16 +201,61 @@ exec > >(tee -a "$OUT/transcript.txt") 2>&1
 
 tspid=
 hbpid=
+# Non-interactive bash ignores SIGINT on & jobs. turbostat installs its own
+# handler. If that handler is missing, INT does nothing and a bare wait hangs.
+stop_turbostat() {
+  local pid=$1 i st
+  [ -n "$pid" ] || return 0
+  if ! kill -0 "$pid" 2>/dev/null; then
+    wait "$pid" 2>/dev/null || true
+    return 0
+  fi
+  kill -INT "$pid" 2>/dev/null || true
+  i=0
+  while [ "$i" -lt 15 ]; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      wait "$pid" 2>/dev/null || true
+      return 0
+    fi
+    # kill -0 is true for a zombie. State Z means it already exited; wait reaps it.
+    st=$(sed -n 's/.*) //p' "/proc/${pid}/stat" 2>/dev/null || true)
+    st=${st%% *}
+    if [ -z "$st" ] || [ "$st" = Z ]; then
+      wait "$pid" 2>/dev/null || true
+      return 0
+    fi
+    sleep 1
+    i=$((i + 1))
+  done
+  kill -TERM "$pid" 2>/dev/null || true
+  st=$(sed -n 's/.*) //p' "/proc/${pid}/stat" 2>/dev/null || true)
+  st=${st%% *}
+  if [ -n "$st" ] && [ "$st" != Z ]; then
+    kill -KILL "$pid" 2>/dev/null || true
+  fi
+  wait "$pid" 2>/dev/null || true
+  return 0
+}
+stop_heartbeat() {
+  local pid=$1
+  [ -n "$pid" ] || return 0
+  if ! kill -0 "$pid" 2>/dev/null; then
+    wait "$pid" 2>/dev/null || true
+    return 0
+  fi
+  # Freeze the loop, then kill its sleep, so a new sleep cannot keep the tee pipe.
+  kill -STOP "$pid" 2>/dev/null || true
+  pkill -P "$pid" 2>/dev/null || true
+  kill -KILL "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  return 0
+}
 cleanup() {
   trap - EXIT
-  if [ -n "${tspid:-}" ] && kill -0 "$tspid" 2>/dev/null; then
-    kill -INT "$tspid" 2>/dev/null || true
-    wait "$tspid" 2>/dev/null || true
-  fi
-  if [ -n "${hbpid:-}" ] && kill -0 "$hbpid" 2>/dev/null; then
-    kill "$hbpid" 2>/dev/null || true
-    wait "$hbpid" 2>/dev/null || true
-  fi
+  stop_turbostat "${tspid:-}"
+  tspid=
+  stop_heartbeat "${hbpid:-}"
+  hbpid=
   if [ -d "$OUT" ]; then
     chown -R aj:aj "$OUT" || true
   fi
@@ -360,7 +426,7 @@ while IFS= read -r line; do note "THERMALD $line"; done < "$OUT/thermald.txt"
 START=$(date -u +%Y-%m-%d\ %H:%M:%S)
 printf '%s\n' "$START" > "$OUT/start.txt"
 set +e
-/usr/bin/turbostat --quiet --out "$OUT/probe-turbostat.txt" -- sleep 2 >"$OUT/probe-stdout.txt" 2>"$OUT/probe-stderr.txt"
+/usr/bin/turbostat --quiet --out "$OUT/probe-turbostat.txt" -- sleep 2 >"$OUT/probe-stdout.txt" 2>"$OUT/probe-stderr.txt" </dev/null
 prc=$?
 set -e
 if [ "$prc" -ne 0 ] || [ ! -s "$OUT/probe-turbostat.txt" ]; then
@@ -381,7 +447,7 @@ note PROBE-OK
 
 note IDLE-START
 set +e
-/usr/bin/turbostat --quiet --out "$OUT/idle-turbostat.txt" -- sleep 60 >"$OUT/idle-stdout.txt" 2>"$OUT/idle-stderr.txt"
+/usr/bin/turbostat --quiet --out "$OUT/idle-turbostat.txt" -- sleep 60 >"$OUT/idle-stdout.txt" 2>"$OUT/idle-stderr.txt" </dev/null
 irc=$?
 set -e
 if [ "$irc" -ne 0 ] || [ ! -s "$OUT/idle-turbostat.txt" ]; then
@@ -399,7 +465,7 @@ dump_hwmon "$OUT/hwmon-before.txt"
 dump_throttle "$OUT/throttle-before.txt"
 
 note "SOAK-START $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-/usr/bin/turbostat --interval 10 --quiet --out "$OUT/soak-turbostat.txt" >"$OUT/soak-stdout.txt" 2>"$OUT/soak-stderr.txt" &
+/usr/bin/turbostat --interval 10 --quiet --out "$OUT/soak-turbostat.txt" >"$OUT/soak-stdout.txt" 2>"$OUT/soak-stderr.txt" </dev/null &
 tspid=$!
 sleep 2
 if ! kill -0 "$tspid" 2>/dev/null; then
@@ -418,13 +484,13 @@ fi
     printf '%s\n' "SOAK-HEARTBEAT $i $(date -u +%H:%M:%SZ)"
     i=$((i + 1))
   done
-) &
+) </dev/null &
 hbpid=$!
 
 cd "$OUT"
 soak_begin=$(date +%s)
 set +e
-runuser -u aj -- /usr/bin/stress-ng --cpu 0 --timeout 30m --metrics-brief --times --tz --timestamp --no-oom-adjust >"$OUT/stress-ng.txt" 2>&1
+runuser -u aj -- /usr/bin/stress-ng --cpu 0 --timeout 30m --metrics-brief --times --tz --timestamp --no-oom-adjust >"$OUT/stress-ng.txt" 2>&1 </dev/null
 src=$?
 set -e
 soak_end=$(date +%s)
@@ -443,17 +509,14 @@ else
 fi
 
 if kill -0 "$tspid" 2>/dev/null; then
-  kill -INT "$tspid" 2>/dev/null || true
-  wait "$tspid" 2>/dev/null || true
+  stop_turbostat "$tspid"
   note TURBOSTAT-STOPPED
 else
+  wait "$tspid" 2>/dev/null || true
   note NOTE-turbostat-exited-early
 fi
 tspid=
-if [ -n "${hbpid:-}" ] && kill -0 "$hbpid" 2>/dev/null; then
-  kill "$hbpid" 2>/dev/null || true
-  wait "$hbpid" 2>/dev/null || true
-fi
+stop_heartbeat "$hbpid"
 hbpid=
 
 dump_tuning "$OUT/tuning-after.txt"
