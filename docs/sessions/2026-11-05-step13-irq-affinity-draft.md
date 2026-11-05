@@ -23,6 +23,18 @@ Handoff Next steps item 13 stays the finished Agent team note. This file is the 
 
 The self-test covers queue-to-CPU assignment (`TxRx-0` → CPU 1, `TxRx-5` → CPU 2, misc → CPU 1), rejection of CPU 0 in the core file, rejection of a mask that contains CPU 0, the policyscript banning the two ice BDFs and not `eno3`, and the `IRQBALANCE_ARGS` editor (append, unchanged, foreign args, banned CPU list). It does not write `/proc/irq`.
 
+## Nits (still not applied)
+
+Claude reviewed tip `df2ea53` APPROVE-WITH-NITS. The draft now:
+
+- Reads masks after the 12 second wait and does not call the helper again. `IRQ-HELD` means they still matched. `STOP-irq-held` reverts.
+- Skips `eno2np1` MSI vectors that have no `/proc/irq` entry. Save lines use `irq|mask|name`. An `eno1np0` vector in that state is `STOP-eno1-unrequested` before a write.
+- Says why the apply script does not store its own sha256, and checks the helper hash before `source`. The helper remains `etc/johnny/irq-affinity.sh`.
+- Writes the irqbalance unit dump under `/root` with `mktemp`. Rotates the apply log to `.1`. Prints `NO-CHANGE` when a first run stops before a change.
+- Notes the boot oneshot does not retry, a non-queue IRQ name is `NOTE-irq-fallback` onto CPU 1, and rock-box `sudo -v` does not authenticate sudo on Johnny.
+
+No new Johnny command. `STEP13-IRQ-DONE` is still not a result.
+
 ## Do not
 
 - Treat this draft as applied.

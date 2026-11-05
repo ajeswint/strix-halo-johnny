@@ -2,7 +2,7 @@
 # Rollback for Johnny step 13. The apply script installs this at
 # /root/step13-revert.sh before it changes IRQ affinity or irqbalance.
 #   sudo bash /root/step13-revert.sh
-# Restores eno1np0 smp_affinity_list from the first-run save, puts
+# Restores saved smp_affinity_list values (irq|mask|name) and puts
 # /etc/default/irqbalance back, and removes the step 13 unit and helpers.
 # Does not change netplan, promisc, capture-cores, or the tuning service.
 # Does not reboot. Safe to run twice.
@@ -35,10 +35,14 @@ restore_affinities() {
     echo STOP-affinity-backup-symlink
     return 1
   fi
-  while IFS=$'\t' read -r irq list || [ -n "${irq:-}" ]; do
+  while IFS='|' read -r irq list name || [ -n "${irq:-}" ]; do
     [ -n "${irq:-}" ] || continue
     if [[ ! $irq =~ ^[0-9]+$ ]]; then
       echo "NOTE-affinity-skip $irq"
+      continue
+    fi
+    if [ -z "$list" ]; then
+      echo "NOTE-affinity-empty $irq"
       continue
     fi
     if [ ! -e "/proc/irq/${irq}/smp_affinity_list" ]; then

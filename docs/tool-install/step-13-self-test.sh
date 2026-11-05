@@ -143,6 +143,19 @@ printf 'Environment=IRQBALANCE_ARGS=--oneshot\n' >> "$unit"
 unit_interest_lines "$unit" | grep -qx STOP-irqbalance-env || fail "env override"
 rm -f "$unit"
 
+out=$(split_snap '45||NONAME')
+[ "$out" = $'45\n\nNONAME' ] || fail "empty mask field: $(printf %q "$out")"
+out=$(split_snap '12|0-3|eno2np1-TxRx-0')
+[ "$out" = $'12\n0-3\neno2np1-TxRx-0' ] || fail "snap fields: $(printf %q "$out")"
+n=$(grep -c '/etc/johnny/irq-affinity.sh apply' "$ROOT/docs/tool-install/step-13-irq-affinity.sh")
+[ "$n" = 1 ] || fail "helper apply count $n"
+grep -q 'STOP-irq-held' "$ROOT/docs/tool-install/step-13-irq-affinity.sh" || fail "missing hold stop"
+grep -q 'map_needs_write' "$ROOT/docs/tool-install/step-13-irq-affinity.sh" || fail "missing read-only hold"
+grep -q 'NO-CHANGE' "$ROOT/docs/tool-install/step-13-irq-affinity.sh" || fail "missing NO-CHANGE"
+if grep -q '/tmp/step13-irqbalance.unit' "$ROOT/docs/tool-install/step-13-irq-affinity.sh"; then
+  fail "predictable tmp path"
+fi
+
 host_out=$(bash "$ROOT/docs/tool-install/step-13-irq-affinity.sh" || true)
 printf '%s\n' "$host_out" | grep -qx STOP-host || fail "stop host: $host_out"
 rev_out=$(bash "$ROOT/docs/tool-install/step-13-revert.sh" || true)
@@ -170,5 +183,11 @@ got=$(sha256sum "$ROOT/docs/tool-install/step-13-revert.sh" | awk '{print $1}')
 grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.sh" || fail "revert hash"
 got=$(sha256sum "$ROOT/etc/johnny/capture-cores" | awk '{print $1}')
 grep -q "$got" "$ROOT/etc/johnny/irq-affinity.sh" || fail "cores hash"
+got=$(sha256sum "$ROOT/docs/tool-install/step-13-irq-affinity.sh" | awk '{print $1}')
+grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook apply hash"
+got=$(sha256sum "$ROOT/etc/johnny/irq-affinity.sh" | awk '{print $1}')
+grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook helper hash"
+got=$(sha256sum "$ROOT/docs/tool-install/step-13-revert.sh" | awk '{print $1}')
+grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook revert hash"
 
 echo SELF-TEST-OK

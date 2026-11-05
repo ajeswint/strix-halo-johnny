@@ -1,6 +1,6 @@
 # Step 13 — IRQ affinity (draft, not applied)
 
-Rev 1, 2026-11-05 ~13:51 CT. Draft only. Grok 4.7 wrote it. Nothing in this file has been run on Johnny, on rock-box, or on ABLETON_BOX. `STEP13-IRQ-DONE` is not a result yet.
+Rev 2, 2026-11-05. Draft only. Grok 4.7 wrote rev 1 and applied Claude's nits from PR #10 tip `df2ea53`. Nothing in this file has been run on Johnny, on rock-box, or on ABLETON_BOX. `STEP13-IRQ-DONE` is not a result yet.
 
 This is the tool-install step that replaces the open item "IRQ affinity later" from step 11. Handoff Next steps item 13 stays the finished Agent team note. That bullet is not this step. There is no `docs/tool-install/step-13-*.md` before this draft, and the tool-install sequence after step 12 is 13.
 
@@ -30,7 +30,7 @@ All of these, from the script's own output:
 - `LOCKDOWN-UNCHANGED` (or `NOTE-no-lockdown` if that file cannot be read)
 - `STEP13-IRQ-DONE`
 
-When `irqbalance` is active, the script also prints `IRQ-HELD` after a 12 second wait. When it is not installed, `NOTE-no-irqbalance` is a pass, not a failure. `ALREADY-APPLIED` together with `STEP13-IRQ-DONE` means a second run found the pin already in place.
+When `irqbalance` is active, the script also prints `IRQ-HELD` after a 12 second wait. That line means the `eno1np0` masks were read again and still matched the chosen CPUs. The wait does not write them a second time. A mask that drifted is `STOP-irq-held` and the run reverts. When `irqbalance` is not installed, `NOTE-no-irqbalance` is a pass, not a failure, and there is no 12 second wait. `ALREADY-APPLIED` together with `STEP13-IRQ-DONE` means a second run found the pin already in place and, if `irqbalance` was active, the same read-only hold passed.
 
 ## What it does
 
@@ -39,10 +39,10 @@ When `irqbalance` is active, the script also prints `IRQ-HELD` after a 12 second
 3. Requires the step 11 link shape: `eno1np0` driver `ice`, speed `10000`, admin up, promiscuous, no ARP, no address; `eno2np1` driver `ice`, admin down, no address, and a different PCI device from `eno1np0`; `eno3` still `192.168.50.152/` with the default route out `eno3`.
 4. Refuses to run if an XDP program is attached to `eno1np0`. It does not detach one.
 5. Installs `/root/step13-revert.sh` before it records IRQ masks and before it edits `irqbalance`.
-6. Saves the current `smp_affinity_list` of each `eno1np0` and `eno2np1` MSI-X IRQ to `/var/lib/johnny/irq-affinity-before.tsv` once, before any `irqbalance` restart. A later run prints `BACKUP-KEPT` and does not overwrite that file. Revert writes both sets back. The paste still does not choose new CPUs for `eno2np1`.
+6. Saves the current `smp_affinity_list` of each requested `eno1np0` and `eno2np1` MSI-X IRQ to `/var/lib/johnny/irq-affinity-before.tsv` once, before any `irqbalance` restart. The line format is `irq|mask|name`. A later run prints `BACKUP-KEPT` and does not overwrite that file. Revert writes both sets back. The paste still does not choose new CPUs for `eno2np1`. An `eno2np1` MSI vector with no `/proc/irq` entry is `NOTE-eno2-unrequested` and is left out of the save. An empty save prints `NOTE-eno2-no-proc` and `ENO2-IRQ-UNCHANGED`. An `eno1np0` MSI vector with no `/proc/irq` entry is `STOP-eno1-unrequested` before any mask write.
 7. Writes one capture CPU into each `eno1np0` IRQ's `smp_affinity_list`. Queue IRQs whose `/proc/interrupts` name matches `eno1np0-TxRx-N`, `eno1np0-rx-N`, or `eno1np0-tx-N` use CPU `capture[N modulo 4]`. Every other MSI-X IRQ of that PCI device (misc, `ll_ts`, or a name this draft has not seen) uses the lowest capture CPU, which is CPU 1 for the current file. The script prints `NOTE-irq-name` for a name that is neither `eno1np0…` nor `ice-…`, and still pins it. A name that mentions `eno2np1`, `eno3`, or `eno4` is `STOP-irq-foreign` before the write.
 8. If `irqbalance.service` exists, bans both ice PFs from balancing so the restart cannot move `eno2np1`, and so later intervals cannot undo the `eno1np0` pin. It does not stop or mask `irqbalance`. It does not set `IRQBALANCE_BANNED_CPUS` or `IRQBALANCE_BANNED_CPULIST`.
-9. Enables `johnny-capture-irq.service` so a boot runs `/etc/johnny/irq-affinity.sh apply` again. The unit has no `ExecStop`. Disabling it does not restore masks. The revert script does.
+9. Enables `johnny-capture-irq.service` so a boot runs `/etc/johnny/irq-affinity.sh apply` again. The unit has no `ExecStop` and no retry. If `eno1np0` is not up when the oneshot runs, the unit fails and stays failed until a later `systemctl start johnny-capture-irq.service`. Disabling the unit does not restore masks. The revert script does.
 
 ## What it does not do
 
@@ -65,7 +65,9 @@ When `irqbalance` is active, the script also prints `IRQ-HELD` after a 12 second
 
 The policyscript still returns `ban=true` for the `eno2np1` PCI device. That is not a pin. It stops `irqbalance`, if it is restarted, from moving those vectors as a side effect. CPU 0 may remain in the `eno2np1` mask. That is accepted. Those vectors are not the mirror path. An admin-up `eno2np1` is `STOP-eno2-up`. The script does not bring the port down. The same PCI device for both ports is `STOP-eno2-same-pci`.
 
-**[Assumption]** An admin-down ice PF still has an `msi_irqs` directory, because the driver probed the function. If that directory is missing, the script stops with `STOP-no-msi eno2np1` before it writes an `eno1np0` mask.
+`msi_irqs` lists allocated vectors. `/proc/irq/N` exists only after the driver requests that vector. An admin-down port can have allocated vectors and no `/proc/irq` entry. Those are skipped. A requested `eno2np1` vector is saved and must keep the same mask (`STOP-eno2-irq-moved` if it changes).
+
+**[Assumption]** The `msi_irqs` directory still exists while the PF is admin-down, because the driver probed the function. If that directory is missing, the script stops with `STOP-no-msi eno2np1` before it writes an `eno1np0` mask.
 
 ### CPU 0 stays free of capture IRQs
 
@@ -91,13 +93,13 @@ The env file is edited only when every uncommented `IRQBALANCE_ARGS` is missing,
 
 irqbalance 1.9.4 runs the policyscript as `exec <script> <pci-sysfs-dir> <irq>` ([classify.c at v1.9.4](https://github.com/Irqbalance/irqbalance/blob/v1.9.4/classify.c)). The PCI directory is `/sys/bus/pci/devices/<bdf>`. The script prints `ban=true` when that directory is `eno1np0`'s device or `eno2np1`'s device, and prints nothing otherwise. Exit is 0. The man page describes the same `ban=true` key ([irqbalance.1 at v1.9.4](https://github.com/Irqbalance/irqbalance/blob/v1.9.4/irqbalance.1)).
 
-If `irqbalance` is `active`, and its command line does not already contain that policyscript argument, the paste restarts the unit and then requires the argument on the main PID's command line (`STOP-irqbalance-cmd` if it never appears). It then waits 12 seconds. The default sample interval is 10 seconds ([same man page](https://github.com/Irqbalance/irqbalance/blob/v1.9.4/irqbalance.1)). **[Assumption]** Johnny is on that default, because a custom `IRQBALANCE_ARGS` would already have stopped the paste. After the wait the pin, the `eno2np1` masks, `eno3`, and the RPS/XPS strings are checked again. `IRQ-HELD` means they held. `inactive` or `failed` is left that way (`NOTE-irqbalance-inactive`). The paste does not start `irqbalance`. `activating` or `deactivating` is `STOP-irqbalance-state` before a change.
+If `irqbalance` is `active`, and its command line does not already contain that policyscript argument, the paste restarts the unit and then requires the argument on the main PID's command line (`STOP-irqbalance-cmd` if it never appears). It then waits 12 seconds. The default sample interval is 10 seconds ([same man page](https://github.com/Irqbalance/irqbalance/blob/v1.9.4/irqbalance.1)). **[Assumption]** Johnny is on that default, because a custom `IRQBALANCE_ARGS` would already have stopped the paste. After the wait the script reads `eno1np0` masks again with `map_needs_write` and does not write them. `IRQ-HELD` means none of them needed a rewrite, and the `eno2np1` masks, `eno3`, and the RPS/XPS strings were unchanged. `STOP-irq-held` means at least one `eno1np0` mask moved during the wait. The command line check is not that proof. `inactive` or `failed` is left that way (`NOTE-irqbalance-inactive`). The paste does not start `irqbalance`. `activating` or `deactivating` is `STOP-irqbalance-state` before a change.
 
-1.9.4-3 dropped `ProtectKernelTunables=yes` ([changelog](https://sources.debian.org/data/main/i/irqbalance/1.9.4-3/debian/changelog)). **[Assumption]** the policyscript can read `/sys/class/net` from inside the service. If it cannot, `irqbalance` will not ban the ice IRQs, the 12 second check will fail, and the paste reverts.
+1.9.4-3 dropped `ProtectKernelTunables=yes` ([changelog](https://sources.debian.org/data/main/i/irqbalance/1.9.4-3/debian/changelog)). **[Assumption]** the policyscript can read `/sys/class/net` from inside the service. If it cannot, `irqbalance` will not ban the ice IRQs. The 12 second read will see the moved masks, print `STOP-irq-held`, and the paste reverts. It does not pin them again to hide that.
 
 ### Names and managed IRQs
 
-**[Assumption]** Ubuntu `7.0.0-42-generic` matches mainline `v7.0` ice IRQ names closely enough for the round-robin above. In that tree, combined queues are named `<ifname>-TxRx-<n>` and the non-queue vector is `ice-<driver-device>:misc` ([ice_main.c at v7.0](https://github.com/torvalds/linux/blob/v7.0/drivers/net/ethernet/intel/ice/ice_main.c)). The same file calls `netif_set_affinity_auto()`, which spreads queue affinity with `cpumask_local_spread` across the node, including CPU 0, until userspace writes a mask ([net/core/dev.c at v7.0](https://github.com/torvalds/linux/blob/v7.0/net/core/dev.c)). The Launchpad tree for `Ubuntu-7.0.0-42.42` did not answer from this draft, so the script does not require those strings. It pins the MSI-X set from `/sys/class/net/eno1np0/device/msi_irqs`. An `eno1np0` name in `/proc/interrupts` whose IRQ is not in that set is `STOP-irq-outside-msi`.
+**[Assumption]** Ubuntu `7.0.0-42-generic` matches mainline `v7.0` ice IRQ names closely enough for the round-robin above. In that tree, combined queues are named `<ifname>-TxRx-<n>` and the non-queue vector is `ice-<driver-device>:misc` ([ice_main.c at v7.0](https://github.com/torvalds/linux/blob/v7.0/drivers/net/ethernet/intel/ice/ice_main.c)). The same file calls `netif_set_affinity_auto()`, which spreads queue affinity with `cpumask_local_spread` across the node, including CPU 0, until userspace writes a mask ([net/core/dev.c at v7.0](https://github.com/torvalds/linux/blob/v7.0/net/core/dev.c)). The Launchpad tree for `Ubuntu-7.0.0-42.42` did not answer from this draft, so the script does not require those strings. It pins the MSI-X set from `/sys/class/net/eno1np0/device/msi_irqs`. An `eno1np0` name in `/proc/interrupts` whose IRQ is not in that set is `STOP-irq-outside-msi`. A requested name that is not `eno1np0-TxRx-N`, `eno1np0-rx-N`, or `eno1np0-tx-N` is `NOTE-irq-fallback` and is pinned to the lowest capture CPU (CPU 1 for the current file). That includes the misc vector. It is a note, not a stop.
 
 Writes go to `/proc/irq/N/smp_affinity_list`, which is the CPU-list form of the allowed mask ([IRQ affinity](https://docs.kernel.org/core-api/irq/irq-affinity.html)). If that file is not writable, the paste stops with `STOP-affinity-ro` before it saves masks, installs the unit, or edits `irqbalance`. Managed interrupts are not movable from `/proc` ([managed IRQs](https://docs.kernel.org/core-api/irq/managed_irq.html)). This step does not set `isolcpus=managed_irq` and does not touch GRUB. A failed write is `STOP-affinity-write` and reverts.
 
@@ -109,13 +111,15 @@ These repo files are the bytes the paste installs. They are not on Johnny until 
 
 | Path on Johnny | Repo mirror | Mode | sha256 |
 |---|---|---|---|
-| `/etc/johnny/irq-affinity.sh` | `etc/johnny/irq-affinity.sh` | 0755 | `376732d65270d5f1f35247c319a1b535f05b6a931bde7e7bbe1d976aa1e0dcdc` |
+| `/etc/johnny/irq-affinity.sh` | `etc/johnny/irq-affinity.sh` | 0755 | `77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e` |
 | `/etc/johnny/irqbalance-policy.sh` | `etc/johnny/irqbalance-policy.sh` | 0755 | `7a3eeb944be0ee60ba94099b3ae4da3c905c941003c5c50221921032a9ffb0a8` |
 | `/etc/systemd/system/johnny-capture-irq.service` | `etc/systemd/system/johnny-capture-irq.service` | 0644 | `9df4969fbb8e9000c13d409cc1788846ca9b1acf06275fd7336eb616cd6bb355` |
-| `/root/step13-revert.sh` | `docs/tool-install/step-13-revert.sh` | 0755 | `3e3f995358c5f33303728db827861f9c6f629f43db41405e2df0ccfc70a3718e` |
-| `/home/aj/cis-audit/step-13-irq-affinity.sh` | `docs/tool-install/step-13-irq-affinity.sh` | the scp mode | `0857547a1b6fc1e6862b602e26ec606056c8fc04e6f254b7e5b68ff27d8288bc` |
+| `/root/step13-revert.sh` | `docs/tool-install/step-13-revert.sh` | 0755 | `c9dd1522e278bc3bad3a711a4fdcd18b1b768d9da19dff07376a5db7dfa4cc1d` |
+| `/home/aj/cis-audit/step-13-irq-affinity.sh` | `docs/tool-install/step-13-irq-affinity.sh` | 0755 | `f3a0466eac9903eaf790cf5d1197987029eee90afd0a00273c24c07b218170e0` |
 
 `/etc/johnny/capture-cores` is read, not written. sha256 stays `16fbd7d1f18d2fedb247d73edc3bc6aa040f5ab99bd3b48c35b79e543d22179b`.
+
+The helper is `etc/johnny/irq-affinity.sh`. The apply script checks that sha256, and the sha256 of the policyscript, the unit, and the revert script, before it sources the helper (`STOP-hash` on a mismatch). It does not check its own sha256. That digest covers the constants in the file, so the file cannot contain it. The table row for `step-13-irq-affinity.sh` is the full-file digest. The self-test compares the repo file to that row.
 
 Not mirrored, created on Johnny by a successful or reverted run:
 
@@ -124,7 +128,7 @@ Not mirrored, created on Johnny by a successful or reverted run:
 | `/var/lib/johnny/irq-affinity-before.tsv` | first-run `eno1np0` and `eno2np1` masks. Kept so a later revert still restores them |
 | `/var/lib/johnny/irqbalance.default.pre-step13` | first-run `/etc/default/irqbalance` |
 | `/var/lib/johnny/step13-irqbalance-was-active` | `active`, `inactive`, or `failed` |
-| `/root/step13-apply.log` | transcript |
+| `/root/step13-apply.log` | transcript of this run. A previous log is renamed to `/root/step13-apply.log.1` before the new one is opened. `STOP-host`, `STOP-kernel`, and `STOP-not-root` happen before that rename |
 | `/etc/default/irqbalance` | one `IRQBALANCE_ARGS` line, only if the unit exists. Hash is whatever the script prints at apply time. This draft does not invent it |
 
 ## Preconditions
@@ -136,7 +140,7 @@ Not mirrored, created on Johnny by a successful or reverted run:
 
 ## Paste
 
-On rock-box. One block. `sudo -v` refreshes sudo on rock-box. The script runs as root on Johnny.
+On rock-box. One block. `sudo -v` refreshes sudo on rock-box only. It does not authenticate sudo on Johnny. `ssh -t` … `sudo bash` is the Johnny prompt. The script runs as root on Johnny.
 
 ```bash
 sudo -v
@@ -149,9 +153,9 @@ scp /home/aj/Projects/strix-halo-johnny/etc/systemd/system/johnny-capture-irq.se
 ssh -t aj@192.168.50.152 'sudo bash /home/aj/cis-audit/step-13-irq-affinity.sh'
 ```
 
-Success ends with `STEP13-IRQ-DONE`. The transcript is `/root/step13-apply.log`. When `irqbalance` is active the paste sleeps 12 seconds in the middle of that SSH session. SIGHUP and SIGPIPE are ignored. A dropped SSH session still runs the rollback if this run had already changed the box.
+Success ends with `STEP13-IRQ-DONE`. When `irqbalance` is active, that line is printed only after `IRQ-HELD`. The transcript is `/root/step13-apply.log`. The paste sleeps 12 seconds in that SSH session when `irqbalance` is active, then reads the masks. It does not write them again. SIGHUP and SIGPIPE are ignored. A dropped SSH session still runs the rollback if this run had already changed the box.
 
-A failure before a change leaves the box as it was. The revert script may already be at `/root/step13-revert.sh`. A failure after a change prints `REVERTING` and runs that script. A rerun that changes nothing and then fails prints `CONFIG-KEPT`. A rerun that writes a file again and then fails rolls back to the first-run affinity save. After `STEP13-IRQ-DONE`, do not rerun unless that rollback is acceptable.
+A failure before a change leaves the affinity and `irqbalance` config as they were. The revert script may already be at `/root/step13-revert.sh`. A failure after a change prints `REVERTING` and runs that script. A first run that stops before a change prints `NO-CHANGE`. A later run that stops before a change, with the helper or the unit or the mask save already present, prints `CONFIG-KEPT`. A rerun that writes a file again and then fails rolls back to the first-run affinity save. After `STEP13-IRQ-DONE`, do not rerun unless that rollback is acceptable.
 
 The script refuses any host other than `johnny` (`STOP-host`) and any kernel other than `7.0.0-42-generic` (`STOP-kernel`) before it opens the log. `STOP-not-root` is the same, before the log. `SUDO_USER` must be `aj` when it is set (`STOP-user`). An empty `SUDO_USER` prints `NOTE-no-sudo-user` and continues. That is the KVM root shell.
 
@@ -163,7 +167,9 @@ Not part of the paste. On rock-box, after `STEP13-IRQ-DONE`, read-only:
 ssh aj@192.168.50.152 'echo HOST $(hostname -s); echo KERNEL $(uname -r); ip -br link show eno1np0 eno2np1 eno3; ip -br addr show eno3; ip -4 route show default; echo TUNING $(systemctl is-active johnny-capture-tuning.service) $(systemctl is-enabled johnny-capture-tuning.service); echo IRQUNIT $(systemctl is-active johnny-capture-irq.service) $(systemctl is-enabled johnny-capture-irq.service); echo IRQBALANCE $(systemctl is-active irqbalance.service || true); echo LOCKDOWN $(tr -d "[:space:]" < /sys/kernel/security/lockdown); echo RPS $(tr -d "[:space:]" < /sys/class/net/eno1np0/queues/rx-0/rps_cpus); echo XPS $(tr -d "[:space:]" < /sys/class/net/eno1np0/queues/tx-0/xps_cpus); for n in /sys/class/net/eno1np0/device/msi_irqs/*; do i=$(basename "$n"); printf "ENO1 %s %s %s\n" "$i" "$(tr -d "[:space:]" < /proc/irq/$i/smp_affinity_list)" "$(tr -d "[:space:]" < /proc/irq/$i/effective_affinity_list)"; done'
 ```
 
-Expect `HOST johnny`, `KERNEL 7.0.0-42-generic`, `eno1np0` still up with `PROMISC` and `NOARP`, `eno2np1` without the admin `UP` flag, `eno3` still `192.168.50.152`, the default route still `dev eno3`, tuning `active enabled`, the IRQ unit `active enabled`. Each `ENO1` line's mask is one of `1`, `2`, `3`, `4`. None of those masks is `0` or a list that contains `0`. `RPS` and `XPS` are whatever they were. This verify does not write them.
+Expect `HOST johnny`, `KERNEL 7.0.0-42-generic`, `eno1np0` still up with `PROMISC` and `NOARP`, `eno2np1` without the admin `UP` flag, `eno3` still `192.168.50.152`, the default route still `dev eno3`, tuning `active enabled`, the IRQ unit `active enabled`. Each `ENO1` line whose `/proc/irq` file exists has a mask of one of `1`, `2`, `3`, `4`. None of those masks is `0` or a list that contains `0`. `RPS` and `XPS` are whatever they were. This command does not write them.
+
+`IRQ-HELD` in the paste log is the same kind of read, done 12 seconds after the pin, inside the paste. `STEP13-IRQ-DONE` after an active `irqbalance` means that read still matched. A mask outside `1`–`4` means the hold did not stick. The paste should have printed `STOP-irq-held` and reverted instead of `STEP13-IRQ-DONE`. An `ENO1` line that errors because `/proc/irq` is missing is an allocated vector the driver did not request. The paste treats that on `eno1np0` as `STOP-eno1-unrequested` before it writes.
 
 ## Rollback
 
@@ -190,6 +196,8 @@ The script prints the specific `STOP-*` line and exits non-zero. After a change,
 | `STOP-eno2-up` / `STOP-eno2-same-pci` / `STOP-eno2-irq-moved` | `eno2np1` is up, shares a PCI device, or its mask changed. |
 | `STOP-eno3-addr` / `STOP-eno3-route` / `STOP-eno3-down` | Management link is not the reserved address and route. |
 | `STOP-xdp-present` | An XDP program is attached. The script does not detach it. |
+| `STOP-eno1-unrequested` | An `eno1np0` MSI vector has no `/proc/irq` entry. No mask write. |
+| `STOP-irq-held` | After the 12 second wait, an `eno1np0` mask is not the chosen CPU. The script does not write it back. |
 | `STOP-affinity-ro` | Userspace cannot write the mask. No unit install and no `irqbalance` edit. |
 | `STOP-irqbalance-env` / `STOP-irqbalance-args` / `STOP-irqbalance-banned` / `STOP-irqbalance-state` / `STOP-irqbalance-unknown` | The unit is not the Debian shape, or another ban is already set, or a stray daemon is running. |
 | `STOP-effective` / `STOP-queues-changed` / `STOP-lockdown` | The pin did not land, RPS/XPS or the queue count moved, or lockdown changed. |

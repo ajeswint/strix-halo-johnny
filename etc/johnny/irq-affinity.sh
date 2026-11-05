@@ -393,9 +393,16 @@ collect_eno1_map() {
       printf '%s\n' "$irq"
       return 1
     fi
+    if [ ! -e "/proc/irq/${irq}/smp_affinity_list" ]; then
+      echo "STOP-eno1-unrequested $irq"
+      return 1
+    fi
     if ! name=$(irq_name_from_file "$irq" /proc/interrupts); then
       echo "STOP-irq-name $irq"
       return 1
+    fi
+    if [[ ! $name =~ ^eno1np0-(TxRx|rx|tx)-[0-9]+$ ]]; then
+      echo "NOTE-irq-fallback $irq $name"
     fi
     if foreign_irq_name "$name"; then
       echo "STOP-irq-foreign $irq $name"
@@ -522,31 +529,60 @@ restore_snapshot() {
   return "$rc"
 }
 
+# Snap lines are irq|mask|name. The separator is not IFS whitespace, so an
+# empty mask stays an empty field. Tab would collapse "irq\t\tname".
+split_snap() {
+  local line=$1
+  local irq list name
+  IFS='|' read -r irq list name <<<"$line"
+  printf '%s\n' "$irq" "$list" "$name"
+}
+
 snapshot_eno2() {
-  local irq name list
+  local irq name list n=0
   : > "$1"
   while read -r irq; do
     if [[ $irq == STOP-* ]]; then
       printf '%s\n' "$irq"
       return 1
     fi
-    name=$(irq_name_from_file "$irq" /proc/interrupts || echo NONAME)
+    if [ ! -e "/proc/irq/${irq}/smp_affinity_list" ]; then
+      echo "NOTE-eno2-unrequested $irq"
+      continue
+    fi
+    if ! name=$(irq_name_from_file "$irq" /proc/interrupts); then
+      name=NONAME
+    fi
     list=$(read_affinity "$irq")
-    printf '%s\t%s\t%s\n' "$irq" "$list" "$name" >> "$1"
+    if [ -z "$list" ]; then
+      echo "NOTE-eno2-unrequested $irq"
+      continue
+    fi
+    printf '%s|%s|%s\n' "$irq" "$list" "$name" >> "$1"
+    n=$((n + 1))
   done < <(list_msi eno2np1 | sort -n)
+  if [ "$n" -eq 0 ]; then
+    echo NOTE-eno2-no-proc
+  fi
+  return 0
 }
 
 eno2_unchanged() {
   local file=$1 irq list name now
-  while IFS=$'\t' read -r irq list name; do
-    [ -n "$irq" ] || continue
+  if [ ! -s "$file" ]; then
+    echo NOTE-eno2-no-proc
+    echo ENO2-IRQ-UNCHANGED
+    return 0
+  fi
+  while IFS='|' read -r irq list name || [ -n "${irq:-}" ]; do
+    [ -n "${irq:-}" ] || continue
     if [ ! -e "/proc/irq/${irq}/smp_affinity_list" ]; then
       echo "STOP-eno2-irq-gone $irq"
       return 1
     fi
     now=$(read_affinity "$irq")
     if [ "$now" != "$list" ]; then
-      echo "STOP-eno2-irq-moved $irq $name $list $now"
+      echo "STOP-eno2-irq-moved $irq ${name:-NONAME} $list $now"
       return 1
     fi
   done < "$file"

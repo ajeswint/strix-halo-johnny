@@ -6,7 +6,9 @@
 # SIGHUP and SIGPIPE are ignored so a dropped SSH session still rolls back.
 # A failed run that changed the box runs /root/step13-revert.sh before it exits.
 # A rerun that changes nothing and then fails leaves the previous config
-# (CONFIG-KEPT). After STEP13-IRQ-DONE, do not rerun unless that rollback
+# (CONFIG-KEPT) when that config is already installed. A first run that
+# stops before a change prints NO-CHANGE. After STEP13-IRQ-DONE, do not
+# rerun unless that rollback
 # is acceptable: a rerun that has to change a file and then fails rolls
 # back to the first-run affinity save.
 
@@ -15,10 +17,10 @@ HELPER_SRC=$AUDIT/irq-affinity.sh
 POLICY_SRC=$AUDIT/irqbalance-policy.sh
 UNIT_SRC=$AUDIT/johnny-capture-irq.service
 REVERT_SRC=$AUDIT/step-13-revert.sh
-HELPER_SHA256=376732d65270d5f1f35247c319a1b535f05b6a931bde7e7bbe1d976aa1e0dcdc
+HELPER_SHA256=77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e
 POLICY_SHA256=7a3eeb944be0ee60ba94099b3ae4da3c905c941003c5c50221921032a9ffb0a8
 UNIT_SHA256=9df4969fbb8e9000c13d409cc1788846ca9b1acf06275fd7336eb616cd6bb355
-REVERT_SHA256=3e3f995358c5f33303728db827861f9c6f629f43db41405e2df0ccfc70a3718e
+REVERT_SHA256=c9dd1522e278bc3bad3a711a4fdcd18b1b768d9da19dff07376a5db7dfa4cc1d
 POLICY_ARG=--policyscript=/etc/johnny/irqbalance-policy.sh
 DEFAULT=/etc/default/irqbalance
 IRQ_BAK=/var/lib/johnny/irqbalance.default.pre-step13
@@ -144,12 +146,17 @@ main() {
     exit 1
   fi
   export JOHNNY_STEP13_LOCKED=1
+  if [ -f /root/step13-apply.log ]; then
+    mv -f /root/step13-apply.log /root/step13-apply.log.1
+  fi
   exec > >(tee /root/step13-apply.log) 2>&1
 
   set -eEuo pipefail
   this_run_changed=0
   failed=0
   revert_ready=0
+  UNIT_TMP=
+  ENO2SNAP=
 
   # Invoked by the EXIT trap, which shellcheck cannot see.
   # shellcheck disable=SC2317
@@ -172,8 +179,13 @@ main() {
         echo STOP-revert-failed || true
       fi
     elif [ "${failed:-0}" -eq 1 ] && [ "${revert_ready:-0}" -eq 1 ] && [ "${this_run_changed:-0}" -eq 0 ]; then
-      echo CONFIG-KEPT || true
+      if [ -f /etc/johnny/irq-affinity.sh ] || [ -f /var/lib/johnny/irq-affinity-before.tsv ] || [ -f /etc/systemd/system/johnny-capture-irq.service ]; then
+        echo CONFIG-KEPT || true
+      else
+        echo NO-CHANGE || true
+      fi
     fi
+    rm -f "${UNIT_TMP:-}" "${ENO2SNAP:-}" || true
     exit "$rc"
   }
   # shellcheck disable=SC2317
@@ -203,6 +215,10 @@ main() {
     fi
   done
 
+  # This file cannot store its own sha256: the digest covers the constants
+  # below. sha_ok checks the helper, policyscript, unit, and revert copies
+  # in cis-audit before source. The runbook table lists this file's full
+  # sha256. The self-test compares that table to the repo file.
   sha_ok "$HELPER_SRC" "$HELPER_SHA256" || die "STOP-hash $HELPER_SRC"
   sha_ok "$POLICY_SRC" "$POLICY_SHA256" || die "STOP-hash $POLICY_SRC"
   sha_ok "$UNIT_SRC" "$UNIT_SHA256" || die "STOP-hash $UNIT_SRC"
@@ -232,17 +248,18 @@ main() {
 
   local irq_state=missing
   local env_tmp env_last
-  if ! systemctl cat irqbalance.service >/tmp/step13-irqbalance.unit 2>/dev/null; then
+  UNIT_TMP=$(mktemp /root/step13-irqbalance.unit.XXXXXX)
+  if ! systemctl cat irqbalance.service >"$UNIT_TMP" 2>/dev/null; then
     if pgrep -x irqbalance >/dev/null 2>&1; then
       die STOP-irqbalance-unknown
     fi
     echo NOTE-no-irqbalance
     irq_state=missing
   else
-    if unit_interest_lines /tmp/step13-irqbalance.unit | grep -q '^STOP-irqbalance-env$'; then
+    if unit_interest_lines "$UNIT_TMP" | grep -q '^STOP-irqbalance-env$'; then
       die STOP-irqbalance-env
     fi
-    env_last=$(unit_interest_lines /tmp/step13-irqbalance.unit | awk 'END{print}')
+    env_last=$(unit_interest_lines "$UNIT_TMP" | awk 'END{print}')
     if [ "$env_last" != "$DEFAULT" ]; then
       echo "STOP-irqbalance-env ${env_last:-none}"
       die STOP-irqbalance-env
@@ -273,11 +290,11 @@ main() {
   revert_ready=1
   echo REVERT-READY
 
-  local qbefore eno2snap
+  local qbefore
   qbefore=$(snapshot_queues QUEUES)
   printf '%s\n' "$qbefore"
-  eno2snap=$(mktemp /var/lib/johnny/step13-eno2-pre.XXXXXX)
-  snapshot_eno2 "$eno2snap" || die STOP-eno2-snap
+  ENO2SNAP=$(mktemp /var/lib/johnny/step13-eno2-pre.XXXXXX)
+  snapshot_eno2 "$ENO2SNAP" || die STOP-eno2-snap
 
   prepare_map || die STOP-map
   local i
@@ -289,12 +306,17 @@ main() {
   if [ ! -f "$BEFORE" ]; then
     : > "$BEFORE"
     for i in "${!ENO1_IRQS[@]}"; do
-      printf '%s\t%s\n' "${ENO1_IRQS[$i]}" "$(read_affinity "${ENO1_IRQS[$i]}")" >> "$BEFORE"
+      if [ ! -e "/proc/irq/${ENO1_IRQS[$i]}/smp_affinity_list" ]; then
+        echo "NOTE-eno1-unrequested ${ENO1_IRQS[$i]}"
+        continue
+      fi
+      printf '%s|%s|%s\n' "${ENO1_IRQS[$i]}" "$(read_affinity "${ENO1_IRQS[$i]}")" "${ENO1_NAMES[$i]}" >> "$BEFORE"
     done
-    while IFS=$'\t' read -r irq list _name; do
+    while IFS='|' read -r irq list name || [ -n "${irq:-}" ]; do
       [ -n "${irq:-}" ] || continue
-      printf '%s\t%s\n' "$irq" "$list" >> "$BEFORE"
-    done < "$eno2snap"
+      [ -n "$list" ] || continue
+      printf '%s|%s|%s\n' "$irq" "$list" "${name:-NONAME}" >> "$BEFORE"
+    done < "$ENO2SNAP"
     chmod 0644 "$BEFORE"
     echo AFFINITY-BACKUP
     mark_changed
@@ -386,7 +408,7 @@ main() {
 
   /etc/johnny/irq-affinity.sh apply
 
-  eno2_unchanged "$eno2snap" || die STOP-eno2-irq-moved
+  eno2_unchanged "$ENO2SNAP" || die STOP-eno2-irq-moved
   eno3_ok || die STOP-eno3
   local qafter
   qafter=$(snapshot_queues QUEUES)
@@ -395,8 +417,20 @@ main() {
   if [ "$irq_state" = active ]; then
     echo IRQBALANCE-WAIT 12
     sleep 12
-    /etc/johnny/irq-affinity.sh apply
-    eno2_unchanged "$eno2snap" || die STOP-eno2-irq-moved
+    if [ "${#ENO1_IRQS[@]}" -lt 1 ]; then
+      die STOP-irq-held-empty
+    fi
+    if map_needs_write; then
+      local held_i held_got
+      for held_i in "${!ENO1_IRQS[@]}"; do
+        held_got=$(read_affinity "${ENO1_IRQS[$held_i]}")
+        if ! affinity_is_cpu "$held_got" "${ENO1_CPUS[$held_i]}"; then
+          echo "STOP-irq-held ${ENO1_IRQS[$held_i]} ${ENO1_NAMES[$held_i]} want ${ENO1_CPUS[$held_i]} got ${held_got}"
+        fi
+      done
+      die STOP-irq-held
+    fi
+    eno2_unchanged "$ENO2SNAP" || die STOP-eno2-irq-moved
     eno3_ok || die STOP-eno3
     qafter=$(snapshot_queues QUEUES)
     queues_unchanged "$qbefore" "$qafter" || die STOP-queues-changed
@@ -412,7 +446,6 @@ main() {
     fi
     echo LOCKDOWN-UNCHANGED
   fi
-  rm -f "$eno2snap" /tmp/step13-irqbalance.unit
   echo ENO3-OK
   echo CPU0-CLEAR
   if [ "$this_run_changed" -eq 0 ]; then
