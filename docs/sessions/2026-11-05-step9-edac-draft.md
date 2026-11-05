@@ -19,3 +19,9 @@ On a host whose short name is not `johnny`, the main paste printed `STOP-host` a
 A copy of the main paste with the host and kernel gates opened, writing under `/tmp`, printed `STEP9-DONE`, `ECC-UNAVAILABLE`, and `NOTE-no-mc`. That host is not Johnny. A copy of the optional paste with those gates opened printed `STOP-no-aj` here, because this VM has no account `aj`. The same copy, with the account check pointed at the local user, printed `STOP-no-probe` when the summary was missing. When the summary already contained `STEP9-DONE`, it appended one `LOGS-DONE` and `chown`ed the files to that user. A second run printed `STOP-logs-already` and did not append again.
 
 That check did not read Johnny's sysfs and did not load a module.
+
+## Nits (same draft, before closeout)
+
+Claude's six non-blocking nits are in the runbook. `ECC-UNAVAILABLE` is labeled as the 2026-10-28 DIMM record restated, and it is not a pass test. The seated stick is not a side-band ECC DIMM. IBECC is not evaluated. `NOTE-mc-present` with `ECC-UNAVAILABLE` is not always a conflict. The optional paste requires `NOTE-dmesg-denied` or `NOTE-journal-denied` (`STOP-no-denial`). `NOTE-dmesg-denied` is the empty-match plus stderr case. The sysfs `head -c` read uses `|| true`. The Johnny paste is one fenced block. The SSH command stays prose.
+
+`bash -n` on both pastes exited 0 after those edits. A summary with only `STEP9-DONE` made the optional paste print `STOP-no-denial`. Adding `NOTE-dmesg-denied` allowed one `LOGS-DONE`. A second run printed `STOP-logs-already`.

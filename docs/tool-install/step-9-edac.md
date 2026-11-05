@@ -2,7 +2,7 @@
 
 Drafted 2026-11-05 ~12:06 CT. Nothing in this step has run on Johnny, on rock-box, or on ABLETON_BOX. Grok 4.7 wrote the paste. Claude reviews and does not edit.
 
-Johnny has one DDR5 module, and that module is non-ECC. This step records what the kernel exposes for EDAC and states that ECC correction is unavailable on the installed stick. It does not change BIOS, RAM, modules, or sysfs.
+Johnny has one DDR5 module. The 2026-10-28 record says that module is non-ECC, which means no side-band ECC DIMM. This step records what the kernel exposes for EDAC. The paste restates that record as `ECC-UNAVAILABLE`. That line is not a measurement from sysfs. This step does not evaluate IBECC. It does not change BIOS, RAM, modules, or sysfs.
 
 ## Machines
 
@@ -21,7 +21,7 @@ On Johnny, as `aj`, with no sudo in the main paste:
 - List the EDAC modules the running kernel has on disk, and which of those are loaded.
 - List `/sys/devices/system/edac` if it exists: `mc*`, and any `csrow*`, `dimm*`, or `rank*` directories under it.
 - Read kernel-log lines that mention EDAC or ECC when `aj` is allowed to. If `dmesg` or `journalctl -k` is denied, record that. Do not start sudo from the main paste.
-- Print `ECC-UNAVAILABLE` from the DIMM record below, and `STEP9-DONE` when the read finishes.
+- Print `DIMM-RECORD` and `ECC-UNAVAILABLE` to restate the 2026-10-28 record, then `STEP9-DONE` when the read finishes. `ECC-UNAVAILABLE` is that restatement. It is not a probe measurement.
 
 Wall time is a few seconds. There is no soak.
 
@@ -31,7 +31,7 @@ Wall time is a few seconds. There is no soak.
 
 AJ's `sudo dmidecode -t memory` on 2026-10-28 printed one module: `CT32G56C46S5` (a 5600 part), running at 4800 MT/s, no ECC, single channel (`docs/sessions/Johnny_OS_Session_Log_2026-10-28.csv`). The handoff still says 1× 32GB DDR5 non-ECC. BIOS RAM speed 4800 MT/s is the board maximum and is closed. The parked ECC purchase (2× Kingston `KSM56T46BD8KM-48HM`) has not been bought or seated in this step.
 
-`ECC-UNAVAILABLE` means that installed module does not provide ECC correction. An empty EDAC tree is consistent with that. An empty tree is also what a missing driver looks like, so the paste records the two facts on separate lines (`ECC-UNAVAILABLE` and `NOTE-no-mc` or `NOTE-mc-present`). It does not treat a missing `mc*` directory as the proof of the DIMM type.
+`ECC-UNAVAILABLE` restates that 2026-10-28 record: no side-band ECC DIMM. The probe does not measure it. An empty EDAC tree is recorded separately (`NOTE-no-mc` or `NOTE-mc-present`). A missing `mc*` directory is not the proof of the DIMM type. IBECC is not evaluated: the paste does not load `igen6_edac` and does not read an IBECC activate bit. `NOTE-mc-present` together with `ECC-UNAVAILABLE` is not always a conflict. The first is a driver registration, if one appears. The second is the old DIMM record.
 
 ## Sysfs layout
 
@@ -64,7 +64,7 @@ The admin guide's example `modprobe amd76x_edac` is not a Johnny command. This s
 
 Ubuntu resolute's `7.0.0-42.42` annotations build these as modules on amd64: `CONFIG_EDAC_IGEN6`, `CONFIG_EDAC_IE31200`, `CONFIG_EDAC_I10NM`, `CONFIG_EDAC_SKX`. `CONFIG_EDAC_SUPPORT` is `y`. `CONFIG_EDAC_DEBUG` is `n` ([annotations](https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute/plain/debian.master/config/annotations?h=Ubuntu-7.0.0-42.42)). **[Assumption]** The installed `linux-modules` package matches that policy. The paste lists the `.ko` files with `modinfo -n` and does not trust the annotation alone.
 
-`igen6_edac` in that Ubuntu tag is the in-band ECC (IBECC) client driver. Its header says IBECC is what a controller uses when it does not support out-of-band ECC. The Arrow Lake IDs in that file are the U/H compute dies `0x7d06`, `0x7d20`, and `0x7d30`. If IBECC is off on a device the driver did bind, it prints `MC%d In-Band ECC is disabled` and returns `-ENODEV` ([`igen6_edac.c` at `Ubuntu-7.0.0-42.42`](https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute/plain/drivers/edac/igen6_edac.c?h=Ubuntu-7.0.0-42.42)).
+`igen6_edac` in that Ubuntu tag is the in-band ECC (IBECC) client driver. Its header says IBECC is what a controller uses when it does not support out-of-band ECC. The Arrow Lake IDs in that file are the U/H compute dies `0x7d06`, `0x7d20`, and `0x7d30`. If IBECC is off on a device the driver did bind, it prints `MC%d In-Band ECC is disabled` and returns `-ENODEV` ([`igen6_edac.c` at `Ubuntu-7.0.0-42.42`](https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute/plain/drivers/edac/igen6_edac.c?h=Ubuntu-7.0.0-42.42)). Johnny has no side-band ECC DIMM seated. This paste does not evaluate IBECC.
 
 `ie31200_edac` in that tag is the older client out-of-band driver. Its newest HX ID there is Raptor Lake-HX `0xa702` (the comment says i9-13950HX). A search of that file for `7d1c`, `7d2d`, and `Arrow Lake` found none ([`ie31200_edac.c` at `Ubuntu-7.0.0-42.42`](https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute/plain/drivers/edac/ie31200_edac.c?h=Ubuntu-7.0.0-42.42)).
 
@@ -80,21 +80,26 @@ The paste passes when it prints `STEP9-DONE`. That line is printed only when all
 
 1. The shell is not root (`id -u` is not 0).
 2. `hostname --short` is `johnny` and `uname -r` is `7.0.0-42-generic`.
-3. The module list, host-bridge list, and EDAC sysfs dump were written under `/home/aj/cis-audit/step9-edac/`.
-4. The summary contains `ECC-UNAVAILABLE` and `DIMM-RECORD CT32G56C46S5 non-ECC single-channel 2026-10-28`.
+3. The shell user is `aj`.
+4. The module list, host-bridge list, and EDAC sysfs dump were written under `/home/aj/cis-audit/step9-edac/`.
+
+`ECC-UNAVAILABLE` and `DIMM-RECORD CT32G56C46S5 non-ECC single-channel 2026-10-28` are printed by the script from that fixed record. They are not a pass test. Requiring them as proof would be a tautology: the script writes the same string on every successful run.
 
 These are recorded and do not withhold `STEP9-DONE`:
 
 - `NOTE-no-mc` (no `mc*` directory). Expected on this stick.
-- `NOTE-mc-present`. Unexpected. Bring the summary back. Do not clear it by writing `reset_counters`, and do not load a module to "explain" it.
+- `NOTE-mc-present`. A controller directory is present. Bring the summary back. Do not clear it by writing `reset_counters`, and do not load a module. Paired with `ECC-UNAVAILABLE`, it is not always a conflict.
 - `NOTE-no-alias` for `igen6_edac` and `ie31200_edac`. A driver-table gap, not a failed paste.
 - `NOTE-no-alias-file`. `modinfo` found no module file. On 7.0.0-42 the annotations say those drivers are modules, so this line is a finding to bring back.
-- `NOTE-dmesg-denied` or `NOTE-journal-denied`. The optional log paste below is only for those notes.
-- `NOTE-dmesg-stderr` or `NOTE-journal-stderr`. The read returned lines, or an empty match file, and the command also wrote on stderr. The stderr file stays in the log directory.
+- `NOTE-dmesg-denied`. `dmesg` wrote stderr and the match file is empty. That is the denial (`Operation not permitted` when `dmesg_restrict` is 1).
+- `NOTE-dmesg-stderr`. `dmesg` produced matching lines and also wrote stderr. An empty match file with stderr is `NOTE-dmesg-denied`, not this line.
+- `NOTE-journal-denied`. The journal hint or a permission error, and the match file is empty.
+- `NOTE-journal-stderr`. The journal read produced matching lines, or an empty match file that was not a denial, and stderr was non-empty.
+- `NOTE-dmesg-denied` or `NOTE-journal-denied` is the only reason to run the optional log paste. The optional paste stops with `STOP-no-denial` when neither line is in the summary.
 - `DMESG-EDAC-LINES 0` and `JOURNAL-EDAC-LINES 0` when the read was allowed and nothing matched.
 - `MCE-DIR present`. Normal on this CPU. Not ECC.
 
-`NOTE-mc-present` together with `ECC-UNAVAILABLE` is a conflict to read, not a license to change BIOS.
+`NOTE-mc-present` together with `ECC-UNAVAILABLE` is not always a conflict. `ECC-UNAVAILABLE` restates the 2026-10-28 record (no side-band ECC DIMM). `NOTE-mc-present` would mean a driver registered a controller. This probe does not evaluate IBECC, so that pair does not say the DIMM record is wrong and does not say IBECC is on. Bring the summary back. Do not change BIOS from this step.
 
 ## What this step does not do
 
@@ -118,8 +123,8 @@ After that later boot, run this same read-only paste. Do not load a module by ha
 - `MC-DIRS` greater than 0, with `dimm*` or `rank*` under it, means a driver registered a controller. Read `dimm_edac_mode`, `ce_count`, and `ue_count`. A non-zero `ce_count` is a stick to watch. A non-zero `ue_count` is an uncorrected error. This step does not set a threshold and does not turn on `panic_on_ue`.
 - `NOTE-no-mc` on a machine that was built with ECC DIMMs is a stop for that image. On today's Johnny it is the expected corroboration of the non-ECC stick, not a stop.
 - `NOTE-no-alias` for both `igen6_edac` and `ie31200_edac`, after an ECC install, still with `NOTE-no-mc`, means the 7.0.0-42 tables do not name that host bridge. Record the `HB` line. Do not build or load an out-of-tree EDAC module in this step. Kernel lockdown is on. An out-of-tree module would be a later choice AJ makes, with a MOK, in its own step.
-- `igen6_edac`'s `In-Band ECC is disabled` line, if it shows up in the log after a bind, means the driver saw the device and IBECC was off. That is a BIOS or DIMM fact to record. It is not a cue to flip a BIOS switch from this runbook.
-- Do not enable an ECC BIOS item on a non-ECC stick. This draft does not describe that item and does not ask AJ to look for it.
+- `igen6_edac`'s `In-Band ECC is disabled` line, if it shows up in a later log after a bind, means the driver saw the device and IBECC was off. Today's paste does not evaluate IBECC and does not load that module, so that line is not a result of this step.
+- Do not enable an ECC BIOS item on the seated non-ECC stick. This draft does not describe that item and does not ask AJ to look for it.
 - ABLETON_BOX stays out of this note. rock-box stays out of this note.
 
 ## Logs and sudo
@@ -130,7 +135,7 @@ Directory on Johnny: `/home/aj/cis-audit/step9-edac`. If that path already exist
 
 **[Assumption]** `aj` may be in group `adm` or `systemd-journal`, in which case `journalctl -k` works without sudo while `dmesg` still fails. The paste records `GROUPS` and the journal result separately. If the journal hint says the user is not seeing system messages, the line is `NOTE-journal-denied`.
 
-The optional sudo paste is only for `NOTE-dmesg-denied` or `NOTE-journal-denied`. Skip it when both reads already produced `DMESG-EDAC-LINES` and `JOURNAL-EDAC-LINES`. It is not required for `STEP9-DONE`.
+The optional sudo paste runs only when the summary already has `STEP9-DONE` and at least one of `NOTE-dmesg-denied` or `NOTE-journal-denied`. The paste itself checks those lines and stops with `STOP-no-denial` otherwise. It is not required for `STEP9-DONE`.
 
 | File | Contents |
 |---|---|
@@ -148,13 +153,7 @@ Do not commit the raw files. The apply session, after AJ runs the paste, puts `s
 
 ## Paste on Johnny
 
-One block, in an SSH session from rock-box. It does not prompt for a password.
-
-```bash
-ssh -o ServerAliveInterval=30 aj@192.168.50.152
-```
-
-Then, on Johnny:
+From rock-box, open one SSH session to Johnny with `ssh -o ServerAliveInterval=30 aj@192.168.50.152`. On Johnny, as `aj`, paste the one block below. It does not prompt for a password.
 
 ```bash
 bash <<'EOF'
@@ -287,7 +286,7 @@ else
     if [ -d "$p" ]; then
       printf 'DIR %s\n' "$p"
     elif [ -f "$p" ] && [ ! -L "$p" ] && [ -r "$p" ]; then
-      val=$(head -c 256 "$p" | tr '\n' ' ')
+      val=$(head -c 256 "$p" | tr '\n' ' ' || true)
       printf 'FILE %s %s\n' "$p" "$val"
     else
       printf 'SKIP %s\n' "$p"
@@ -364,6 +363,7 @@ else
   fi
 fi
 
+# Restates the 2026-10-28 dmidecode record. Not a sysfs measurement.
 note "DIMM-RECORD CT32G56C46S5 non-ECC single-channel 2026-10-28"
 note ECC-UNAVAILABLE
 note STEP9-DONE
@@ -399,6 +399,10 @@ fi
 OUT=/home/aj/cis-audit/step9-edac
 if [ ! -f "$OUT/summary.txt" ] || ! grep -qx 'STEP9-DONE' "$OUT/summary.txt"; then
   printf '%s\n' STOP-no-probe
+  exit 1
+fi
+if ! grep -Eq '^(NOTE-dmesg-denied|NOTE-journal-denied)$' "$OUT/summary.txt"; then
+  printf '%s\n' STOP-no-denial
   exit 1
 fi
 if grep -qx 'LOGS-DONE' "$OUT/summary.txt"; then
@@ -442,9 +446,10 @@ EOF
 | `STOP-user` | The main paste is not running as `aj`. |
 | `STOP-no-aj` | The optional paste cannot see account `aj`, so it will not append or `chown`. |
 | `STOP-no-probe` | The optional sudo paste ran before `STEP9-DONE` existed. |
+| `STOP-no-denial` | The summary has `STEP9-DONE` and has neither `NOTE-dmesg-denied` nor `NOTE-journal-denied`. Do not read the kernel log with sudo. |
 | `STOP-logs-already` | `LOGS-DONE` is already in the summary. Do not append a second log pass. |
 | `NOTE-chown-failed` | `LOGS-DONE` was written, then `chown` to `aj` failed. Do not run the optional paste again. |
-| `STEP9-DONE` | The unprivileged probe finished. ECC on the installed stick is recorded unavailable. |
+| `STEP9-DONE` | The unprivileged probe finished. `ECC-UNAVAILABLE` just above it restates the 2026-10-28 DIMM record. It is not a measurement from this probe. |
 | `LOGS-DONE` | The optional sudo log read finished. Not required for the pass. |
 
 `NOTE-no-mc`, `NOTE-mc-present`, `NOTE-no-alias`, `NOTE-dmesg-denied`, and `NOTE-journal-denied` are findings. They still allow `STEP9-DONE`.
