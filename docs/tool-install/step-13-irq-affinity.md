@@ -121,7 +121,7 @@ The paste summary AJ handed over is condensed (it has `NOTE-` ranges, not every 
 | Johnny path | sha256 |
 |---|---|
 | `/etc/johnny/irq-affinity.sh` | `29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530` (NEW; was `77b899e3…`) |
-| `/etc/systemd/system/johnny-capture-irq.service` | `03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a` (NEW; has `Wants=network-online.target`; was `9df4969f…`) |
+| `/etc/systemd/system/johnny-capture-irq.service` | `03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a` (13b blob, has `Wants=network-online.target` and the ordering cycle; was `9df4969f…`; superseded in repo by the cycle fix) |
 | `/home/aj/cis-audit/step-13b-name-match.sh` | `da03abac57ac277917ef9b82e3805e885ac19f9b8d2922c635f882b0fb85ee2c` (the `bf89820` script; the repo script has changed since, see below) |
 | `/var/lib/johnny/step13b-prev/irq-affinity.sh` | `77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e` (c765e01 helper, as expected) |
 | `/var/lib/johnny/step13b-prev/johnny-capture-irq.service` | `9df4969fbb8e9000c13d409cc1788846ca9b1acf06275fd7336eb616cd6bb355` (c765e01 unit, as expected) |
@@ -139,23 +139,17 @@ The unit is still `inactive` / enabled: 13b ran `daemon-reload` only and never s
 | 5 queue count and logs | `STOP-queue-count` unless 12; `STOP-spread-sum`; one `step13b-apply-<UTC>.log` per run |
 | 6 first reboot is the test for `Wants=` | post-reboot checks below, and the handoff |
 
-### After the next reboot
+### After the first reboot (found a problem)
 
-Johnny has not rebooted since the apply. The new `Wants=network-online.target` and the helper at boot have not run under systemd. After the next reboot, read-only, from rock-box:
-
-```bash
-ssh aj@192.168.50.152 'systemctl is-active johnny-capture-irq.service; systemd-analyze critical-chain johnny-capture-irq.service; systemd-analyze blame | grep -i -E "wait-online|johnny-capture"; for i in $(seq 187 201) $(seq 217 229); do printf "%s %s %s\n" "$i" "$(awk -v n="$i:" "\$1==n{print \$NF}" /proc/interrupts)" "$(tr -d "[:space:]" < /proc/irq/$i/smp_affinity_list)"; done'
-```
-
-**[Assumption]** Expect `active` for the oneshot, the chain showing `network-online.target` before it, and no long `systemd-networkd-wait-online` (it could wait on `eno1np0` or `eno2np1` depending on netplan, which this seat did not read). IRQs 189–200 on `1 2 3 4 1 2 3 4 1 2 3 4`, 187/188/201 on `1`. IRQ numbers can change across a boot, so match by name, not number, if the awk names differ. The irdma vectors are not pinned by the helper and will be wherever the kernel puts them (`0-23` was the first-run state). This block was not run.
+Johnny rebooted 2026-11-05 23:10:49 UTC (~17:10 CT). `johnny-capture-irq.service` did not run: see **Ordering cycle** below. This was found by AJ's paste (journal lines quoted there); this seat did not read Johnny after that. **Johnny is not fixed** until AJ runs the unit-only paste and it prints `STEP13B-IRQ-UNIT-CYCLE-FIXED`; a reboot after that is the real proof.
 
 ### Files
 
 | Path on Johnny | Repo mirror | Mode | sha256 |
 |---|---|---|---|
 | `/etc/johnny/irq-affinity.sh` | `etc/johnny/irq-affinity.sh` | 0755 | new: `29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530`. Old live: `77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e` |
-| `/etc/systemd/system/johnny-capture-irq.service` | `etc/systemd/system/johnny-capture-irq.service` | 0644 | new: `03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a` (adds `Wants=network-online.target`). Old live: `9df4969fbb8e9000c13d409cc1788846ca9b1acf06275fd7336eb616cd6bb355` |
-| `/home/aj/cis-audit/step-13b-name-match.sh` | `docs/tool-install/step-13b-name-match.sh` | 0755 | repo tip (post-nits, empty-spec fail-safe): `ce751fd2103d0c6c66effa717fd52c1718cf1cb07f5acf48529e21f5d2fe002a`. Applied on Johnny from `bf89820`: `da03abac57ac277917ef9b82e3805e885ac19f9b8d2922c635f882b0fb85ee2c` (the copy in `/home/aj/cis-audit/` is that one) |
+| `/etc/systemd/system/johnny-capture-irq.service` | `etc/systemd/system/johnny-capture-irq.service` | 0644 | **repo now `a191cdbb7a2391ba8e8b91b3dd36235b0a344799d948a6db74d27ad21958953a`** (cycle fix, `After=` has no `johnny-capture-tuning.service`; see Ordering cycle). Live now `03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a` (13b, has the cycle). Older live: `9df4969fbb8e9000c13d409cc1788846ca9b1acf06275fd7336eb616cd6bb355` |
+| `/home/aj/cis-audit/step-13b-name-match.sh` | `docs/tool-install/step-13b-name-match.sh` | 0755 | repo tip (post-nits, empty-spec fail-safe; header now says do not re-run, `UNIT_NEW_SHA256` is the cycle-fix unit): `901d2e4bbbae2b64bc11f35b533c4911715d0bf12846dd5dc82c07656f846ae0`. Applied on Johnny from `bf89820`: `da03abac57ac277917ef9b82e3805e885ac19f9b8d2922c635f882b0fb85ee2c` (the copy in `/home/aj/cis-audit/` is that one) |
 
 The 13b script cannot store its own hash. The row above is the full-file digest and the self-test compares it. The post-nits change touched only the 13b script and the self-test. The helper and unit hashes are unchanged.
 
@@ -167,33 +161,7 @@ The 13b script cannot store its own hash. The row above is the full-file digest 
 
 ### Paste
 
-**Applied once, from tip `bf89820`. Not needed again.** The block below is the post-nits form, for a re-run only (for example if a reboot shows a problem and AJ asks for one). It has had no apply run and needs a fresh review first.
-
-On rock-box. One block, chained with `&&`. Before any `scp` it stops unless the checkout has no uncommitted change under `docs/tool-install` or `etc`, and the four files (13b script, self-test, helper, unit) hash to the values in this runbook (a stale or edited checkout cannot pass, because the hashes are in this paste text, not read from the checkout). It prints the checkout tip so AJ can compare it with the PR head. After `scp` it hashes the three staged files on Johnny again before `sudo`. `sudo -v` runs on Johnny (a rock-box `sudo -v` would refresh the wrong machine). AJ types Johnny's sudo password at that prompt.
-
-```bash
-cd /home/aj/Projects/strix-halo-johnny && \
-test -z "$(git status --porcelain -- docs/tool-install etc)" && \
-git rev-parse --short HEAD && \
-printf '%s  %s\n' \
-  ce751fd2103d0c6c66effa717fd52c1718cf1cb07f5acf48529e21f5d2fe002a docs/tool-install/step-13b-name-match.sh \
-  23c8481a8c406d6360f95d1d7c19cff2e428c3af963859df037af2c234886a28 docs/tool-install/step-13-self-test.sh \
-  29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530 etc/johnny/irq-affinity.sh \
-  03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a etc/systemd/system/johnny-capture-irq.service \
-  | sha256sum -c - && \
-bash docs/tool-install/step-13-self-test.sh && \
-ssh aj@192.168.50.152 'mkdir -p /home/aj/cis-audit' && \
-scp docs/tool-install/step-13b-name-match.sh aj@192.168.50.152:/home/aj/cis-audit/step-13b-name-match.sh && \
-scp etc/johnny/irq-affinity.sh aj@192.168.50.152:/home/aj/cis-audit/irq-affinity.sh && \
-scp etc/systemd/system/johnny-capture-irq.service aj@192.168.50.152:/home/aj/cis-audit/johnny-capture-irq.service && \
-ssh -t aj@192.168.50.152 'printf "%s  %s\n" ce751fd2103d0c6c66effa717fd52c1718cf1cb07f5acf48529e21f5d2fe002a /home/aj/cis-audit/step-13b-name-match.sh 29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530 /home/aj/cis-audit/irq-affinity.sh 03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a /home/aj/cis-audit/johnny-capture-irq.service | sha256sum -c - && sudo -v && sudo bash /home/aj/cis-audit/step-13b-name-match.sh'
-```
-
-**[Assumption]** `git status --porcelain` is empty for those two paths on a clean checkout of the PR head, and `printf` reuses its format for each hash/path pair (bash builtin behavior). The block was not run in this closeout.
-
-Success ends with `STEP13B-NAME-MATCH-DONE`. Pass lines: `STAGED-OK`, `PLAN-QUEUES 12`, `IRDMA-RESTORE-PLAN 13`, `PRE-MASKS-SAVED`, `PREV-SAVED`, `INSTALLED` for the helper and the unit, `ENTRY-SAVED`, `PIN-OK`, `IRDMA-RESTORED`, twelve `SPREAD` lines, `SPREAD-COUNT cpu1=3 cpu2=3 cpu3=3 cpu4=3`, `ENO2-IRQ-UNCHANGED`, `ENO3-OK`, `LOCKDOWN-UNCHANGED`, `ICE-CPU0-CLEAR` (not `CPU0-CLEAR`; that was the `bf89820` wording). `NOTE-irdma-skip` appears 13 times (IRQs 217–229) and `NOTE-irq-aux` three times (187, 188, 201). The 13 and the 3 are what the live name list says. A different count is a note to read, not a stop.
-
-The helper prints the same `printf: write error: Broken pipe` noise on line 28 as before. That is SIGPIPE ignored in `expand_affinity`, not a failed pin.
+**Retired.** The 13b script ran once from `bf89820` and must not be re-run: its `UNIT_OLD`/`UNIT_NEW` gate no longer matches the live unit (`03ce0ceb…`) and the repo unit has moved on. The first reboot showed an ordering cycle in that unit; the fix is the unit-only paste in **Ordering cycle** below. A full 13b re-run is not needed (helper unchanged).
 
 ### Verify
 
@@ -218,6 +186,74 @@ The sections below are the procedure AJ ran (`c765e01`), plus the later wording 
 This is the tool-install step that replaces the open item "IRQ affinity later" from step 11. Handoff Next steps item 13 stays the finished Agent team note. That bullet is not this step. There is no `docs/tool-install/step-13-*.md` before this draft, and the tool-install sequence after step 12 is 13.
 
 Ownership: Fast Path owns the capture-unit path `etc/systemd/system/johnny-capture.*` (`docs/agent-team.md` §4). `johnny-capture-irq.service` is that path. The policyscript and the one-line `IRQBALANCE_ARGS` edit are the smallest host change that keeps the pin from being undone. They are in the same paste, the same way step 11 put netplan and the tuning unit in one script. This draft does not change `docs/agent-team.md`.
+
+### Ordering cycle (found at first reboot, 2026-11-05 23:10:49Z)
+
+**Evidence (AJ's paste from Johnny).**
+
+```
+multi-user.target: Found ordering cycle: johnny-capture-irq.service/start after johnny-capture-tuning.service/start after multi-user.target/start - after johnny-capture-irq.service
+multi-user.target: Job johnny-capture-irq.service/start deleted to break ordering cycle starting with multi-user.target/start
+```
+
+Unit `inactive` (dead) / enabled, `Wants=` count 1, live unit `03ce0ceb…`, helper `29f0d0d2…`, both equal to tip `1d7c028`. IRQ pins fell back to kernel defaults (TxRx 0–11, aux 0–23) because the oneshot never ran.
+
+**Cause.** `johnny-capture-tuning.service` (step 11, applied) has `After=multi-user.target` and `WantedBy=multi-user.target`. `johnny-capture-irq.service` had `After=… johnny-capture-tuning.service` and `WantedBy=multi-user.target`. A target implicitly gets `After=` on every unit it pulls in with `Wants=`/`Requires=` (which `WantedBy=` creates) unless `DefaultDependencies=no`: https://www.freedesktop.org/software/systemd/man/latest/systemd.target.html. So `multi-user.target` is ordered after the irq unit, the irq unit is after tuning, and tuning is after `multi-user.target`: a loop, exactly as the journal prints it. systemd deleted the irq start job to break it. **[Assumption]** Tuning does not loop with the target by itself because its explicit `After=multi-user.target` stops systemd adding the reverse implicit edge (systemd's behavior in `unit_add_default_target_dependency`, from memory of the source, not re-read here); it is why only the irq job was deleted and it is why this PR leaves tuning alone. Not re-verified on 26.04 specifically.
+
+**Fix (this PR).** `johnny-capture-irq.service`: remove `johnny-capture-tuning.service` from `After=`. It is now `After=network-online.target irqbalance.service`, `Wants=network-online.target` kept. `johnny-capture-tuning.service` is **not changed** (step 11 applied, out of scope). The irq pins and the EPP/idle tuning do not need an order between them: they touch different things (IRQ masks vs cpufreq/cpuidle).
+
+**Johnny needs** the unit-only paste below after the adversarial-reviewer says OK on this exact block. It replaces only the unit, runs `daemon-reload`, and starts the oneshot once. Helper unchanged (`29f0d0d2…`). No full 13b re-run, no reboot.
+
+| Item | sha256 |
+|---|---|
+| `etc/systemd/system/johnny-capture-irq.service` (new) | `a191cdbb7a2391ba8e8b91b3dd36235b0a344799d948a6db74d27ad21958953a` |
+| unit live now (13b, has the cycle) | `03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a` |
+| `docs/tool-install/step-13b-unit-cycle-fix.sh` | `bf6cca5c50566832db2278d4259dda76886a491eebf7a45dad88a14045fd35e1` |
+| `docs/tool-install/step-13-self-test.sh` | `2f96c01e668e9b166aa8c88f30d46643d01f5bea3e8a5407fb895aee28d23dd1` |
+| `etc/johnny/irq-affinity.sh` (unchanged) | `29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530` |
+
+#### Paste (unit only)
+
+On rock-box. One block. It stops unless the checkout is clean under `docs/tool-install` and `etc`, the four files hash to the table above, and the self-test passes; then it copies the unit and script to Johnny, hash-checks them there, and runs the script under `sudo`.
+
+```bash
+cd /home/aj/Projects/strix-halo-johnny && \
+test -z "$(git status --porcelain -- docs/tool-install etc)" && \
+git rev-parse --short HEAD && \
+printf '%s  %s\n' \
+  bf6cca5c50566832db2278d4259dda76886a491eebf7a45dad88a14045fd35e1 docs/tool-install/step-13b-unit-cycle-fix.sh \
+  2f96c01e668e9b166aa8c88f30d46643d01f5bea3e8a5407fb895aee28d23dd1 docs/tool-install/step-13-self-test.sh \
+  29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530 etc/johnny/irq-affinity.sh \
+  a191cdbb7a2391ba8e8b91b3dd36235b0a344799d948a6db74d27ad21958953a etc/systemd/system/johnny-capture-irq.service \
+  | sha256sum -c - && \
+bash docs/tool-install/step-13-self-test.sh && \
+ssh aj@192.168.50.152 'mkdir -p /home/aj/cis-audit' && \
+scp docs/tool-install/step-13b-unit-cycle-fix.sh aj@192.168.50.152:/home/aj/cis-audit/step-13b-unit-cycle-fix.sh && \
+scp etc/systemd/system/johnny-capture-irq.service aj@192.168.50.152:/home/aj/cis-audit/johnny-capture-irq-cyclefix.service && \
+ssh -t aj@192.168.50.152 'printf "%s  %s\n" bf6cca5c50566832db2278d4259dda76886a491eebf7a45dad88a14045fd35e1 /home/aj/cis-audit/step-13b-unit-cycle-fix.sh a191cdbb7a2391ba8e8b91b3dd36235b0a344799d948a6db74d27ad21958953a /home/aj/cis-audit/johnny-capture-irq-cyclefix.service | sha256sum -c - && sudo -v && sudo bash /home/aj/cis-audit/step-13b-unit-cycle-fix.sh'
+```
+
+**[Assumption]** `printf` reuses its format per hash/path pair (bash builtin). The block has not been run.
+
+Pass lines in order: `INPUTS-OK`, `PREV-SAVED` (first run only), `UNIT-INSTALLED`, `AFTER-OK`, `START-OK`, twelve `TXRX n irq … cpu …` lines, `SPREAD-COUNT cpu1=3 cpu2=3 cpu3=3 cpu4=3`, three `AUX` lines (misc, ll_ts, ctrl-TxRx-0 on `1`), `IRDMA` lines (left alone; `0-23` expected, not a pass/fail), then `STEP13B-IRQ-UNIT-CYCLE-FIXED`. The script matches IRQs by name, not number. Log: `/root/step13b-cyclefix-<UTC>.log`.
+
+Stops: `STOP-host`, `STOP-not-root`, `STOP-log-exists`, `STOP-hash`, `STOP-helper-hash`, `STOP-live-unit-missing`, `STOP-live-unit-hash`, `STOP-unit-not-enabled`, `STOP-prev-hash`, `STOP-install-hash`, `STOP-after-still-lists-tuning`, `STOP-start-failed`, `STOP-not-active`, `STOP-txrx-count`, `STOP-txrx-mask`, `STOP-aux-mask`. After install, a failure in the hash, `After=`, or start checkpoints puts the old unit back (`ROLLED-BACK-UNIT`; masks are not touched). A mask `STOP-` after a good start leaves the new unit installed.
+
+#### Verify after the paste (not part of the paste)
+
+Read-only, from rock-box. Johnny reads `active` for the oneshot, and `After=` has no tuning:
+
+```bash
+ssh aj@192.168.50.152 'echo HOST $(hostname -s); echo IRQUNIT $(systemctl is-active johnny-capture-irq.service) $(systemctl is-enabled johnny-capture-irq.service); sha256sum /etc/systemd/system/johnny-capture-irq.service; systemctl show -p After --value johnny-capture-irq.service; awk "/ice-eno1np0-TxRx|ice-0000:01:00.0:(misc|ll_ts|ctrl-TxRx-0)|irdma-0000:01:00.0-/{n=\$NF; sub(\":\",\"\",\$1); print \$1, n}" /proc/interrupts | while read -r i n; do printf "%s %s %s\n" "$i" "$n" "$(tr -d "[:space:]" < /proc/irq/$i/smp_affinity_list)"; done'
+```
+
+Expect TxRx-0..11 on `1 2 3 4 1 2 3 4 1 2 3 4`, misc/ll_ts/ctrl-TxRx-0 on `1`, irdma left alone (`0-23` expected), unit hash `a191cdbb7a2391ba8e8b91b3dd36235b0a344799d948a6db74d27ad21958953a`.
+
+**The reboot is the real test.** Until Johnny reboots with the new unit, the cycle fix is verified only by `systemctl show` here. After the next reboot, expect no `Found ordering cycle` for `johnny-capture-irq.service` (`journalctl -b -g "ordering cycle"`), the oneshot `active`, and the pins above without a manual start. AJ has not been asked to reboot.
+
+#### Rollback (not part of the paste)
+
+On Johnny: `sudo install -m 0644 -o root -g root /var/lib/johnny/step13b-cyclefix-prev/johnny-capture-irq.service /etc/systemd/system/johnny-capture-irq.service && sudo systemctl daemon-reload` puts the cyclic 13b unit (`03ce0ceb…`) back; masks stay as they are. Full revert to pre-step-13 is still `sudo bash /root/step13-revert.sh` (it deletes the unit).
 
 ## Machines
 
@@ -326,9 +362,9 @@ These repo files are the bytes the paste installs. They are not on Johnny until 
 |---|---|---|---|
 | `/etc/johnny/irq-affinity.sh` | `etc/johnny/irq-affinity.sh` | 0755 | `c765e01` blob, live now: `77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e`. Repo file after step 13b: `29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530` (see step 13b) |
 | `/etc/johnny/irqbalance-policy.sh` | `etc/johnny/irqbalance-policy.sh` | 0755 | `7a3eeb944be0ee60ba94099b3ae4da3c905c941003c5c50221921032a9ffb0a8` |
-| `/etc/systemd/system/johnny-capture-irq.service` | `etc/systemd/system/johnny-capture-irq.service` | 0644 | repo file after `b19ab07`: `03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a` (has `Wants=network-online.target`). Not the live file. Live install from `c765e01`: `9df4969fbb8e9000c13d409cc1788846ca9b1acf06275fd7336eb616cd6bb355` (no `Wants=`). Soft-nit `Wants=` is not on Johnny. |
+| `/etc/systemd/system/johnny-capture-irq.service` | `etc/systemd/system/johnny-capture-irq.service` | 0644 | repo file after the cycle fix: `a191cdbb7a2391ba8e8b91b3dd36235b0a344799d948a6db74d27ad21958953a` (has `Wants=network-online.target`, no tuning in `After=`). Not the live file until the unit-only paste runs. Live after 13b: `03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a`. Live install from `c765e01`: `9df4969fbb8e9000c13d409cc1788846ca9b1acf06275fd7336eb616cd6bb355` (no `Wants=`). Soft-nit `Wants=` is not on Johnny. |
 | `/root/step13-revert.sh` | `docs/tool-install/step-13-revert.sh` | 0755 | `c9dd1522e278bc3bad3a711a4fdcd18b1b768d9da19dff07376a5db7dfa4cc1d` |
-| `/home/aj/cis-audit/step-13-irq-affinity.sh` | `docs/tool-install/step-13-irq-affinity.sh` | 0755 | `701cdae4eb871a7e5a26071866c813f2d1e2baf97e431585323515f2922bc14d` |
+| `/home/aj/cis-audit/step-13-irq-affinity.sh` | `docs/tool-install/step-13-irq-affinity.sh` | 0755 | `83b8748b8793d7ab3f7bb383775cf24ae155c52da7063ca219bfc993bcc2bdf7` |
 
 `/etc/johnny/capture-cores` is read, not written. sha256 stays `16fbd7d1f18d2fedb247d73edc3bc6aa040f5ab99bd3b48c35b79e543d22179b`.
 

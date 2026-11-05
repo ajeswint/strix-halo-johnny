@@ -1,6 +1,6 @@
 [Unit]
 Description=Pin eno1np0 ice IRQs to Johnny capture CPUs
-After=network-online.target irqbalance.service johnny-capture-tuning.service
+After=network-online.target irqbalance.service
 Wants=network-online.target
 ConditionPathExists=/etc/johnny/capture-cores
 ConditionPathExists=/etc/johnny/irq-affinity.sh

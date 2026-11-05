@@ -357,4 +357,22 @@ grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runboo
 got=$(sha256sum "$ROOT/docs/tool-install/step-13-revert.sh" | awk '{print $1}')
 grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook revert hash"
 
+# Ordering-cycle fix: the irq unit must not order after johnny-capture-tuning.service
+# (tuning has After=multi-user.target; irq is WantedBy=multi-user.target, so that edge is a cycle).
+IRQU="$ROOT/etc/systemd/system/johnny-capture-irq.service"
+if grep -q 'johnny-capture-tuning' "$IRQU"; then fail "irq unit mentions tuning (ordering cycle)"; fi
+grep -q '^After=network-online.target irqbalance.service$' "$IRQU" || fail "irq unit After="
+grep -q '^After=multi-user.target$' "$ROOT/etc/systemd/system/johnny-capture-tuning.service" || fail "tuning unit changed"
+CYC="$ROOT/docs/tool-install/step-13b-unit-cycle-fix.sh"
+bash -n "$CYC" || fail "cycle-fix script syntax"
+grep -q 'STEP13B-IRQ-UNIT-CYCLE-FIXED' "$CYC" || fail "cycle-fix done token"
+got=$(sha256sum "$IRQU" | awk '{print $1}')
+grep -q "^UNIT_NEW_SHA256=$got\$" "$CYC" || fail "cycle-fix unit hash"
+got=$(sha256sum "$ROOT/etc/johnny/irq-affinity.sh" | awk '{print $1}')
+grep -q "^HELPER_SHA256=$got\$" "$CYC" || fail "cycle-fix helper hash"
+got=$(sha256sum "$CYC" | awk '{print $1}')
+grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook cycle-fix hash"
+got=$(sha256sum "$IRQU" | awk '{print $1}')
+grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook cycle-fix unit hash"
+
 echo SELF-TEST-OK

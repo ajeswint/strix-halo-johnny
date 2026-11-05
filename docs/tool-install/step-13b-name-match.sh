@@ -1,7 +1,8 @@
 #!/bin/bash
 # Johnny step 13b: name-match follow-up to step 13.
 # Applied on Johnny from tip bf89820 (STEP13B-NAME-MATCH-DONE). This file is the
-# post-review rev (nits 1-5); it has not run. A re-run would use this rev.
+# post-review rev (nits 1-5); it has not run. DO NOT RE-RUN: Johnny's live unit is now
+# 03ce0ceb or the cycle-fix unit, neither is UNIT_OLD; use the unit-only paste in the runbook.
 # AJ runs it on Johnny, as root, after three files are in /home/aj/cis-audit/.
 # Docs: docs/tool-install/step-13-irq-affinity.md (section "Step 13b").
 # Replaces /etc/johnny/irq-affinity.sh (c765e01 blob) and the unit (adds
@@ -27,7 +28,7 @@ LIVE_UNIT=/etc/systemd/system/johnny-capture-irq.service
 HELPER_OLD_SHA256=77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e
 HELPER_NEW_SHA256=29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530
 UNIT_OLD_SHA256=9df4969fbb8e9000c13d409cc1788846ca9b1acf06275fd7336eb616cd6bb355
-UNIT_NEW_SHA256=03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a
+UNIT_NEW_SHA256=a191cdbb7a2391ba8e8b91b3dd36235b0a344799d948a6db74d27ad21958953a
 KERNEL_WANT=7.0.0-42-generic
 IRDMA_PREFIX='irdma-0000:01:00.0-'
 
