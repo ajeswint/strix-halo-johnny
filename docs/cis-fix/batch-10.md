@@ -108,3 +108,11 @@ Run `tools/relay/logs/batch-10-20261104-225808-results.txt` (2026-11-04). The sc
 - **3.2.3** PASS, evidence updated. Still no `dccp` module in this kernel; script added `blacklist dccp` and `install dccp`; `MODULE-VERIFY-OK`; not loaded.
 - **3.2.7** FAIL (manual) → PASS (manual). AJ 2026-11-04 22:18 CT: site deny list is the CIS four (`dccp`, `sctp`, `rds`, `tipc`); `esp4`, `esp6`, and `rxrpc` stay available. Scored from that decision plus `MODULE-VERIFY-OK`.
 - **6.1.2.5** stays FAIL (manual). Evidence now records `STOP-collector-514`: no TCP to `192.168.50.211:514`, no `omfwd` line, rerun after ABLETON_BOX listens.
+
+## Results
+
+Rerun log `tools/relay/logs/batch-10-20261104-230031-results.txt` (2026-11-04). The script found the bootloader gate already in place (`ALREADY-1.4.1`), left the module file as written (`MODULE-KEPT-all`, `MODULE-VERIFY-OK`), resolved the collector by the documented address (`RESOLVE-FALLBACK 192.168.50.211 ableton_box`), and this time connected (`PROBE-OK 192.168.50.211:514`). It kept the rsyslog forwarder (`RSYSLOG-KEPT`), confirmed journald (`JOURNAL-OK`), printed `BATCH10-SSH-DONE`, and recorded `FORWARD-VERIFY`: the Ableton log shows Johnny syslog after try-restart plus `logger cis-batch10`.
+
+`git diff docs/cis-26.04-l1-results.csv` changes one row:
+
+- **6.1.2.5** FAIL (manual) → PASS (manual), date `2026-11-04`. Evidence is the rerun: `RESOLVE-FALLBACK 192.168.50.211 ableton_box`, `PROBE-OK` on TCP 514, `RSYSLOG-KEPT`, `JOURNAL-OK`, `BATCH10-SSH-DONE`, and the Ableton `FORWARD-VERIFY` line.

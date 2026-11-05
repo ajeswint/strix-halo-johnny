@@ -1,0 +1,31 @@
+[23:00:32 CT] Auto-committed relay logs/state as aef6c64
+csv: 274 rows, merged 0, bad 0
+[23:00:33 CT] Claude scoring results into docs/cis-26.04-l1-results.csv ...
+csv: 274 rows, merged 0, bad 0
+[23:00:53 CT] Grok (grok-4.7-low-fast) round results ...
+I'll append a single Results section to `docs/cis-fix/batch-10.md` from the batch-10 log and the CSV diff, without changing anything else.A Results section from the earlier stop is already there. I’ll append one new section for the later run and the CSV diff, and leave the rest of the file as it is.## Detail
+
+Appended one `## Results` section to the end of `docs/cis-fix/batch-10.md`. The earlier Results block (the `STOP-collector-514` run) is unchanged. No other files were edited.
+
+The new section covers `tools/relay/logs/batch-10-20261104-230031-results.txt`:
+
+- `ALREADY-1.4.1`
+- `MODULE-KEPT-all` and `MODULE-VERIFY-OK`
+- `RESOLVE-FALLBACK 192.168.50.211 ableton_box`
+- `PROBE-OK 192.168.50.211:514`
+- `RSYSLOG-KEPT`
+- `JOURNAL-OK`
+- `BATCH10-SSH-DONE`
+- `FORWARD-VERIFY`: the Ableton log shows Johnny syslog after try-restart plus `logger cis-batch10`
+
+`git diff docs/cis-26.04-l1-results.csv` changes one row: **6.1.2.5** from FAIL (manual) to PASS (manual), dated 2026-11-04, with that rerun as the evidence.
+
+## Relay
+
+Batch 10 Results appended for the 230031 rerun. Log reached BATCH10-SSH-DONE and FORWARD-VERIFY on 192.168.50.211:514. CSV diff is only 6.1.2.5 FAIL (manual) → PASS (manual). Prior Results section left as written.
+
+## Outline
+
+- Appended `## Results` to `docs/cis-fix/batch-10.md` only
+- Source: `tools/relay/logs/batch-10-20261104-230031-results.txt`
+- Script outcome: gate already present, modules kept, TCP 514 probe OK, forwarder kept, `BATCH10-SSH-DONE`, Ableton 
