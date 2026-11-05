@@ -261,24 +261,40 @@ EOF
   else
     echo MODULE-KEPT-all
   fi
-  for mod in sctp rds tipc atm can; do
+  # modprobe -n -v may print dependency insmod lines, then "install /bin/false "
+  # (trailing space). Require a trimmed line equal to install /bin/false (or the
+  # last trimmed line). Dependency insmods are OK. Insmod of the named module is not.
+  # Do not restore NETBAK on verify failure: the conf block is intentional; a false
+  # STOP previously wiped newly added dccp lines. Soft revert undoes if needed.
+  modprobe_install_false() {
+    local mod=$1 out
     out=$(modprobe -n -v "$mod" 2>&1 || true)
-    if ! printf '%s\n' "$out" | grep -qx 'install /bin/false'; then
+    if printf '%s\n' "$out" | grep -Eq "insmod[[:space:]]+.*/${mod}\.ko"; then
+      return 1
+    fi
+    if printf '%s\n' "$out" | sed 's/[[:space:]]*$//' | grep -qx 'install /bin/false'; then
+      return 0
+    fi
+    if printf '%s\n' "$out" | sed 's/[[:space:]]*$//' | awk 'NF{last=$0} END{exit !(last=="install /bin/false")}'; then
+      return 0
+    fi
+    return 1
+  }
+  for mod in sctp rds tipc atm can; do
+    if ! modprobe_install_false "$mod"; then
       echo "STOP-modprobe $mod"
-      if [ -f "$NETBAK" ]; then
-        cp -a "$NETBAK" "$NET"
-      fi
+      echo "modprobe -n -v $mod did not deny via install /bin/false, or would insmod ${mod}.ko. Left $NET unchanged."
       exit 1
     fi
   done
   out=$(modprobe -n -v dccp 2>&1 || true)
-  if printf '%s\n' "$out" | grep -q 'insmod'; then
+  # Module absent from this kernel is fine. Fail only if this dry-run would insmod dccp itself.
+  if printf '%s\n' "$out" | grep -Eq 'insmod[[:space:]]+.*/dccp\.ko'; then
     echo STOP-dccp-insmod
-    if [ -f "$NETBAK" ]; then
-      cp -a "$NETBAK" "$NET"
-    fi
+    echo "modprobe -n -v dccp would insmod dccp.ko. Left $NET unchanged."
     exit 1
   fi
+  echo MODULE-VERIFY-OK
 
   # --- 6.1.2.5 ableton_box, TCP/514. No write until the probe succeeds. ---
   # Rollback: sudo rm -f /etc/rsyslog.d/60-johnny-remote.conf /etc/systemd/journald.conf.d/61-batch10-forward-syslog.conf
