@@ -1,6 +1,8 @@
-# Step 6 — AMT power retest (draft, not applied)
+# Step 6 — AMT power retest (draft, historical)
 
-Not applied. Current state stays `docs/os-handoff.md` rev 74. Nothing was run on Johnny, rock-box, or ABLETON_BOX.
+**Historical.** Superseded 2026-11-05 by the applied closeout: `docs/sessions/2026-11-05-step6-amt-power-applied.md` and handoff rev 75. The text below is the rev 74 draft, written before AJ ran the step. Do not treat "not applied" in this file as current state.
+
+Not applied at the time of this draft. Current state at draft time was `docs/os-handoff.md` rev 74. Nothing had been run yet on Johnny, rock-box, or ABLETON_BOX.
 
 ## Where it stands
 
@@ -24,4 +26,4 @@ DMT `jwtKey` and admin password stay unrotated until AJ runs the rotate script. 
 
 ## Do not
 
-- Do not mark step 6 done. Do not start DMT on the current `jwtKey`. Do not run `~/rpc/rpc` as the power test. Do not undo step 11.
+These bullets were the draft's rules, before the 2026-11-05 apply. Step 6 is applied in handoff rev 75. Do not start DMT on the pre-rotation `jwtKey` (that key was rotated and the backups shredded). Do not run `~/rpc/rpc` as the power test. Do not undo step 11. Do not run the rotate script a second time.
