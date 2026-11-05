@@ -1,6 +1,6 @@
 # Step 6 — AMT power retest and DMT rotation (applied)
 
-Rev 2, 2026-11-05 ~10:20 CT. Grok 4.7 wrote the draft (rev 1) and this applied closeout. AJ ran the power clicks and the rotate on rock-box. This file does not store passwords. No secret value is recorded below.
+Rev 3, 2026-11-05 ~10:25 CT. Grok 4.7 wrote the draft (rev 1), the applied closeout (rev 2), and the review nits (rev 3). AJ ran the power clicks and the rotate on rock-box. This file does not store passwords. No secret value is recorded below.
 
 ## Applied (2026-11-05 America/Chicago)
 
@@ -8,15 +8,17 @@ AJ ran this from rock-box. MeshCommander `meshcommander@0.9.5-a`, Digest/TLS, to
 
 **Soft-reset is don't-use on Johnny.** CIM PowerState 14. The UI said "Power action completed" and the OS did not reboot. That is a no-op. Johnny has no LMS/ISM, and this step does not install an agent. Do not choose Soft-reset again.
 
-**Reset (10) PASS.** Boot moved to 2026-11-05 15:59 UTC (~09:59 CT). AJ was not on Remote Desktop for the whole Reset. Later, MeshCommander Remote Desktop showed `johnny login:`. That is the TPM unlock path, not a LUKS passphrase prompt. A Computer header of None while the session says Connected is cosmetic.
+**Reset (10) PASS, boot time only.** Boot moved to 2026-11-05 15:59 UTC (~09:59 CT). There was no `OK-*` post-check on that boot. AJ was not on Remote Desktop for the whole Reset. Later, MeshCommander Remote Desktop showed `johnny login:` and no LUKS prompt. **[Inference]** that is the TPM unlock path. It is not a PCR read. A Computer header of None while the session says Connected is cosmetic.
 
-**Power cycle (5) PASS.** Boot 2026-11-05 16:07 UTC (~10:07 CT). Post-check from the read-only block: `HOST johnny`, `OK-eno3`, `OK-eno1-up`, `OK-promisc`, `OK-eno2`, `TUNING-ACTIVE active`, `TUNING-ENABLED enabled`. Ableton `PROBE-514` printed `NOTE-514`. That note is not a rollback and does not authorize an edit on Johnny or on ABLETON_BOX.
+**Power cycle (5) PASS.** Boot 2026-11-05 16:07 UTC (~10:07 CT). This is the boot with the post-check: `HOST johnny`, `OK-eno3`, `OK-eno1-up`, `OK-promisc`, `OK-eno2`, `TUNING-ACTIVE active`, `TUNING-ENABLED enabled`. Ableton `PROBE-514` printed `NOTE-514`. That note is not a rollback and does not authorize an edit on Johnny or on ABLETON_BOX.
 
 **Pass criterion.** Boot time, uptime, or KVM. Not the MeshCommander success string. In this package, `powerActionResponse4` treats HTTP 200 as success and ignores `ReturnValue`.
 
-**Local deviation, not in git.** The rock-box install under `~/meshcommander-step6` was patched so the preferred `qop` is `auth`. That patch stays on rock-box. It is not committed here.
+**Local deviation, not in git.** Under `~/meshcommander-step6`, in the package directory the paste starts (`node_modules/meshcommander`): `public/default.htm` prefers `qop` `auth` over `auth-int`, and `interceptor.js` `GetAuthArgs` is quote-aware. That patch is not committed. The rollback `rm -rf /home/aj/meshcommander-step6` deletes it with the install.
 
-**DMT rotate done.** AJ ran `docs/tool-install/step-6-dmt-rotate.sh`, confirmed the password rotate, then `--shred-backup`. The script printed `SHRED-OK 1`. `jwtKey` and `adminPassword` were rotated. The backups were shredded. The values are not in this repo and are not repeated here.
+**MeshCommander cleanup is open.** Chat did not confirm Disconnect, Delete, Ctrl-C, or clearing Chrome site data for `http://127.0.0.1:3000` after the power tests. Do not record those as done. They remain a follow-up on rock-box. The AMT password can still sit in that browser cache until they are done.
+
+**DMT rotate done.** AJ ran `docs/tool-install/step-6-dmt-rotate.sh`, said the password rotate was confirmed, then `--shred-backup`. The script printed `SHRED-OK 1`. `jwtKey` and `adminPassword` were rotated. The backups were shredded. The password-manager copy is the runbook step before shred. **[Assumption]** that copy was made. A Devices-page login proof was not stated in chat and is not recorded. **[Assumption]** `ADMIN-USER` is still `standalone`. The values are not in this repo and are not repeated here.
 
 CIS L1 totals are unchanged: **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). Next open items stay 8 thermal soak, 9 EDAC, 12 signed UKI, and IRQ affinity later.
 
@@ -256,7 +258,7 @@ In Chrome at `http://127.0.0.1:3000/`:
 2. Connect on that row. MeshCommander does not check the certificate. The openssl line above is the check. If the fingerprint was wrong, do not do this step.
 3. Open Remote Desktop. Confirm the headless Ubuntu console is visible (HDMI dummy is already in; step 5). If the picture is black, stop. Do not power-cycle to chase video.
 4. Power Actions. Do not choose **Soft-reset** (CIM PowerState 14). On 2026-11-05 the UI said "Power action completed" and the OS stayed up. Johnny has no LMS/ISM. Do not install an agent to make Soft-reset work. Choose **Reset** (10) or **Power cycle** (5). Both passed on 2026-11-05. Do not choose Power down, Soft-off, Sleep, Hibernate, Reset to BIOS, Power up to BIOS, or Secure Erase.
-5. The dialog warns that the desktop session may drop. The UI string is not the pass. `powerActionResponse4` treats HTTP 200 as success and ignores `ReturnValue`. Open Remote Desktop again, or read the boot time after SSH returns. A passphrase prompt is the LUKS recovery passphrase. A login prompt with no passphrase prompt is TPM unlock, which is the expected path. A Computer header of None while Connected is cosmetic.
+5. The dialog warns that the desktop session may drop. The UI string is not the pass. `powerActionResponse4` treats HTTP 200 as success and ignores `ReturnValue`. Open Remote Desktop again, or read the boot time after SSH returns. A passphrase prompt is the LUKS recovery passphrase. A login prompt with no passphrase prompt is **[Inference]** of the TPM unlock path (the expected path). It is not a PCR read. A Computer header of None while Connected is cosmetic.
 6. The two SSH sessions drop when the OS goes down. That drop, a newer boot time, or the login prompt on KVM is the reboot. A session that stays up is not a reboot, even if the dialog says the action completed.
 
 If Reset or Power cycle leaves the OS up, stop. Record the UI text and whether `uptime` or the boot timestamp moved. Do not Power down. Do not run `rpc`. Do not re-provision AMT. Do not retry Soft-reset.
@@ -273,9 +275,11 @@ A `STOP-*` line on capture or on `eno3` is a stop. Do not run the step 11 revert
 
 Then stop MeshCommander. In the UI, Disconnect, then Delete that computer. Do not use Save. Ctrl-C the terminal that printed `MeshCommander running`. The package readme says the computer list, including the password, stays in the browser cache. In Chrome open `chrome://settings/content/all`, remove `http://127.0.0.1:3000`, and do not paste anything from that page into chat.
 
+**Not confirmed on 2026-11-05.** The power tests and the DMT shred were recorded. Disconnect, Delete, Ctrl-C, and clearing `http://127.0.0.1:3000` site data were not. That cleanup stays open on rock-box.
+
 ## Paste — rotate DMT secrets (rock-box)
 
-**Done 2026-11-05.** AJ ran the script, confirmed the password rotate, then `--shred-backup` (`SHRED-OK 1`). Do not run it again on this config. A second run would rotate the new `jwtKey` and admin password and would find no step-6 backup to shred. The steps below are the record of what that paste did.
+**Done 2026-11-05.** AJ ran the script, confirmed the password rotate, then `--shred-backup` (`SHRED-OK 1`). Do not run it again on this config. A second run would rotate the new `jwtKey` and admin password and would find no step-6 backup to shred. Chat records that confirmation and the shred. It does not record a Devices-page visit. The password-manager copy below is the runbook step. **[Assumption]** AJ made that copy before shred. The steps below are the record of what that paste does.
 
 Do this before any DMT reuse only when the exposed key is still the live key. If the session stops before a needed rotation, leave DMT stopped.
 
@@ -292,7 +296,7 @@ Pass is `ROTATE-OK`, `ADMIN-PASSWORD-LEN 16`, `JWTKEY-LEN 44`, `CONFIG-MODE 600`
 
 Open the config in an editor on rock-box. Copy `auth.adminPassword` into a password manager. Close the editor. Do not paste the value into chat, git, or a transcript. `auth.jwtKey` does not need to be copied anywhere. It only has to stop being the key from the 2026-10-29 transcript.
 
-Login proof, still on rock-box, after the password is stored:
+Login proof, still on rock-box, after the password is stored. On 2026-11-05 a Devices-page visit was not recorded. AJ confirmed the rotate, then shredded. Do not backfill that page:
 
 1. Start DMT the usual way: double-click Johnny KVM (`~/Desktop/Johnny-KVM.desktop` → `~/bin/johnny-kvm`) or run `~/bin/johnny-kvm`. It listens on 8181 on all interfaces. That is unchanged and is why it does not stay up.
 2. Chrome, `https://localhost:8181/`, past the self-signed console certificate warning. Log in with `ADMIN-USER` from the script output and the new password from the editor. Do not use the old password.
@@ -302,11 +306,13 @@ Login proof, still on rock-box, after the password is stored:
 Then delete the backups, which still hold the exposed `jwtKey` until they are shredded:
 
 ```bash
-# rock-box, after the Devices page loaded and the launcher was stopped.
+# rock-box. The runbook order is: password-manager copy, then login proof, then this.
+# 2026-11-05: AJ confirmed the rotate, then this printed SHRED-OK 1.
+# A Devices-page visit was not recorded. Do not add one after the fact.
 bash /home/aj/Projects/strix-halo-johnny/docs/tool-install/step-6-dmt-rotate.sh --shred-backup
 ```
 
-`SHRED-OK` and a count. The live `config.yml` stays. Rollback is gone after this command, which is the point once login worked.
+`SHRED-OK` and a count. The live `config.yml` stays. It is what the console reads. The operator copy of the new admin password is the password manager. Rollback is gone after this command. On 2026-11-05 the shred followed AJ's "password rotate confirmed". Devices-page login proof is not recorded.
 
 ## Success
 
@@ -315,14 +321,14 @@ Recorded 2026-11-05. These are the lines that closed the step. A later rerun use
 - MeshCommander connected with Digest / TLS to `192.168.51.10`. The admin password was accepted in the UI. The password is not written down here.
 - Soft-reset (14) is not a pass. On Johnny it completed in the UI and did not reboot the OS. Use Reset (10) or Power cycle (5).
 - The pass is a moved boot time, a dropped SSH session that comes back, or KVM showing POST or `johnny login:`. The MeshCommander "Power action completed" string is not the pass (`powerActionResponse4` / HTTP 200 / `ReturnValue` ignored).
-- Reset PASS: boot 2026-11-05 15:59 UTC (~09:59 CT). Later KVM: `johnny login:` (TPM path, not LUKS).
-- Power cycle PASS: boot 2026-11-05 16:07 UTC (~10:07 CT).
-- Post-check printed `HOST johnny`, `OK-eno3`, `OK-eno1-up`, `OK-promisc`, `OK-eno2`, `TUNING-ACTIVE active`, `TUNING-ENABLED enabled`. `eno3` still `192.168.50.152/24`.
-- `PROBE-514` printed `NOTE-514`. That is a note, not a rollback.
-- DMT rotate done: password rotate confirmed, then `--shred-backup` printed `SHRED-OK 1`. `jwtKey` and `adminPassword` rotated. Backups shredded. No value in git.
+- Reset PASS, boot time only: 2026-11-05 15:59 UTC (~09:59 CT). No `OK-*` post-check on that boot. Later KVM: `johnny login:` and no LUKS prompt. **[Inference]** TPM unlock path. Not a PCR read.
+- Power cycle PASS: boot 2026-11-05 16:07 UTC (~10:07 CT). This boot has the post-check: `HOST johnny`, `OK-eno3`, `OK-eno1-up`, `OK-promisc`, `OK-eno2`, `TUNING-ACTIVE active`, `TUNING-ENABLED enabled`. `eno3` still `192.168.50.152/24`.
+- `PROBE-514` printed `NOTE-514` on that Power cycle post-check. That is a note, not a rollback.
+- DMT: AJ confirmed the rotate, then `--shred-backup` printed `SHRED-OK 1`. `jwtKey` and `adminPassword` rotated. Backups shredded. Password-manager copy is the runbook step. **[Assumption]** it was made. Devices-page login proof is not recorded. **[Assumption]** `ADMIN-USER` is still `standalone`. No value in git.
+- MeshCommander cleanup (Disconnect, Delete, Ctrl-C, clear `http://127.0.0.1:3000`) is not part of the pass. It was not confirmed. It stays open on rock-box.
 - No secret in the transcript. Step 11 was not reverted. No BIOS, GRUB, MEBx, or AMT provisioning change. No Johnny live config change in the closeout.
 
-There is no single `STEP6-DONE` line. The closeout is the boot times, the `OK-*` lines, and `SHRED-OK 1`.
+There is no single `STEP6-DONE` line. The closeout is the Reset boot time, the Power cycle boot time and its `OK-*` lines, and `SHRED-OK 1`. MeshCommander cleanup is still open.
 
 ## Stop
 
@@ -338,7 +344,7 @@ A failed power test does not by itself roll back DMT, because DMT was not the cl
 
 ## Rollback
 
-MeshCommander is only on rock-box. Removing it does not change AMT or Johnny. Ctrl-C first. Then, only if this directory is the step 6 install:
+MeshCommander is only on rock-box. Removing it does not change AMT or Johnny. Ctrl-C first. Then, only if this directory is the step 6 install. This also deletes the uncommitted `qop=auth` patch (`public/default.htm` and `interceptor.js`):
 
 ```bash
 # rock-box
@@ -360,4 +366,4 @@ Do not restore by `cat` or by copying the backup into the repo. Do not run `/roo
 
 ## Applied record
 
-The 2026-11-05 rock-box run is the apply. Rev 1 of this file did not claim a session. Rev 2 records the one AJ ran: Soft-reset no-op, Reset PASS, Power cycle PASS, DMT rotate then `SHRED-OK 1`. The self-test of the rotate script (`bash docs/tool-install/step-6-dmt-rotate.sh --self-test`) prints `SELF-TEST-OK` on a temp directory. It is not the rock-box paste. The `qop=auth` edit under `~/meshcommander-step6` is local only.
+The 2026-11-05 rock-box run is the apply. Rev 1 of this file did not claim a session. Rev 2 recorded the run. Rev 3 corrects the nits: Reset PASS is boot time only; the `OK-*` lines are the Power cycle post-check; TPM unlock is an inference from `johnny login:` with no LUKS prompt; AJ confirmed the DMT rotate and then shredded (`SHRED-OK 1`); Devices-page login proof is not recorded; the password-manager copy is the runbook step (**[Assumption]** it was made); MeshCommander cleanup is still open; the `qop=auth` patch is `public/default.htm` plus quote-aware `GetAuthArgs` in `interceptor.js`, and `rm -rf` destroys it. The self-test of the rotate script (`bash docs/tool-install/step-6-dmt-rotate.sh --self-test`) prints `SELF-TEST-OK` on a temp directory. It is not the rock-box paste.
