@@ -1,6 +1,6 @@
 # Step 13 — IRQ affinity (applied 2026-11-05)
 
-Rev 5, 2026-11-05 (step 13b name-match draft added; the rest of this file describes the applied `c765e01` paste). Applied on Johnny. The closeout commit `e0a7c42` is 2026-11-05 20:19:35Z (~14:19 CT), after rev 86's commit `b19ab07` at 20:13:58Z (~14:13 CT). An earlier line on this rev said ~14:18 CT. AJ's paste printed `STEP13-IRQ-DONE`. The paste was tip `c765e01`. **[Inference]** AJ's scp file sizes matched that tip. This repo does not store that size listing. Soft nits in `b19ab07` did not run and do not require a re-run. Do not re-run this step to spread the IRQs. The live pin put every recorded `eno1np0` vector on CPU 1.
+Rev 6, 2026-11-05. **Step 13b is APPLIED** (AJ's paste at tip `bf89820` printed `STEP13B-NAME-MATCH-DONE`; see "Step 13b — applied" below). Post-review nits are in `82962b8` and are for a re-run or the next boot only; Johnny already succeeded on `bf89820`. Rev 5 (step 13b draft added; the rest of this file describes the applied `c765e01` paste). Applied on Johnny. The closeout commit `e0a7c42` is 2026-11-05 20:19:35Z (~14:19 CT), after rev 86's commit `b19ab07` at 20:13:58Z (~14:13 CT). An earlier line on this rev said ~14:18 CT. AJ's paste printed `STEP13-IRQ-DONE`. The paste was tip `c765e01`. **[Inference]** AJ's scp file sizes matched that tip. This repo does not store that size listing. Soft nits in `b19ab07` did not run and do not require a re-run. Do not re-run this step to spread the IRQs. The live pin put every recorded `eno1np0` vector on CPU 1.
 
 ## After the run
 
@@ -53,11 +53,11 @@ Rock-box read-only verify, same day, after `STEP13-IRQ-DONE`:
 
 ## Open follow-up
 
-Name match: drafted as step 13b below. Not applied. The paragraph that stood here said the same thing in the future tense. Do not re-run the `c765e01` paste to "fix" the spread. Rollback to the first-run masks is still `sudo bash /root/step13-revert.sh`.
+Name match: **applied** as step 13b below. Do not re-run the `c765e01` paste (it stops at `STOP-hash`). Rollback to the first-run masks is still `sudo bash /root/step13-revert.sh`.
 
-## Step 13b — name match (follow-up, not yet applied)
+## Step 13b — name match (follow-up, applied 2026-11-05)
 
-Draft. Branch `claude/step13b-name-match`, PR against `claude/practical-ritchie-4c6vvf`. Not on Johnny until AJ's paste prints `STEP13B-NAME-MATCH-DONE`. **Do not re-run the `c765e01` paste.** It now stops: `step-13-irq-affinity.sh` still pins the old helper hash `77b899e3…`, and the repo helper is a new file. Rock-box self-test checks that.
+Applied. Branch `claude/step13b-name-match`, PR #11 against `claude/practical-ritchie-4c6vvf` (not merged). AJ's paste at tip `bf89820` printed `STEP13B-NAME-MATCH-DONE`. The sections from here to "Stops (13b)" were written as the draft; where the post-nits script differs, the text says so. **Do not re-run the `c765e01` paste.** It now stops: `step-13-irq-affinity.sh` still pins the old helper hash `77b899e3…`, and the repo helper is a new file. Rock-box self-test checks that.
 
 ### Facts this follow-up is built on
 
@@ -96,6 +96,58 @@ Does not: write `/var/lib/johnny/irq-affinity-before.tsv`, touch `irqbalance`, e
 On a stop after the first install, it prints `REVERTING-13B`, writes the saved pre-run masks back, and reinstalls the helper and unit this run saw on entry (`MASKS-PUT-BACK`, `HELPER-PUT-BACK`, `UNIT-PUT-BACK`). A re-run that started on the NEW files therefore rolls back to the NEW files. A stop before any change prints `NO-CHANGE-13B`.
 
 **[Assumption]** Writing `0-23` to an irdma vector is accepted, as the kernel set that mask itself at boot. If the write fails the script stops and rolls back (irdma back to CPU 1).
+
+### Step 13b — applied
+
+**Source.** AJ's paste output, `STEP13B-NAME-MATCH-DONE`, at tip `bf89820` (commit 2026-11-05T14:49:38-06:00). Johnny install time of the helper and unit: 2026-11-05 21:03:23Z (~15:03 CT), read over read-only SSH from rock-box. This closeout did not run the paste and did not use sudo.
+
+What the paste printed (as given to this seat, in this order):
+
+- `NOTE-eno2-unrequested 204..215 (12 lines)`
+- `NOTE-irq-aux` for 187 `ice-0000:01:00.0:misc`, 188 `ice-0000:01:00.0:ll_ts`, 201 `ice-0000:01:00.0:ctrl-TxRx-0`
+- `NOTE-irdma-skip 217..229 (13 lines)`
+- IRQ 187 `misc` and 188 `ll_ts` on CPU 1. IRQs 189..200 `ice-eno1np0-TxRx-0..11` on CPUs `1,2,3,4,1,2,3,4,1,2,3,4`. IRQ 201 `ctrl-TxRx-0` on CPU 1.
+- `CPU0-CLEAR` (plain wording of `bf89820`; see the post-nits change), `QUEUES RX/TX 12`, `RPS/XPS 000000`
+- `ENO2-IRQ-UNCHANGED`, `ENO3-OK`, `PIN-OK`
+- `IRDMA 217..229 mask 0-23`, `IRDMA-RESTORED`
+- `SPREAD-COUNT cpu1=3 cpu2=3 cpu3=3 cpu4=3`
+- `ENO2-IRQ-UNCHANGED`, `LOCKDOWN-UNCHANGED`, `ENO3-OK`, `CPU0-CLEAR`
+- `STEP13B-NAME-MATCH-DONE`
+
+The paste summary AJ handed over is condensed (it has `NOTE-` ranges, not every line). The raw transcript is on Johnny at `/root/step13b-apply.log` (old fixed log name) and was not read here.
+
+**Live hashes, read-only over SSH from rock-box (Johnny, 2026-11-05 21:06Z), all equal the repo tip values:**
+
+| Johnny path | sha256 |
+|---|---|
+| `/etc/johnny/irq-affinity.sh` | `29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530` (NEW; was `77b899e3…`) |
+| `/etc/systemd/system/johnny-capture-irq.service` | `03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a` (NEW; has `Wants=network-online.target`; was `9df4969f…`) |
+| `/home/aj/cis-audit/step-13b-name-match.sh` | `da03abac57ac277917ef9b82e3805e885ac19f9b8d2922c635f882b0fb85ee2c` (the `bf89820` script; the repo script has changed since, see below) |
+| `/var/lib/johnny/step13b-prev/irq-affinity.sh` | `77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e` (c765e01 helper, as expected) |
+| `/var/lib/johnny/step13b-prev/johnny-capture-irq.service` | `9df4969fbb8e9000c13d409cc1788846ca9b1acf06275fd7336eb616cd6bb355` (c765e01 unit, as expected) |
+
+The unit is still `inactive` / enabled: 13b ran `daemon-reload` only and never started it. Johnny booted at 16:07 UTC, before the apply, so the unit has not run under systemd and the new `Wants=` has not been exercised.
+
+**Johnny already succeeded on `bf89820`.** The six soft nits from the adversarial review (`APPROVE-WITH-NITS`) are in commit `82962b8`. They changed the 13b script and the self-test, not the helper or the unit. Nothing in `82962b8` ran on Johnny. They matter only if the 13b script is run again. Do not re-run it for them.
+
+| Nit | Where it landed |
+|---|---|
+| 1 rollback used write-once PREV | rollback restores this run's `step13b-entry.*` copies; PREV must hash OLD before it is written or trusted |
+| 2 unconditional `CPU0-CLEAR` | `ICE-CPU0-CLEAR`, computed over the ice vectors in the map; irdma on `0-23` is intended and documented in Goal/Pass |
+| 3 `same_cpulist` passed two bad specs | `cpulist_flat` fails on `STOP-cpulist`; self-test has two-bad-specs cases |
+| 4 stale checkout could pass the paste | paste checks `git status`, prints the tip, and `sha256sum -c` of the three files on rock-box and again on Johnny |
+| 5 queue count and logs | `STOP-queue-count` unless 12; `STOP-spread-sum`; one `step13b-apply-<UTC>.log` per run |
+| 6 first reboot is the test for `Wants=` | post-reboot checks below, and the handoff |
+
+### After the next reboot
+
+Johnny has not rebooted since the apply. The new `Wants=network-online.target` and the helper at boot have not run under systemd. After the next reboot, read-only, from rock-box:
+
+```bash
+ssh aj@192.168.50.152 'systemctl is-active johnny-capture-irq.service; systemd-analyze critical-chain johnny-capture-irq.service; systemd-analyze blame | grep -i -E "wait-online|johnny-capture"; for i in $(seq 187 201) $(seq 217 229); do printf "%s %s %s\n" "$i" "$(awk -v n="$i:" "\$1==n{print \$NF}" /proc/interrupts)" "$(tr -d "[:space:]" < /proc/irq/$i/smp_affinity_list)"; done'
+```
+
+**[Assumption]** Expect `active` for the oneshot, the chain showing `network-online.target` before it, and no long `systemd-networkd-wait-online` (it could wait on `eno1np0` or `eno2np1` depending on netplan, which this seat did not read). IRQs 189–200 on `1 2 3 4 1 2 3 4 1 2 3 4`, 187/188/201 on `1`. IRQ numbers can change across a boot, so match by name, not number, if the awk names differ. The irdma vectors are not pinned by the helper and will be wherever the kernel puts them (`0-23` was the first-run state). This block was not run.
 
 ### Files
 
