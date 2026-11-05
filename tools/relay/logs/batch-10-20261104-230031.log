@@ -29,3 +29,5 @@ Batch 10 Results appended for the 230031 rerun. Log reached BATCH10-SSH-DONE and
 - Appended `## Results` to `docs/cis-fix/batch-10.md` only
 - Source: `tools/relay/logs/batch-10-20261104-230031-results.txt`
 - Script outcome: gate already present, modules kept, TCP 514 probe OK, forwarder kept, `BATCH10-SSH-DONE`, Ableton 
+[23:01:12 CT] Committed+pushed bd12966
+Counter({'PASS': 225, 'N/A': 31, 'PASS (manual)': 18})
