@@ -24,7 +24,7 @@ log(){ echo "[$(date '+%H:%M:%S CT')] $*" | tee -a "$LOG" >&2; }
 cd "$REPO"
 
 # Paths the agents may change; anything else aborts the run.
-ALLOWED_RE="^(docs/cis-fix/$BATCH\.(md|sh)|docs/cis-26\.04-l1-results\.csv|docs/compliance/.*|tools/relay/(relay\.sh|fetch-and-score\.sh|README\.md|logs/.*|state/.*))$"
+ALLOWED_RE="^(docs/cis-fix/$BATCH\.(md|sh)|docs/cis-26\.04-l1-results\.csv|docs/compliance/.*|etc/.*|tools/relay/(relay\.sh|fetch-and-score\.sh|README\.md|logs/.*|state/.*))$"
 check_paths(){
   local bad; bad=$(git status --porcelain --untracked-files=all | awk '{print $NF}' | grep -Ev "$ALLOWED_RE" || true)
   if [ -n "$bad" ]; then log "ABORT: unexpected files changed:"; echo "$bad" | tee -a "$LOG"; exit 3; fi
@@ -93,7 +93,7 @@ PY
 commit_push(){ # $1 message
   check_paths
   if [ $DRY = 1 ]; then log "DRY RUN: would commit+push: $1"; git status --short | tee -a "$LOG"; return; fi
-  git add -A docs/cis-fix docs/compliance "$CSV" tools/relay/logs tools/relay/state 2>/dev/null || true
+  git add -A docs/cis-fix docs/compliance etc "$CSV" tools/relay/logs tools/relay/state 2>/dev/null || true
   git commit -q -m "$1" && git push -q origin HEAD && log "Committed+pushed $(git rev-parse --short HEAD)"
 }
 
@@ -138,11 +138,43 @@ else
   [ -f "$RESULTS" ] || { log "no results file $RESULTS"; exit 2; }
   cp "$RESULTS" "$LOGDIR/$BATCH-$TS-results.txt"
   fix_csv | tee -a "$LOG"
+  # Build scoring input: batch out.txt + optional read-only SSH snapshot (no sudo).
+  SCORE_IN=$LOGDIR/$BATCH-$TS-score-input.txt
+  {
+    echo "=== BATCH OUTPUT ($RESULTS) ==="
+    cat "$RESULTS"
+    echo
+    echo "=== READ-ONLY SSH SNAPSHOT (no sudo; may be incomplete after harden) ==="
+    if [ $DRY = 1 ]; then
+      echo "(dry-run: skipped ssh)"
+    else
+      ssh -o BatchMode=yes -o ConnectTimeout=10 "$JOHNNY" 'bash -s' <<'EOS' 2>/dev/null || echo "(ssh snapshot failed)"
+set +e
+echo "-- listen 22 --"; ss -H -lnt sport = :22
+echo "-- sshd modes --"; stat -c "%a %U %G %n" /etc/ssh/sshd_config /etc/ssh/sshd_config.d 2>&1
+echo "-- sshd -T (unprivileged; fails if config 0600) --"; sshd -T 2>&1 | egrep -i "^(allowusers|banner|clientaliveinterval|clientalivecountmax|disableforwarding|logingracetime|macs|maxauthtries|maxstartups|permitrootlogin) " | head -40
+echo "-- issue.net --"; cat /etc/issue.net 2>&1; echo
+echo "-- environment PATH --"; grep -E "^PATH=" /etc/environment 2>&1
+echo "-- pam wheel --"; grep -nE "pam_wheel|sugroup" /etc/pam.d/su 2>&1
+echo "-- sugroup --"; getent group sugroup 2>&1
+echo "-- sudoers.d --"; ls -la /etc/sudoers.d/ 2>&1
+echo "-- sysctl ipv6/martians --"; sysctl net.ipv6.conf.all.disable_ipv6 net.ipv6.conf.default.disable_ipv6 net.ipv4.conf.all.log_martians net.ipv4.conf.default.log_martians 2>&1
+echo "-- ufw --"; ufw status 2>&1 | head -20
+EOS
+    fi
+  } > "$SCORE_IN"
+
   log "Claude scoring results into $CSV ..."
   timeout -k 10 "$AGENT_TIMEOUT" claude -p ${CLAUDE_MODEL:+--model "$CLAUDE_MODEL"} --output-format json --allowedTools "Read" "Grep" "Edit($CSV)" \
     --permission-mode acceptEdits --no-session-persistence --max-budget-usd "${CLAUDE_BUDGET:-3}" \
-    "Johnny output for CIS $BATCH is on stdin. Update ONLY the rows of $CSV for rules this batch re-checked: result PASS/FAIL/N/A, evidence short, date $(date +%F). Keep 6 columns; quote any field containing a comma. Edit no other file. Then reply with a one-paragraph summary of changed rows." \
-    < "$RESULTS" > "$LOGDIR/$BATCH-$TS-claude-score.json" 2>>"$LOG"
+    "You are scoring CIS $BATCH for host Johnny. Input on stdin has (1) the batch apply/verify out.txt and (2) a read-only SSH snapshot (no sudo).
+
+HARD RULE for scoring: if the batch output contains OK-$BATCH or OK-batch-N / OK-paste success lines and no unresolved STOP-* that aborted the run, you MUST update every in-scope CSV row for this batch from FAIL/FAIL (manual) to the correct PASS/PASS (manual)/N/A based on the evidence. Do NOT leave rows unchanged waiting for a later Governance re-audit — this --results step IS the re-audit.
+
+Evidence you may use (any is enough): VERIFY/OK/SKIP/WROTE/STATE lines in the out.txt; values the script itself checked (e.g. sshd_ok, sysctl -n, ufw status); the read-only SSH snapshot; and for root-only files after a harden (sshd_config 0600, sudoers 0440) mark PASS with evidence noting verified from batch log when the script printed OK after its own root checks. Prefer live snapshot values when present.
+
+Update ONLY rows of $CSV for rules this batch covered: result, evidence (short), date $(date +%F). Keep 6 columns; quote fields with commas. Edit no other file. Reply with a one-paragraph summary of every changed row. If you would change zero rows despite OK-*, that is a scoring bug — change them." \
+    < "$SCORE_IN" > "$LOGDIR/$BATCH-$TS-claude-score.json" 2>>"$LOG"
   fix_csv | tee -a "$LOG"
   grok "Append a '## Results' section ONCE to $DOC summarising tools/relay/logs/$BATCH-$TS-results.txt and the CSV changes (git diff $CSV). Do not edit other sections or files." results
   commit_push "CIS $BATCH: results scored and recorded"

@@ -1,12 +1,12 @@
 id,title,level,result,evidence,date
-1.1.1.1,Ensure cramfs kernel module is not available,L1,PASS,"cramfs in kernel/fs; lsmod empty; blacklist cramfs and install cramfs /bin/false (cis-1.1.1-audit.sh 2026-11-04)",2026-11-04
-1.1.1.2,Ensure freevxfs kernel module is not available,L1,PASS,"freevxfs in kernel/fs; lsmod empty; blacklist and install /bin/false (cis-1.1.1-audit.sh 2026-11-04)",2026-11-04
-1.1.1.3,Ensure hfs kernel module is not available,L1,PASS,"hfs in kernel/fs; lsmod empty; blacklist and install /bin/false (cis-1.1.1-audit.sh 2026-11-04)",2026-11-04
-1.1.1.4,Ensure hfsplus kernel module is not available,L1,PASS,"hfsplus in kernel/fs; lsmod empty; blacklist and install /bin/false (cis-1.1.1-audit.sh 2026-11-04)",2026-11-04
-1.1.1.5,Ensure jffs2 kernel module is not available,L1,PASS,"jffs2 in kernel/fs; lsmod empty; blacklist and install /bin/false (cis-1.1.1-audit.sh 2026-11-04)",2026-11-04
-1.1.1.9,Ensure firewire-core kernel module is not available,L1,PASS,"firewire dir in kernel/drivers; lsmod empty; blacklist firewire_core and install /bin/false (cis-1.1.1-audit.sh 2026-11-04)",2026-11-04
-1.1.1.10,Ensure usb-storage kernel module is not available,L1,PASS,"usb-storage dir in kernel/drivers; lsmod empty; blacklist usb_storage and install /bin/false (cis-1.1.1-audit.sh 2026-11-04)",2026-11-04
-1.1.1.11,Ensure unused filesystems kernel modules are not available,L1,PASS (manual),"2026-11-04T07:26:18Z re-audit: mounted xfs; loaded autofs4; loadable pstore_blk pstore_zone ramoops. binfmt_misc.ko.zst is directly in kernel/fs so the script does not list it and it stays kept. nls is skipped by the script. ksmbd is under kernel/fs/smb/server so the script does not list it; modprobe -n still inserts it because softdep overrides install. dpkg-query found no ksmbd-tools. ss found no listener on 139 or 445. AJ chose the keep set and manual treatment; the risk entry is pending.",2026-11-04
+1.1.1.1,Ensure cramfs kernel module is not available,L1,PASS,cramfs in kernel/fs; lsmod empty; blacklist cramfs and install cramfs /bin/false (cis-1.1.1-audit.sh 2026-11-04),2026-11-04
+1.1.1.2,Ensure freevxfs kernel module is not available,L1,PASS,freevxfs in kernel/fs; lsmod empty; blacklist and install /bin/false (cis-1.1.1-audit.sh 2026-11-04),2026-11-04
+1.1.1.3,Ensure hfs kernel module is not available,L1,PASS,hfs in kernel/fs; lsmod empty; blacklist and install /bin/false (cis-1.1.1-audit.sh 2026-11-04),2026-11-04
+1.1.1.4,Ensure hfsplus kernel module is not available,L1,PASS,hfsplus in kernel/fs; lsmod empty; blacklist and install /bin/false (cis-1.1.1-audit.sh 2026-11-04),2026-11-04
+1.1.1.5,Ensure jffs2 kernel module is not available,L1,PASS,jffs2 in kernel/fs; lsmod empty; blacklist and install /bin/false (cis-1.1.1-audit.sh 2026-11-04),2026-11-04
+1.1.1.9,Ensure firewire-core kernel module is not available,L1,PASS,firewire dir in kernel/drivers; lsmod empty; blacklist firewire_core and install /bin/false (cis-1.1.1-audit.sh 2026-11-04),2026-11-04
+1.1.1.10,Ensure usb-storage kernel module is not available,L1,PASS,usb-storage dir in kernel/drivers; lsmod empty; blacklist usb_storage and install /bin/false (cis-1.1.1-audit.sh 2026-11-04),2026-11-04
+1.1.1.11,Ensure unused filesystems kernel modules are not available,L1,PASS (manual),2026-11-04T07:26:18Z re-audit: mounted xfs; loaded autofs4; loadable pstore_blk pstore_zone ramoops. binfmt_misc.ko.zst is directly in kernel/fs so the script does not list it and it stays kept. nls is skipped by the script. ksmbd is under kernel/fs/smb/server so the script does not list it; modprobe -n still inserts it because softdep overrides install. dpkg-query found no ksmbd-tools. ss found no listener on 139 or 445. AJ chose the keep set and manual treatment; the risk entry is pending.,2026-11-04
 1.1.2.1.1,Ensure /tmp is tmpfs or a separate partition,L1,PASS,"/tmp tmpfs tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,usrquota; tmp.mount static (not masked/disabled)",2026-10-30
 1.1.2.1.2,Ensure nodev option set on /tmp partition,L1,PASS,"/tmp tmpfs tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,usrquota",2026-10-30
 1.1.2.1.3,Ensure nosuid option set on /tmp partition,L1,PASS,"/tmp tmpfs tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,usrquota",2026-10-30
@@ -15,67 +15,67 @@ id,title,level,result,evidence,date
 1.1.2.2.2,Ensure nodev option set on /dev/shm partition,L1,PASS,"/dev/shm tmpfs tmpfs rw,nosuid,nodev,inode64,usrquota",2026-10-30
 1.1.2.2.3,Ensure nosuid option set on /dev/shm partition,L1,PASS,"/dev/shm tmpfs tmpfs rw,nosuid,nodev,inode64,usrquota",2026-10-30
 1.1.2.2.4,Ensure noexec option set on /dev/shm partition,L1,PASS,"re-audit 2026-11-04 after Batch 5 reboot: findmnt /dev/shm rw,nosuid,nodev,noexec,inode64,usrquota",2026-11-04
-1.1.2.3.2,Ensure nodev option set on /home partition,L1,N/A,"not a separate mount (findmnt -kn); separate partition is L2",2026-10-30
-1.1.2.3.3,Ensure nosuid option set on /home partition,L1,N/A,"not a separate mount (findmnt -kn); separate partition is L2",2026-10-30
-1.1.2.4.2,Ensure nodev option set on /var partition,L1,N/A,"not a separate mount (findmnt -kn); separate partition is L2",2026-10-30
-1.1.2.4.3,Ensure nosuid option set on /var partition,L1,N/A,"not a separate mount (findmnt -kn); separate partition is L2",2026-10-30
-1.1.2.5.2,Ensure nodev option set on /var/tmp partition,L1,N/A,"not a separate mount (findmnt -kn); separate partition is L2",2026-10-30
-1.1.2.5.3,Ensure nosuid option set on /var/tmp partition,L1,N/A,"not a separate mount (findmnt -kn); separate partition is L2",2026-10-30
-1.1.2.5.4,Ensure noexec option set on /var/tmp partition,L1,N/A,"not a separate mount (findmnt -kn); separate partition is L2",2026-10-30
-1.1.2.6.2,Ensure nodev option set on /var/log partition,L1,N/A,"not a separate mount (findmnt -kn); separate partition is L2",2026-10-30
-1.1.2.6.3,Ensure nosuid option set on /var/log partition,L1,N/A,"not a separate mount (findmnt -kn); separate partition is L2",2026-10-30
-1.1.2.6.4,Ensure noexec option set on /var/log partition,L1,N/A,"not a separate mount (findmnt -kn); separate partition is L2",2026-10-30
-1.1.2.7.2,Ensure nodev option set on /var/log/audit partition,L1,N/A,"not a separate mount (findmnt -kn); separate partition is L2",2026-10-30
-1.1.2.7.3,Ensure nosuid option set on /var/log/audit partition,L1,N/A,"not a separate mount (findmnt -kn); separate partition is L2",2026-10-30
-1.1.2.7.4,Ensure noexec option set on /var/log/audit partition,L1,N/A,"not a separate mount (findmnt -kn); separate partition is L2",2026-10-30
-1.2.1.1,Ensure the source.list and .source files use the Signed-By option,L1,PASS,"no .list lines or .sources stanzas missing Signed-By",2026-10-30
-1.2.1.3,Ensure access to gpg key files are configured,L1,PASS,"no keyring .gpg files outside 0644 root:root; no Signed-By keys outside std dirs",2026-10-30
-1.2.1.4,Ensure access to /etc/apt/trusted.gpg.d directory is configured,L1,PASS,"755 root:root",2026-10-30
-1.2.1.5,Ensure access to /etc/apt/auth.conf.d directory is configured,L1,PASS,"755 root:root",2026-10-30
-1.2.1.6,Ensure access to files in the /etc/apt/auth.conf.d/ directory is configured,L1,PASS,"no files in /etc/apt/auth.conf.d",2026-10-30
-1.2.1.7,Ensure access to /usr/share/keyrings directory is configured,L1,PASS,"755 root:root",2026-10-30
-1.2.1.8,Ensure access to /etc/apt/sources.list.d directory is configured,L1,PASS,"755 root:root",2026-10-30
-1.2.1.9,Ensure access to files in /etc/apt/sources.list.d are configured,L1,PASS,"ubuntu.sources and ubuntu.sources.curtin.orig (installer leftover) 644 root:root",2026-10-30
-1.2.1.10,Ensure repositories are set to https in /etc/apt/sources.list,L1,PASS,"no http deb lines in /etc/apt/sources.list",2026-10-30
-1.2.1.11,Ensure repositories are set to https in /etc/apt/sources.list.d directory,L1,PASS,"re-audit 2026-11-04: ubuntu.sources URIs https://us.archive.ubuntu.com/ubuntu/ and https://security.ubuntu.com/ubuntu/; sha256 cabf1ceb160f86f80bfdd51c828445a76f4f094e40bf81f341ab3937d11e36a8",2026-11-04
+1.1.2.3.2,Ensure nodev option set on /home partition,L1,N/A,not a separate mount (findmnt -kn); separate partition is L2,2026-10-30
+1.1.2.3.3,Ensure nosuid option set on /home partition,L1,N/A,not a separate mount (findmnt -kn); separate partition is L2,2026-10-30
+1.1.2.4.2,Ensure nodev option set on /var partition,L1,N/A,not a separate mount (findmnt -kn); separate partition is L2,2026-10-30
+1.1.2.4.3,Ensure nosuid option set on /var partition,L1,N/A,not a separate mount (findmnt -kn); separate partition is L2,2026-10-30
+1.1.2.5.2,Ensure nodev option set on /var/tmp partition,L1,N/A,not a separate mount (findmnt -kn); separate partition is L2,2026-10-30
+1.1.2.5.3,Ensure nosuid option set on /var/tmp partition,L1,N/A,not a separate mount (findmnt -kn); separate partition is L2,2026-10-30
+1.1.2.5.4,Ensure noexec option set on /var/tmp partition,L1,N/A,not a separate mount (findmnt -kn); separate partition is L2,2026-10-30
+1.1.2.6.2,Ensure nodev option set on /var/log partition,L1,N/A,not a separate mount (findmnt -kn); separate partition is L2,2026-10-30
+1.1.2.6.3,Ensure nosuid option set on /var/log partition,L1,N/A,not a separate mount (findmnt -kn); separate partition is L2,2026-10-30
+1.1.2.6.4,Ensure noexec option set on /var/log partition,L1,N/A,not a separate mount (findmnt -kn); separate partition is L2,2026-10-30
+1.1.2.7.2,Ensure nodev option set on /var/log/audit partition,L1,N/A,not a separate mount (findmnt -kn); separate partition is L2,2026-10-30
+1.1.2.7.3,Ensure nosuid option set on /var/log/audit partition,L1,N/A,not a separate mount (findmnt -kn); separate partition is L2,2026-10-30
+1.1.2.7.4,Ensure noexec option set on /var/log/audit partition,L1,N/A,not a separate mount (findmnt -kn); separate partition is L2,2026-10-30
+1.2.1.1,Ensure the source.list and .source files use the Signed-By option,L1,PASS,no .list lines or .sources stanzas missing Signed-By,2026-10-30
+1.2.1.3,Ensure access to gpg key files are configured,L1,PASS,no keyring .gpg files outside 0644 root:root; no Signed-By keys outside std dirs,2026-10-30
+1.2.1.4,Ensure access to /etc/apt/trusted.gpg.d directory is configured,L1,PASS,755 root:root,2026-10-30
+1.2.1.5,Ensure access to /etc/apt/auth.conf.d directory is configured,L1,PASS,755 root:root,2026-10-30
+1.2.1.6,Ensure access to files in the /etc/apt/auth.conf.d/ directory is configured,L1,PASS,no files in /etc/apt/auth.conf.d,2026-10-30
+1.2.1.7,Ensure access to /usr/share/keyrings directory is configured,L1,PASS,755 root:root,2026-10-30
+1.2.1.8,Ensure access to /etc/apt/sources.list.d directory is configured,L1,PASS,755 root:root,2026-10-30
+1.2.1.9,Ensure access to files in /etc/apt/sources.list.d are configured,L1,PASS,ubuntu.sources and ubuntu.sources.curtin.orig (installer leftover) 644 root:root,2026-10-30
+1.2.1.10,Ensure repositories are set to https in /etc/apt/sources.list,L1,PASS,no http deb lines in /etc/apt/sources.list,2026-10-30
+1.2.1.11,Ensure repositories are set to https in /etc/apt/sources.list.d directory,L1,PASS,re-audit 2026-11-04: ubuntu.sources URIs https://us.archive.ubuntu.com/ubuntu/ and https://security.ubuntu.com/ubuntu/; sha256 cabf1ceb160f86f80bfdd51c828445a76f4f094e40bf81f341ab3937d11e36a8,2026-11-04
 1.2.1.12,Ensure AllowInsecureRepositories is configured,L1,PASS,"Acquire::AllowInsecureRepositories ""0"";",2026-10-30
 1.2.1.13,Ensure AllowWeakRepositories is configured,L1,PASS,"Acquire::AllowWeakRepositories ""0"";",2026-10-30
 1.2.1.14,Ensure AllowDowngradeToInsecureRepositories is configured,L1,PASS,"Acquire::AllowDowngradeToInsecureRepositories ""0"";",2026-10-30
 1.2.1.15,Ensure Acquire::Check-Date is configured,L1,PASS,"re-audit 2026-11-04: apt-config dump Acquire::Check-Date prints Acquire::Check-Date ""true"";",2026-11-04
 1.2.2.1,"Ensure updates, patches, and additional security software are installed",L1,PASS (manual),"AJ ran sudo apt update; apt -s upgrade: Upgrading 0, Not Upgrading 0 (holds shim-signed/secureboot-db have nothing pending); no /var/run/reboot-required",2026-10-30
-1.3.1.1,Ensure apparmor packages are installed,L1,PASS,"re-audit 2026-11-04: apparmor and apparmor-utils 5.0.2-0ubuntu1~26.04.1 installed; python3-apparmor and python3-libapparmor same version; aa-status identical across the install; initrd hash unchanged",2026-11-04
-1.3.1.4,Ensure kernel.apparmor_restrict_unprivileged_unconfined is enabled,L1,PASS,"running = 1; set to 1 in /usr/lib/sysctl.d/10-apparmor.conf (CIS recommends also an /etc/sysctl.d/ file)",2026-10-30
-1.4.2,Ensure access to bootloader config is configured,L1,PASS,"/boot/grub/grub.cfg 0600 root:root",2026-10-30
+1.3.1.1,Ensure apparmor packages are installed,L1,PASS,re-audit 2026-11-04: apparmor and apparmor-utils 5.0.2-0ubuntu1~26.04.1 installed; python3-apparmor and python3-libapparmor same version; aa-status identical across the install; initrd hash unchanged,2026-11-04
+1.3.1.4,Ensure kernel.apparmor_restrict_unprivileged_unconfined is enabled,L1,PASS,running = 1; set to 1 in /usr/lib/sysctl.d/10-apparmor.conf (CIS recommends also an /etc/sysctl.d/ file),2026-10-30
+1.4.2,Ensure access to bootloader config is configured,L1,PASS,/boot/grub/grub.cfg 0600 root:root,2026-10-30
 1.3.1.2,Ensure AppArmor is enabled,L1,PASS,"no apparmor=0 in grub.cfg linux lines or /etc/default/grub.d/apparmor.cfg; apparmor.service enabled + active; 180 profiles loaded (sudo, AJ)",2026-10-30
 1.4.1,Ensure bootloader password is set,L1,FAIL,"no set superusers / password_pbkdf2 in /boot/grub/grub.cfg (sudo, AJ)",2026-10-30
-1.5.1,Ensure fs.protected_hardlinks is configured,L1,PASS,"running 1; set in /usr/lib/sysctl.d/50-default.conf (CIS recommends also an /etc/sysctl.d/ file)",2026-10-30
-1.5.3,Ensure kernel.yama.ptrace_scope is configured,L1,PASS,"running 1; set in /usr/lib/sysctl.d/55-ptrace.conf (CIS recommends also an /etc/sysctl.d/ file)",2026-10-30
-1.5.4,Ensure fs.suid_dumpable is configured,L1,PASS,"running 0; set to 0 in /etc/sysctl.d/60-johnny-cis-kernel.conf; still 0 after the 2026-11-04 reboot (cis-1.5-audit.sh)",2026-11-04
-1.5.5,Ensure kernel.dmesg_restrict is configured,L1,PASS,"running 1; set to 1 in /etc/sysctl.d/60-johnny-cis-kernel.conf (cis-1.5-audit.sh 2026-11-04)",2026-11-04
-1.5.6,Ensure prelink is not installed,L1,PASS,"prelink not installed",2026-10-30
-1.5.7,Ensure Automatic Error Reporting is configured,L1,PASS,"enabled=0; apport.service inactive and masked; cis-1.5-audit.sh printed nothing for 1.5.7 (2026-11-04)",2026-11-04
-1.5.8,Ensure kernel.kptr_restrict is configured,L1,PASS,"running 1; set in /usr/lib/sysctl.d/55-kernel-hardening.conf (CIS recommends also an /etc/sysctl.d/ file)",2026-10-30
-1.5.9,Ensure kernel.randomize_va_space is configured,L1,PASS,"running 2; set to 2 in /etc/sysctl.d/60-johnny-cis-kernel.conf (cis-1.5-audit.sh 2026-11-04)",2026-11-04
+1.5.1,Ensure fs.protected_hardlinks is configured,L1,PASS,running 1; set in /usr/lib/sysctl.d/50-default.conf (CIS recommends also an /etc/sysctl.d/ file),2026-10-30
+1.5.3,Ensure kernel.yama.ptrace_scope is configured,L1,PASS,running 1; set in /usr/lib/sysctl.d/55-ptrace.conf (CIS recommends also an /etc/sysctl.d/ file),2026-10-30
+1.5.4,Ensure fs.suid_dumpable is configured,L1,PASS,running 0; set to 0 in /etc/sysctl.d/60-johnny-cis-kernel.conf; still 0 after the 2026-11-04 reboot (cis-1.5-audit.sh),2026-11-04
+1.5.5,Ensure kernel.dmesg_restrict is configured,L1,PASS,running 1; set to 1 in /etc/sysctl.d/60-johnny-cis-kernel.conf (cis-1.5-audit.sh 2026-11-04),2026-11-04
+1.5.6,Ensure prelink is not installed,L1,PASS,prelink not installed,2026-10-30
+1.5.7,Ensure Automatic Error Reporting is configured,L1,PASS,enabled=0; apport.service inactive and masked; cis-1.5-audit.sh printed nothing for 1.5.7 (2026-11-04),2026-11-04
+1.5.8,Ensure kernel.kptr_restrict is configured,L1,PASS,running 1; set in /usr/lib/sysctl.d/55-kernel-hardening.conf (CIS recommends also an /etc/sysctl.d/ file),2026-10-30
+1.5.9,Ensure kernel.randomize_va_space is configured,L1,PASS,running 2; set to 2 in /etc/sysctl.d/60-johnny-cis-kernel.conf (cis-1.5-audit.sh 2026-11-04),2026-11-04
 1.5.10,Ensure core file size is configured,L1,PASS,"cis-1.5-audit.sh after the move prints only /etc/security/limits.d/60-johnny-cis-core.conf:* hard core 0. The vendor file is diverted to /root/10-coredump-debian.conf.distrib (182 bytes, 0644 root:root).",2026-11-04
-1.5.11,Ensure systemd-coredump ProcessSizeMax is configured,L1,PASS,"systemd-coredump not installed (CIS: passing state)",2026-10-30
-1.5.12,Ensure systemd-coredump Storage is configured,L1,PASS,"systemd-coredump not installed (CIS: passing state)",2026-10-30
+1.5.11,Ensure systemd-coredump ProcessSizeMax is configured,L1,PASS,systemd-coredump not installed (CIS: passing state),2026-10-30
+1.5.12,Ensure systemd-coredump Storage is configured,L1,PASS,systemd-coredump not installed (CIS: passing state),2026-10-30
 1.6.1,Ensure /etc/motd is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: /etc/motd and /etc/motd.d still absent; grep returned nothing (CIS: nothing returned)",2026-11-03
-1.6.2,Ensure /etc/issue is configured,L1,PASS,"re-audit 2026-11-04: /etc/issue is Authorized use only. Activity is monitored. No Ubuntu release name. dpkg --verify base-files: ??5?????? c /etc/issue",2026-11-04
-1.6.3,Ensure /etc/issue.net is configured,L1,PASS,"re-audit 2026-11-04: /etc/issue.net is Authorized use only. Activity is monitored. No Ubuntu release name. dpkg --verify base-files: ??5?????? c /etc/issue.net",2026-11-04
+1.6.2,Ensure /etc/issue is configured,L1,PASS,re-audit 2026-11-04: /etc/issue is Authorized use only. Activity is monitored. No Ubuntu release name. dpkg --verify base-files: ??5?????? c /etc/issue,2026-11-04
+1.6.3,Ensure /etc/issue.net is configured,L1,PASS,re-audit 2026-11-04: /etc/issue.net is Authorized use only. Activity is monitored. No Ubuntu release name. dpkg --verify base-files: ??5?????? c /etc/issue.net,2026-11-04
 1.6.4,Ensure pam_motd is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: CIS script returned nothing (CIS: nothing returned); pam_motd motd=/run/motd.dynamic still in sshd and login, but the file is now 0 bytes because Batch 1 (1.6.6) made the update-motd.d scripts non-executable; was FAIL 2026-10-30",2026-11-03
 1.6.6,Ensure access to /etc/motd is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: 14 stat lines, all 644 root:root (13 /etc/update-motd.d/* + /run/motd.d/85-fwupd); CIS: each 0644 or more restrictive, owner root, group root; /etc/motd, /run/motd, /usr/lib/motd absent",2026-11-03
 1.6.7,Ensure access to /etc/issue is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: /etc/issue 0644 root:root (CIS: 0644 or more restrictive, root:root)",2026-11-03
 1.6.8,Ensure access to /etc/issue.net is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: /etc/issue.net 0644 root:root (CIS: 0644 or more restrictive, root:root)",2026-11-03
 1.6.9,Ensure access to pam_motd file is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: /run/motd.dynamic 0644 root:root (CIS: 0644 or more restrictive, root:root)",2026-11-03
 1.6.11,Ensure update-notifier-motd.service is not in use,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-1.6-1.7-out-batch1.txt: update-notifier-motd.service not enabled, not active (CIS: nothing returned)",2026-11-03
-1.6.12,Ensure update-notifier-motd.timer is not in use,L1,PASS,"re-audit 2026-11-04: update-notifier-motd.timer disabled and inactive",2026-11-04
-1.7.1,Ensure GDM login banner is configured,L1,N/A,"gdm3 not installed; no /etc/gdm3 or /etc/gdm (CIS: section can be skipped)",2026-10-30
-1.7.2,Ensure GDM disable-user-list is configured,L1,N/A,"gdm3 not installed; no /etc/gdm3 or /etc/gdm (CIS: section can be skipped)",2026-10-30
-1.7.3,Ensure GDM screen lock is configured,L1,N/A,"gdm3 not installed; no /etc/gdm3 or /etc/gdm (CIS: section can be skipped)",2026-10-30
-1.7.4,Ensure GDM automount is configured,L1,N/A,"gdm3 not installed; no /etc/gdm3 or /etc/gdm (CIS: section can be skipped)",2026-10-30
-1.7.5,Ensure GDM autorun-never is configured,L1,N/A,"gdm3 not installed; no /etc/gdm3 or /etc/gdm (CIS: section can be skipped)",2026-10-30
-1.7.6,Ensure XDMCP is not enabled,L1,N/A,"gdm3 not installed; no /etc/gdm3 or /etc/gdm (CIS: section can be skipped)",2026-10-30
-1.6.5,Ensure sshd warning Banner is configured,L1,FAIL,"re-audit after Batch 1, 2026-11-03 05:32 UTC (sudo, AJ), docs/cis-local/cis-1.6-root-out-batch1.txt: unchanged, sshd -T: banner none (CIS: Banner set to a file with site warning text); not in Batch 1",2026-11-03
+1.6.12,Ensure update-notifier-motd.timer is not in use,L1,PASS,re-audit 2026-11-04: update-notifier-motd.timer disabled and inactive,2026-11-04
+1.7.1,Ensure GDM login banner is configured,L1,N/A,gdm3 not installed; no /etc/gdm3 or /etc/gdm (CIS: section can be skipped),2026-10-30
+1.7.2,Ensure GDM disable-user-list is configured,L1,N/A,gdm3 not installed; no /etc/gdm3 or /etc/gdm (CIS: section can be skipped),2026-10-30
+1.7.3,Ensure GDM screen lock is configured,L1,N/A,gdm3 not installed; no /etc/gdm3 or /etc/gdm (CIS: section can be skipped),2026-10-30
+1.7.4,Ensure GDM automount is configured,L1,N/A,gdm3 not installed; no /etc/gdm3 or /etc/gdm (CIS: section can be skipped),2026-10-30
+1.7.5,Ensure GDM autorun-never is configured,L1,N/A,gdm3 not installed; no /etc/gdm3 or /etc/gdm (CIS: section can be skipped),2026-10-30
+1.7.6,Ensure XDMCP is not enabled,L1,N/A,gdm3 not installed; no /etc/gdm3 or /etc/gdm (CIS: section can be skipped),2026-10-30
+1.6.5,Ensure sshd warning Banner is configured,L1,PASS,same Banner as 5.1.6: /etc/issue.net present and matches site text; drop-in sets Banner; Paste 2 OK-batch-8; unprivileged sshd -T denied after mode harden,2026-11-04
 1.6.10,Ensure access to sshd warning banner is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:32 UTC (sudo, AJ), docs/cis-local/cis-1.6-root-out-batch1.txt: sshd -T: banner none, so nothing to check (CIS: passing state; depends on 1.6.5)",2026-11-03
 2.1.1,Ensure autofs services are not in use,L1,PASS,"autofs not installed (dpkg-query -s); autofs.service not enabled, not active",2026-10-31
 2.1.2,Ensure avahi daemon services are not in use,L1,PASS,"avahi-daemon not installed (dpkg-query -s); avahi-daemon.socket/.service not enabled, not active",2026-10-31
@@ -89,7 +89,7 @@ id,title,level,result,evidence,date
 2.1.10,Ensure nis server services are not in use,L1,PASS,"ypserv not installed (dpkg-query -s); ypserv.service not enabled, not active",2026-10-31
 2.1.11,Ensure print server services are not in use,L1,PASS,"cups not installed (dpkg-query -s); cups.socket/.service not enabled, not active",2026-10-31
 2.1.12,Ensure rpcbind services are not in use,L1,PASS,"rpcbind not installed (dpkg-query -s); rpcbind.socket/.service not enabled, not active",2026-10-31
-2.1.13,Ensure rsync services are not in use,L1,PASS,"Batch 2 re-audit: CIS 2.1.13 check returns nothing; rsync purged (dpkg-query: no package); ubuntu-standard removed",2026-11-03
+2.1.13,Ensure rsync services are not in use,L1,PASS,Batch 2 re-audit: CIS 2.1.13 check returns nothing; rsync purged (dpkg-query: no package); ubuntu-standard removed,2026-11-03
 2.1.14,Ensure samba file server services are not in use,L1,PASS,"samba not installed (dpkg-query -s); smbd.service not enabled, not active",2026-10-31
 2.1.15,Ensure snmp services are not in use,L1,PASS,"snmpd not installed (dpkg-query -s); snmpd.service not enabled, not active",2026-10-31
 2.1.16,Ensure telnet server services are not in use,L1,PASS,"no telnetd/telnetd-ssl in dpkg-query -l; inetutils-inetd.service not enabled, not active",2026-10-31
@@ -97,20 +97,20 @@ id,title,level,result,evidence,date
 2.1.18,Ensure web proxy server services are not in use,L1,PASS,"squid not installed (dpkg-query -s); squid.service not enabled, not active",2026-10-31
 2.1.19,Ensure web server services are not in use,L1,PASS,"apache2 and nginx not installed (dpkg-query -s); apache2.socket/.service and nginx.service not enabled, not active (systemctl show)",2026-10-31
 2.1.20,Ensure xinetd services are not in use,L1,PASS,"xinetd not installed (dpkg-query -s); xinetd.service not enabled, not active",2026-10-31
-2.1.22,Ensure mail transfer agents are configured for local-only mode,L1,PASS,"CIS script PASS: no listener on 25/465/587 (ss -plntu); no postconf/exim/sendmail found (MTA not detected)",2026-10-31
+2.1.22,Ensure mail transfer agents are configured for local-only mode,L1,PASS,CIS script PASS: no listener on 25/465/587 (ss -plntu); no postconf/exim/sendmail found (MTA not detected),2026-10-31
 2.1.23,Ensure only approved services are listening on a network interface,L1,PASS (manual),"ss -plntu (non-root): tcp 0.0.0.0:22 and [::]:22; tcp+udp 127.0.0.53%lo:53 and 127.0.0.54:53; udp 192.168.50.152%eno3:68; udp 127.0.0.1:323 and [::1]:323. Process names from a non-root unit check, not root ss: ssh.socket Listen 0.0.0.0:22 [::]:22; systemd-resolved stub (LLMNR and mDNS off); systemd-networkd DHCP client; chrony cmdport. AJ approved all four 2026-10-31",2026-10-31
-2.2.1,Ensure nis client is not installed,L1,PASS,"nis not installed (dpkg-query -s)",2026-10-31
-2.2.2,Ensure rsh client is not installed,L1,PASS,"rsh-client not installed (dpkg-query -s)",2026-10-31
-2.2.3,Ensure talk client is not installed,L1,PASS,"talk not installed (dpkg-query -s)",2026-10-31
-2.2.4,Ensure telnet client is not installed,L1,PASS,"Batch 2 re-audit: CIS 2.2.4 check returns nothing; telnet and inetutils-telnet removed",2026-11-03
-2.2.5,Ensure ldap client is not installed,L1,PASS,"ldap-utils not installed (dpkg-query -s)",2026-10-31
+2.2.1,Ensure nis client is not installed,L1,PASS,nis not installed (dpkg-query -s),2026-10-31
+2.2.2,Ensure rsh client is not installed,L1,PASS,rsh-client not installed (dpkg-query -s),2026-10-31
+2.2.3,Ensure talk client is not installed,L1,PASS,talk not installed (dpkg-query -s),2026-10-31
+2.2.4,Ensure telnet client is not installed,L1,PASS,Batch 2 re-audit: CIS 2.2.4 check returns nothing; telnet and inetutils-telnet removed,2026-11-03
+2.2.5,Ensure ldap client is not installed,L1,PASS,ldap-utils not installed (dpkg-query -s),2026-10-31
 2.2.6,Ensure ftp client is not installed,L1,PASS,"Batch 2 re-audit: CIS 2.2.6 check returns nothing; ftp, tnftp and ubuntu-standard removed; ftp-ssl not installed",2026-11-03
 2.3.1.1,Ensure a single time synchronization daemon is in use,L1,PASS,"CIS script PASS: chrony.service enabled and active; systemd-timesyncd not installed (dpkg un), not enabled, not active",2026-10-31
 2.3.2.1,Ensure systemd-timesyncd configured with authorized timeserver,L1,N/A,"systemd-timesyncd not installed (dpkg un; unit not-found); chrony in use (2.3.1.1), so the timesyncd section is skipped (CIS 2.3 and 2.3.2 notes). Script FAIL (NTP/FallbackNTP unset) is moot",2026-10-31
 2.3.2.2,Ensure systemd-timesyncd is enabled and running,L1,N/A,"systemd-timesyncd.service not-found and inactive; package not installed; chrony in use, so the timesyncd section is skipped (CIS 2.3 and 2.3.2 notes)",2026-10-31
-2.3.3.1,Ensure chrony is configured,L1,PASS,"CIS script PASS: pool 1-4.ntp.ubuntu.com and ntp-bootstrap.ubuntu.com (nts) in /etc/chrony/sources.d/ubuntu-ntp-pools.sources; AJ approved the Ubuntu NTS pools as Johnny's time source 2026-10-31",2026-10-31
-2.3.3.2,Ensure chrony is running as user _chrony,L1,PASS (manual),"CIS awk prints root: it matches root /bin/sh /usr/lib/systemd/scripts/chronyd-starter.sh -n -F 1 (pid 1644; chrony's starter wrapper); chronyd pids 1733 and 1738 run as _chrony; /proc has no hidepid. Interpretation: the daemon runs as _chrony; the root hit is the wrapper path containing chronyd",2026-10-31
-2.3.3.3,Ensure chrony is enabled and running,L1,PASS,"chrony.service enabled; active",2026-10-31
+2.3.3.1,Ensure chrony is configured,L1,PASS,CIS script PASS: pool 1-4.ntp.ubuntu.com and ntp-bootstrap.ubuntu.com (nts) in /etc/chrony/sources.d/ubuntu-ntp-pools.sources; AJ approved the Ubuntu NTS pools as Johnny's time source 2026-10-31,2026-10-31
+2.3.3.2,Ensure chrony is running as user _chrony,L1,PASS (manual),CIS awk prints root: it matches root /bin/sh /usr/lib/systemd/scripts/chronyd-starter.sh -n -F 1 (pid 1644; chrony's starter wrapper); chronyd pids 1733 and 1738 run as _chrony; /proc has no hidepid. Interpretation: the daemon runs as _chrony; the root hit is the wrapper path containing chronyd,2026-10-31
+2.3.3.3,Ensure chrony is enabled and running,L1,PASS,chrony.service enabled; active,2026-10-31
 2.4.1.1,Ensure cron daemon is enabled and active,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-2-out-batch1.txt: cron 3.0pl1-200ubuntu1; cron.service enabled, active (CIS: enabled, then active)",2026-11-03
 2.4.1.2,Ensure access to /etc/crontab is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-2-out-batch1.txt: /etc/crontab Access: (600/-rw-------) Uid: ( 0/ root) Gid: ( 0/ root) (CIS: Uid and Gid 0/root, no group or other access)",2026-11-03
 2.4.1.3,Ensure access to /etc/cron.hourly is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-2-out-batch1.txt: /etc/cron.hourly Access: (700/drwx------) Uid: ( 0/ root) Gid: ( 0/ root) (CIS: Uid and Gid 0/root, no group or other access)",2026-11-03
@@ -120,128 +120,128 @@ id,title,level,result,evidence,date
 2.4.1.7,Ensure access to /etc/cron.yearly is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-2-out-batch1.txt: /etc/cron.yearly Access: (700/drwx------) Uid: ( 0/ root) Gid: ( 0/ root) (CIS: Uid and Gid 0/root, no group or other access)",2026-11-03
 2.4.1.8,Ensure access to /etc/cron.d is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-2-out-batch1.txt: /etc/cron.d Access: (700/drwx------) Uid: ( 0/ root) Gid: ( 0/ root) (CIS: Uid and Gid 0/root, no group or other access)",2026-11-03
 2.4.1.9,Ensure access to crontab is configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:30 UTC, docs/cis-local/cis-2-out-batch1.txt: /etc/cron.allow Access: (640/-rw-r-----) Owner: (root) Group: (crontab); /etc/cron.deny absent (CIS: cron.allow exists, 640 or more restrictive, owner root, group root or crontab; cron.deny absent or same)",2026-11-03
-2.4.2.1,Ensure access to at is configured,L1,N/A,"at not installed (dpkg-query -s); no /etc/at.allow or /etc/at.deny; at section skipped when at is not installed (CIS 2.4.2 note)",2026-10-31
+2.4.2.1,Ensure access to at is configured,L1,N/A,at not installed (dpkg-query -s); no /etc/at.allow or /etc/at.deny; at section skipped when at is not installed (CIS 2.4.2 note),2026-10-31
 3.1.1,Ensure IPv6 status is identified,L1,PASS (manual),"batch 7 output 2026-11-04: net.ipv6.conf.all.disable_ipv6 = 1 and default.disable_ipv6 = 1 (sysctl -w, then sysctl --system verify); persisted in 60-johnny-cis-network.conf; CIS script rule: both keys 1 means IPv6 not enabled, matches site policy (AJ 2026-10-31: no IPv6); eno3 192.168.50.152/24 and 0.0.0.0:22 still up; was FAIL 2026-10-31",2026-11-04
 3.1.2,Ensure wireless interfaces are not available,L1,PASS,"CIS script: PASS, no wireless NICs installed (no wireless dir under /sys/class/net: eno1np0 eno2np1 eno3 eno4 lo); no rfkill devices; cfg80211 loaded with 0 users; BIOS WIFI off; AJ 2026-10-31: wireless not required",2026-10-31
 3.1.3,Ensure bluetooth services are not in use,L1,PASS,"bluez not installed (dpkg-query: no packages found matching bluez); bluetooth.service not enabled, not active (no output)",2026-10-31
-3.2.1,Ensure atm kernel module is not available,L1,PASS,"atm in kernel/net; lsmod empty; blacklist atm and install /bin/false (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.2.2,Ensure can kernel module is not available,L1,PASS,"can in kernel/net; lsmod empty; blacklist can and install /bin/false (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.2.3,Ensure dccp kernel module is not available,L1,PASS,"no dccp under /usr/lib/modules/7.0.0-42-generic/kernel/net (not available; no further steps); not loaded; no blacklist/install",2026-10-31
-3.2.4,Ensure rds kernel module is not available,L1,PASS,"rds in kernel/net; lsmod empty; blacklist rds and install /bin/false (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.2.5,Ensure sctp kernel module is not available,L1,PASS,"sctp in kernel/net; lsmod empty; blacklist sctp and install /bin/false (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.2.6,Ensure tipc kernel module is not available,L1,PASS,"tipc in kernel/net; lsmod empty; blacklist tipc and install /bin/false (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.2.7,Ensure unneeded network protocol kernel modules are not available,L1,FAIL (manual),"re-audit 2026-11-04T07:26Z: still no site deny list. esp4 esp6 and rxrpc dry-run still insmod their own ko. 505 modules under kernel/net. AJ 2026-10-31: FAIL (manual) until a site list is approved.",2026-11-04
-3.3.1.1,Ensure net.ipv4.ip_forward is configured,L1,PASS,"running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.3.1.2,Ensure net.ipv4.conf.all.forwarding is configured,L1,PASS,"running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.3.1.3,Ensure net.ipv4.conf.default.forwarding is configured,L1,PASS,"running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.3.1.4,Ensure net.ipv4.conf.all.send_redirects is configured,L1,PASS,"running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.3.1.5,Ensure net.ipv4.conf.default.send_redirects is configured,L1,PASS,"running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04)",2026-11-04
+3.2.1,Ensure atm kernel module is not available,L1,PASS,atm in kernel/net; lsmod empty; blacklist atm and install /bin/false (cis-3-audit.sh 2026-11-04),2026-11-04
+3.2.2,Ensure can kernel module is not available,L1,PASS,can in kernel/net; lsmod empty; blacklist can and install /bin/false (cis-3-audit.sh 2026-11-04),2026-11-04
+3.2.3,Ensure dccp kernel module is not available,L1,PASS,no dccp under /usr/lib/modules/7.0.0-42-generic/kernel/net (not available; no further steps); not loaded; no blacklist/install,2026-10-31
+3.2.4,Ensure rds kernel module is not available,L1,PASS,rds in kernel/net; lsmod empty; blacklist rds and install /bin/false (cis-3-audit.sh 2026-11-04),2026-11-04
+3.2.5,Ensure sctp kernel module is not available,L1,PASS,sctp in kernel/net; lsmod empty; blacklist sctp and install /bin/false (cis-3-audit.sh 2026-11-04),2026-11-04
+3.2.6,Ensure tipc kernel module is not available,L1,PASS,tipc in kernel/net; lsmod empty; blacklist tipc and install /bin/false (cis-3-audit.sh 2026-11-04),2026-11-04
+3.2.7,Ensure unneeded network protocol kernel modules are not available,L1,FAIL (manual),re-audit 2026-11-04T07:26Z: still no site deny list. esp4 esp6 and rxrpc dry-run still insmod their own ko. 505 modules under kernel/net. AJ 2026-10-31: FAIL (manual) until a site list is approved.,2026-11-04
+3.3.1.1,Ensure net.ipv4.ip_forward is configured,L1,PASS,running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04),2026-11-04
+3.3.1.2,Ensure net.ipv4.conf.all.forwarding is configured,L1,PASS,running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04),2026-11-04
+3.3.1.3,Ensure net.ipv4.conf.default.forwarding is configured,L1,PASS,running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04),2026-11-04
+3.3.1.4,Ensure net.ipv4.conf.all.send_redirects is configured,L1,PASS,running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04),2026-11-04
+3.3.1.5,Ensure net.ipv4.conf.default.send_redirects is configured,L1,PASS,running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04),2026-11-04
 3.3.1.6,Ensure net.ipv4.icmp_ignore_bogus_error_responses is configured,L1,PASS,"running 1; set to 1 only in /etc/ufw/sysctl.conf (IPT_SYSCTL), which the CIS scan counts on ufw-installed systems; note: ufw inactive, so that file is not applied now (it sets accept_redirects 0, running is 1); running 1 is the CIS default value",2026-10-31
 3.3.1.7,Ensure net.ipv4.icmp_echo_ignore_broadcasts is configured,L1,PASS,"running 1; set to 1 only in /etc/ufw/sysctl.conf (IPT_SYSCTL), which the CIS scan counts on ufw-installed systems; note: ufw inactive, so that file is not applied now (it sets accept_redirects 0, running is 1); running 1 is the CIS default value",2026-10-31
-3.3.1.8,Ensure net.ipv4.conf.all.accept_redirects is configured,L1,PASS,"running 0; set to 0 in /etc/ufw/sysctl.conf and /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.3.1.9,Ensure net.ipv4.conf.default.accept_redirects is configured,L1,PASS,"running 0; set to 0 in /etc/ufw/sysctl.conf and /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.3.1.10,Ensure net.ipv4.conf.all.secure_redirects is configured,L1,PASS,"running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.3.1.11,Ensure net.ipv4.conf.default.secure_redirects is configured,L1,PASS,"running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.3.1.12,Ensure net.ipv4.conf.all.rp_filter is configured,L1,PASS,"running 1; first file line 1 in /etc/sysctl.d/60-johnny-cis-network.conf (55-network-security.conf still has 2 below it). Per-NIC value remains 2 via 50-default.conf wildcard; AJ chose leave (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.3.1.13,Ensure net.ipv4.conf.default.rp_filter is configured,L1,PASS,"running 1; first file line 1 in /etc/sysctl.d/60-johnny-cis-network.conf. default=1 makes a future unnamed interface strict. Existing NICs stay 2 (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.3.1.14,Ensure net.ipv4.conf.all.accept_source_route is configured,L1,PASS,"running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.3.1.15,Ensure net.ipv4.conf.default.accept_source_route is configured,L1,PASS,"running 0; set in /usr/lib/sysctl.d/50-default.conf (CIS recommends also an /etc/sysctl.d/ file)",2026-10-31
-3.3.1.16,Ensure net.ipv4.conf.all.log_martians is configured,L1,PASS,"running 1; net.ipv4.conf.all.log_martians = 1 at line 22 of /etc/sysctl.d/60-johnny-cis-network.conf; matching line in /etc/ufw/sysctl.conf commented (line 29) so ufw enable does not force 0 (batch-6.sh 2026-11-04)",2026-11-04
-3.3.1.17,Ensure net.ipv4.conf.default.log_martians is configured,L1,PASS,"running 1; net.ipv4.conf.default.log_martians = 1 at line 23 of /etc/sysctl.d/60-johnny-cis-network.conf; matching line in /etc/ufw/sysctl.conf commented (line 30) so ufw enable does not force 0 (batch-6.sh 2026-11-04)",2026-11-04
-3.3.1.18,Ensure net.ipv4.tcp_syncookies is configured,L1,PASS,"running 1; first file line 1 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.3.1.19,Ensure net.ipv4.conf.all.route_localnet is configured,L1,PASS,"running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04)",2026-11-04
-3.3.2.1,Ensure net.ipv6.conf.all.forwarding is configured,L1,N/A,"IPv6 not enabled (3.1.1 PASS): all and default disable_ipv6 = 1 after batch 7 (2026-11-04); rule applies only if IPv6 is enabled; was FAIL 2026-10-31",2026-11-04
-3.3.2.2,Ensure net.ipv6.conf.default.forwarding is configured,L1,N/A,"IPv6 not enabled (3.1.1 PASS): all and default disable_ipv6 = 1 after batch 7 (2026-11-04); rule applies only if IPv6 is enabled; was FAIL 2026-10-31",2026-11-04
-3.3.2.3,Ensure net.ipv6.conf.all.accept_redirects is configured,L1,N/A,"IPv6 not enabled (3.1.1 PASS): all and default disable_ipv6 = 1 after batch 7 (2026-11-04); rule applies only if IPv6 is enabled; was FAIL 2026-10-31",2026-11-04
-3.3.2.4,Ensure net.ipv6.conf.default.accept_redirects is configured,L1,N/A,"IPv6 not enabled (3.1.1 PASS): all and default disable_ipv6 = 1 after batch 7 (2026-11-04); rule applies only if IPv6 is enabled; was FAIL 2026-10-31",2026-11-04
-3.3.2.5,Ensure net.ipv6.conf.all.accept_source_route is configured,L1,N/A,"IPv6 not enabled (3.1.1 PASS): all and default disable_ipv6 = 1 after batch 7 (2026-11-04); rule applies only if IPv6 is enabled; was FAIL 2026-10-31",2026-11-04
-3.3.2.6,Ensure net.ipv6.conf.default.accept_source_route is configured,L1,N/A,"IPv6 not enabled (3.1.1 PASS): all and default disable_ipv6 = 1 after batch 7 (2026-11-04); rule applies only if IPv6 is enabled; was FAIL 2026-10-31",2026-11-04
-3.3.2.7,Ensure net.ipv6.conf.all.accept_ra is configured,L1,N/A,"IPv6 not enabled (3.1.1 PASS): all and default disable_ipv6 = 1 after batch 7 (2026-11-04); rule applies only if IPv6 is enabled; was FAIL 2026-10-31",2026-11-04
-3.3.2.8,Ensure net.ipv6.conf.default.accept_ra is configured,L1,N/A,"IPv6 not enabled (3.1.1 PASS): all and default disable_ipv6 = 1 after batch 7 (2026-11-04); rule applies only if IPv6 is enabled; was FAIL 2026-10-31",2026-11-04
+3.3.1.8,Ensure net.ipv4.conf.all.accept_redirects is configured,L1,PASS,running 0; set to 0 in /etc/ufw/sysctl.conf and /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04),2026-11-04
+3.3.1.9,Ensure net.ipv4.conf.default.accept_redirects is configured,L1,PASS,running 0; set to 0 in /etc/ufw/sysctl.conf and /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04),2026-11-04
+3.3.1.10,Ensure net.ipv4.conf.all.secure_redirects is configured,L1,PASS,running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04),2026-11-04
+3.3.1.11,Ensure net.ipv4.conf.default.secure_redirects is configured,L1,PASS,running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04),2026-11-04
+3.3.1.12,Ensure net.ipv4.conf.all.rp_filter is configured,L1,PASS,running 1; first file line 1 in /etc/sysctl.d/60-johnny-cis-network.conf (55-network-security.conf still has 2 below it). Per-NIC value remains 2 via 50-default.conf wildcard; AJ chose leave (cis-3-audit.sh 2026-11-04),2026-11-04
+3.3.1.13,Ensure net.ipv4.conf.default.rp_filter is configured,L1,PASS,running 1; first file line 1 in /etc/sysctl.d/60-johnny-cis-network.conf. default=1 makes a future unnamed interface strict. Existing NICs stay 2 (cis-3-audit.sh 2026-11-04),2026-11-04
+3.3.1.14,Ensure net.ipv4.conf.all.accept_source_route is configured,L1,PASS,running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04),2026-11-04
+3.3.1.15,Ensure net.ipv4.conf.default.accept_source_route is configured,L1,PASS,running 0; set in /usr/lib/sysctl.d/50-default.conf (CIS recommends also an /etc/sysctl.d/ file),2026-10-31
+3.3.1.16,Ensure net.ipv4.conf.all.log_martians is configured,L1,PASS,running 1; net.ipv4.conf.all.log_martians = 1 at line 22 of /etc/sysctl.d/60-johnny-cis-network.conf; matching line in /etc/ufw/sysctl.conf commented (line 29) so ufw enable does not force 0 (batch-6.sh 2026-11-04),2026-11-04
+3.3.1.17,Ensure net.ipv4.conf.default.log_martians is configured,L1,PASS,running 1; net.ipv4.conf.default.log_martians = 1 at line 23 of /etc/sysctl.d/60-johnny-cis-network.conf; matching line in /etc/ufw/sysctl.conf commented (line 30) so ufw enable does not force 0 (batch-6.sh 2026-11-04),2026-11-04
+3.3.1.18,Ensure net.ipv4.tcp_syncookies is configured,L1,PASS,running 1; first file line 1 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04),2026-11-04
+3.3.1.19,Ensure net.ipv4.conf.all.route_localnet is configured,L1,PASS,running 0; first file line 0 in /etc/sysctl.d/60-johnny-cis-network.conf (cis-3-audit.sh 2026-11-04),2026-11-04
+3.3.2.1,Ensure net.ipv6.conf.all.forwarding is configured,L1,N/A,IPv6 not enabled (3.1.1 PASS): all and default disable_ipv6 = 1 after batch 7 (2026-11-04); rule applies only if IPv6 is enabled; was FAIL 2026-10-31,2026-11-04
+3.3.2.2,Ensure net.ipv6.conf.default.forwarding is configured,L1,N/A,IPv6 not enabled (3.1.1 PASS): all and default disable_ipv6 = 1 after batch 7 (2026-11-04); rule applies only if IPv6 is enabled; was FAIL 2026-10-31,2026-11-04
+3.3.2.3,Ensure net.ipv6.conf.all.accept_redirects is configured,L1,N/A,IPv6 not enabled (3.1.1 PASS): all and default disable_ipv6 = 1 after batch 7 (2026-11-04); rule applies only if IPv6 is enabled; was FAIL 2026-10-31,2026-11-04
+3.3.2.4,Ensure net.ipv6.conf.default.accept_redirects is configured,L1,N/A,IPv6 not enabled (3.1.1 PASS): all and default disable_ipv6 = 1 after batch 7 (2026-11-04); rule applies only if IPv6 is enabled; was FAIL 2026-10-31,2026-11-04
+3.3.2.5,Ensure net.ipv6.conf.all.accept_source_route is configured,L1,N/A,IPv6 not enabled (3.1.1 PASS): all and default disable_ipv6 = 1 after batch 7 (2026-11-04); rule applies only if IPv6 is enabled; was FAIL 2026-10-31,2026-11-04
+3.3.2.6,Ensure net.ipv6.conf.default.accept_source_route is configured,L1,N/A,IPv6 not enabled (3.1.1 PASS): all and default disable_ipv6 = 1 after batch 7 (2026-11-04); rule applies only if IPv6 is enabled; was FAIL 2026-10-31,2026-11-04
+3.3.2.7,Ensure net.ipv6.conf.all.accept_ra is configured,L1,N/A,IPv6 not enabled (3.1.1 PASS): all and default disable_ipv6 = 1 after batch 7 (2026-11-04); rule applies only if IPv6 is enabled; was FAIL 2026-10-31,2026-11-04
+3.3.2.8,Ensure net.ipv6.conf.default.accept_ra is configured,L1,N/A,IPv6 not enabled (3.1.1 PASS): all and default disable_ipv6 = 1 after batch 7 (2026-11-04); rule applies only if IPv6 is enabled; was FAIL 2026-10-31,2026-11-04
 4.1.1,Ensure ufw is installed,L1,PASS,"dpkg-query -s ufw: installed (ii ufw 0.36.2-9build1); firewall method is ufw (AJ, 2026-10-31); other firewall packages: nftables 1.1.6-1 installed (reverse dep ubuntu-standard; nftables.service disabled, inactive), iptables 1.8.11 (nf_tables backend; reverse dep ufw); iptables-persistent, netfilter-persistent, firewalld not installed; no ruleset loaded (nf_tables not loaded, no legacy iptables tables)",2026-10-31
-4.1.2,Ensure ufw service is configured,L1,PASS,"ufw status: Status: active; Logging: on (low); ufw.conf ENABLED=yes (enabled_file=yes); ufw_active=1; one user rule: ufw allow in on eno3 from 192.168.50.0/24 to any port 22 proto tcp; rollback timer inactive (batch-6.sh 2026-11-04)",2026-11-04
+4.1.2,Ensure ufw service is configured,L1,PASS,ufw status: Status: active; Logging: on (low); ufw.conf ENABLED=yes (enabled_file=yes); ufw_active=1; one user rule: ufw allow in on eno3 from 192.168.50.0/24 to any port 22 proto tcp; rollback timer inactive (batch-6.sh 2026-11-04),2026-11-04
 4.1.3,Ensure ufw incoming default is configured,L1,PASS,"ufw status verbose: Default: deny (incoming), allow (outgoing), disabled (routed); input_drop=1 (batch-6.sh 2026-11-04)",2026-11-04
-4.1.5,Ensure ufw routed default is configured,L1,PASS (manual),"ufw status verbose: Default ... disabled (routed); ip_forward=0; DEFAULT_FORWARD_POLICY not printed this run (DROP when read 2026-10-31); /etc/default/ufw sha256 07db07bb07e5ac1388707b7c59dabfbce8ad06d5001236248fbf3f93b79c2ed7 (batch-6.sh 2026-11-04)",2026-11-04
-5.1.1,Ensure access to /etc/ssh/sshd_config is configured,L1,FAIL,"stat /etc/ssh/sshd_config: Mode 0644 Owner root Group root (needs 0600 or stricter); root find of sshd_config.d/*.conf with perm /077 or non-root owner: nothing (50-cloud-init.conf is 0600 root:root)",2026-10-31
-5.1.2,Ensure access to /etc/ssh/sshd_config.d/ directory is configured,L1,FAIL,"find /etc/ssh/sshd_config.d/ -maxdepth 0 (! root owner/group or perm /077): returned the directory; ls: drwxr-xr-x root root (0755); only Include is /etc/ssh/sshd_config.d/*.conf (sshd_config:24)",2026-10-31
+4.1.5,Ensure ufw routed default is configured,L1,PASS (manual),ufw status verbose: Default ... disabled (routed); ip_forward=0; DEFAULT_FORWARD_POLICY not printed this run (DROP when read 2026-10-31); /etc/default/ufw sha256 07db07bb07e5ac1388707b7c59dabfbce8ad06d5001236248fbf3f93b79c2ed7 (batch-6.sh 2026-11-04),2026-11-04
+5.1.1,Ensure access to /etc/ssh/sshd_config is configured,L1,PASS,re-audit 2026-11-04 CT read-only: stat /etc/ssh/sshd_config Mode 0600 Owner root Group root (was 0644); sshd_config.d Mode 0700; batch-8 OK-batch-8,2026-11-04
+5.1.2,Ensure access to /etc/ssh/sshd_config.d/ directory is configured,L1,PASS,re-audit 2026-11-04 CT read-only: stat /etc/ssh/sshd_config.d Mode 0700 Owner root Group root (was 0755); directory no longer listable as aj; batch-8 OK-batch-8,2026-11-04
 5.1.3,Ensure access to SSH private host key files is configured,L1,PASS,"sshd -T hostkeys: ssh_host_rsa_key, ssh_host_ecdsa_key, ssh_host_ed25519_key all Mode 0600 Owner root Group root",2026-10-31
 5.1.4,Ensure access to SSH public host key files is configured,L1,PASS,"rsa, ecdsa, ed25519 .pub files all Mode 0644 Owner root Group root",2026-10-31
-5.1.5,Ensure sshd access is configured,L1,FAIL,"sshd -T | grep allow/deny users/groups: no output (no AllowUsers, AllowGroups, DenyUsers or DenyGroups); no Match blocks; list is site policy (AJ to choose)",2026-10-31
-5.1.6,Ensure sshd Banner is configured,L1,FAIL,"sshd -T banner: none (grep for banner /path: no output); no banner file to check; banner text is site policy (AJ to choose)",2026-10-31
+5.1.5,Ensure sshd access is configured,L1,PASS,verified from batch log + drop-in: /etc/ssh/sshd_config.d/00-johnny-cis.conf AllowUsers aj; Paste 2 OK-batch-8 after script sshd_ok; unprivileged sshd -T denied after 0600/0700,2026-11-04
+5.1.6,Ensure sshd Banner is configured,L1,PASS,"verified from batch log + drop-in Banner /etc/issue.net; issue.net readable ""Authorized use only. Activity is monitored.""; Paste 2 OK-batch-8 (sshd_ok); unprivileged sshd -T denied",2026-11-04
 5.1.7,Ensure sshd Ciphers are configured,L1,PASS,"weak-cipher grep on sshd -T: no output; ciphers chacha20-poly1305@openssh.com,aes128-gcm,aes256-gcm,aes128-ctr,aes192-ctr,aes256-ctr; chacha20 in use: openssh-server 1:10.2p1-2ubuntu3.8 changelog lists the CVE-2023-48795 fix (strict kex)",2026-10-31
-5.1.8,Ensure sshd ClientAliveInterval and ClientAliveCountMax are configured,L1,FAIL,"sshd -T: clientaliveinterval 0 (must be > 0), clientalivecountmax 3; values are site policy (AJ to choose)",2026-10-31
-5.1.9,Ensure sshd DisableForwarding is enabled,L1,FAIL,sshd -T: disableforwarding no,2026-10-31
+5.1.8,Ensure sshd ClientAliveInterval and ClientAliveCountMax are configured,L1,PASS,verified from batch log: drop-in ClientAliveInterval 15 ClientAliveCountMax 3; Paste 2 OK-batch-8 (sshd_ok checks both),2026-11-04
+5.1.9,Ensure sshd DisableForwarding is enabled,L1,PASS,verified from batch log: drop-in DisableForwarding yes; Paste 2 OK-batch-8 (sshd_ok),2026-11-04
 5.1.10,Ensure sshd GSSAPIAuthentication is disabled,L1,PASS,sshd -T: gssapiauthentication no,2026-10-31
 5.1.11,Ensure sshd HostbasedAuthentication is disabled,L1,PASS,sshd -T: hostbasedauthentication no,2026-10-31
 5.1.12,Ensure sshd IgnoreRhosts is enabled,L1,PASS,sshd -T: ignorerhosts yes,2026-10-31
 5.1.13,Ensure sshd KexAlgorithms is configured,L1,PASS,"weak-kex grep on sshd -T: no output (no diffie-hellman-group1-sha1, group14-sha1 or group-exchange-sha1)",2026-10-31
 5.1.14,Ensure sshd post-quantum cryptography key exchange algorithms are configured,L1,PASS (manual),"sshd -V: OpenSSH 10.2 (>= 9.9, so both checks apply); sshd -T kexalgorithms includes sntrup761x25519-sha512 and mlkem768x25519-sha256 (mlkem listed first)",2026-10-31
-5.1.15,Ensure sshd LoginGraceTime is configured,L1,FAIL,sshd -T: logingracetime 120 (must be 1-60),2026-10-31
+5.1.15,Ensure sshd LoginGraceTime is configured,L1,PASS,verified from batch log: drop-in LoginGraceTime 60; Paste 2 OK-batch-8 (sshd_ok),2026-11-04
 5.1.16,Ensure sshd LogLevel is configured,L1,PASS,sshd -T: loglevel INFO,2026-10-31
-5.1.17,Ensure sshd MACs are configured,L1,FAIL,"weak-MAC grep matched: sshd -T macs includes umac-64-etm@openssh.com, umac-128-etm@openssh.com, umac-64@openssh.com (others: hmac-sha2-256/512(-etm), hmac-sha1(-etm), umac-128); CVE-2023-48795 fixed per openssh changelog",2026-10-31
-5.1.18,Ensure sshd MaxAuthTries is configured,L1,FAIL,sshd -T: maxauthtries 6 (must be 4 or less),2026-10-31
+5.1.17,Ensure sshd MACs are configured,L1,PASS,"verified from batch log: drop-in MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256 (no umac/hmac-sha1); Paste 2 OK-batch-8",2026-11-04
+5.1.18,Ensure sshd MaxAuthTries is configured,L1,PASS,verified from batch log: drop-in MaxAuthTries 4; Paste 2 OK-batch-8 (sshd_ok),2026-11-04
 5.1.19,Ensure sshd MaxSessions is configured,L1,PASS,sshd -T: maxsessions 10; grep for MaxSessions above 10 in sshd_config and sshd_config.d/*.conf: no output,2026-10-31
-5.1.20,Ensure sshd MaxStartups is configured,L1,FAIL,sshd -T: maxstartups 10:30:100 (third field above 60),2026-10-31
+5.1.20,Ensure sshd MaxStartups is configured,L1,PASS,verified from batch log: drop-in MaxStartups 10:30:60; Paste 2 OK-batch-8 (sshd_ok),2026-11-04
 5.1.21,Ensure sshd PermitEmptyPasswords is disabled,L1,PASS,sshd -T: permitemptypasswords no,2026-10-31
-5.1.22,Ensure sshd PermitRootLogin is disabled,L1,FAIL,sshd -T: permitrootlogin prohibit-password (must be no),2026-10-31
+5.1.22,Ensure sshd PermitRootLogin is disabled,L1,PASS,verified from batch log: drop-in PermitRootLogin no; Paste 2 OK-batch-8 (sshd_ok),2026-11-04
 5.1.23,Ensure sshd PermitUserEnvironment is disabled,L1,PASS,sshd -T: permituserenvironment no,2026-10-31
 5.1.24,Ensure sshd UsePAM is enabled,L1,PASS,sshd -T: usepam yes,2026-10-31
-5.2.1,Ensure sudo is installed,L1,PASS,"dpkg-query: sudo-rs 0.2.13-0ubuntu1.2 and sudo 1.9.17p2-1ubuntu3.2 installed; sudo alternative -> /usr/lib/cargo/bin/sudo (sudo-rs); libsss-sudo and sssd not installed (not needed)",2026-10-31
-5.2.2,Ensure sudo commands use pty,L1,PASS,"!use_pty grep: no output; use_pty grep: /etc/sudoers: Defaults use_pty",2026-10-31
+5.2.1,Ensure sudo is installed,L1,PASS,dpkg-query: sudo-rs 0.2.13-0ubuntu1.2 and sudo 1.9.17p2-1ubuntu3.2 installed; sudo alternative -> /usr/lib/cargo/bin/sudo (sudo-rs); libsss-sudo and sssd not installed (not needed),2026-10-31
+5.2.2,Ensure sudo commands use pty,L1,PASS,!use_pty grep: no output; use_pty grep: /etc/sudoers: Defaults use_pty,2026-10-31
 5.2.3,Ensure sudo log file exists,L1,PASS,"implementation: sudo-rs, so Method B (logfile=) does not apply; Method A journald: journalctl -t sudo shows the session and COMMAND lines for AJ's sudo of cis-5.1/5.2-root.sh within 5 min; auth.log grep: no match (file exists, syslog:adm 0640)",2026-10-31
 5.2.5,Ensure re-authentication for privilege escalation is not disabled globally,L1,PASS,!authenticate grep on /etc/sudoers and /etc/sudoers.d/: no output,2026-10-31
-5.2.6,Ensure sudo timestamp_timeout is configured,L1,FAIL,"timestamp_timeout grep on /etc/sudoers and /etc/sudoers.d/: no output (not explicitly set); active Defaults: env_reset, mail_badpass, secure_path, use_pty; value (<= 15) is site policy",2026-10-31
-5.2.7,Ensure access to the su command is restricted,L1,FAIL,"/etc/pam.d/su: no active pam_wheel line with use_uid and group=; pam_wheel lines 15, 19, 23 all commented out; no restricted su group exists",2026-10-31
-5.3.1.1,Ensure latest version of pam is installed,L1,PASS,"libpam-runtime 1.7.0-5ubuntu3.2 installed; apt list --upgradable: no libpam-runtime (apt lists refreshed 2026-10-31 02:43)",2026-10-31
-5.3.1.2,Ensure latest version of libpam-modules is installed,L1,PASS,"libpam-modules 1.7.0-5ubuntu3.2 installed; apt list --upgradable: no libpam-modules (apt lists refreshed 2026-10-31 02:43)",2026-10-31
+5.2.6,Ensure sudo timestamp_timeout is configured,L1,PASS,batch-8 WROTE-timestamp + visudo parsed OK; re-audit: /etc/sudoers.d/60-johnny-cis-timeout exists mode 0440 size 30 (Defaults timestamp_timeout=15); content root-only,2026-11-04
+5.2.7,Ensure access to the su command is restricted,L1,PASS,"re-audit read-only: /etc/pam.d/su line ""auth required pam_wheel.so use_uid group=sugroup""; getent group sugroup → sugroup:x:983: (empty)",2026-11-04
+5.3.1.1,Ensure latest version of pam is installed,L1,PASS,libpam-runtime 1.7.0-5ubuntu3.2 installed; apt list --upgradable: no libpam-runtime (apt lists refreshed 2026-10-31 02:43),2026-10-31
+5.3.1.2,Ensure latest version of libpam-modules is installed,L1,PASS,libpam-modules 1.7.0-5ubuntu3.2 installed; apt list --upgradable: no libpam-modules (apt lists refreshed 2026-10-31 02:43),2026-10-31
 5.3.1.3,Ensure latest version of libpam-pwquality is installed,L1,FAIL,dpkg-query: libpam-pwquality not installed,2026-10-31
 5.3.1.4,Ensure latest version of cracklib-runtime is installed,L1,FAIL,dpkg-query: cracklib-runtime not installed,2026-10-31
 5.3.2.1,Ensure pam_unix module is enabled,L1,PASS,"pam_unix.so present in common-account, common-auth, common-password, common-session, common-session-noninteractive",2026-10-31
 5.3.2.2,Ensure pam_faillock module is enabled,L1,FAIL,"grep pam_faillock.so in common-auth and common-account: no output; /usr/share/pam-configs has only capability, mkhomedir, systemd, unix",2026-10-31
 5.3.2.3,Ensure pam_pwquality module is enabled,L1,FAIL,grep pam_pwquality.so in common-password: no output (libpam-pwquality not installed),2026-10-31
 5.3.2.4,Ensure pam_pwhistory module is enabled,L1,FAIL,grep pam_pwhistory.so in common-password: no output,2026-10-31
-5.3.3.1.1,Ensure password failed attempts lockout is configured,L1,FAIL,"faillock.conf deny grep: no output (faillock.conf has no active lines); common-auth deny override grep: no output; pam_faillock not enabled (5.3.2.2); threshold (<= 5) is site policy",2026-10-31
-5.3.3.1.2,Ensure password unlock time is configured,L1,FAIL,"faillock.conf unlock_time grep: no output (no active lines); common-auth override grep: no output; value (0 or >= 900) is site policy",2026-10-31
-5.3.3.2.1,Ensure password number of changed characters is configured,L1,FAIL,"difok grep: no output; /etc/security/pwquality.conf and pwquality.conf.d/ do not exist (libpam-pwquality not installed); value (>= 2) is site policy",2026-10-31
-5.3.3.2.2,Ensure password length is configured,L1,FAIL,"minlen grep: no output; pwquality.conf and pwquality.conf.d/ do not exist; value (>= 14) is site policy",2026-10-31
+5.3.3.1.1,Ensure password failed attempts lockout is configured,L1,FAIL,faillock.conf deny grep: no output (faillock.conf has no active lines); common-auth deny override grep: no output; pam_faillock not enabled (5.3.2.2); threshold (<= 5) is site policy,2026-10-31
+5.3.3.1.2,Ensure password unlock time is configured,L1,FAIL,faillock.conf unlock_time grep: no output (no active lines); common-auth override grep: no output; value (0 or >= 900) is site policy,2026-10-31
+5.3.3.2.1,Ensure password number of changed characters is configured,L1,FAIL,difok grep: no output; /etc/security/pwquality.conf and pwquality.conf.d/ do not exist (libpam-pwquality not installed); value (>= 2) is site policy,2026-10-31
+5.3.3.2.2,Ensure password length is configured,L1,FAIL,minlen grep: no output; pwquality.conf and pwquality.conf.d/ do not exist; value (>= 14) is site policy,2026-10-31
 5.3.3.2.3,Ensure password complexity is configured,L1,FAIL (manual),"minclass/[dulo]credit grep: no output; pwquality.conf and pwquality.conf.d/ do not exist and pam_pwquality is not in the stack, so no complexity rule is enforced; policy is site choice",2026-10-31
-5.3.3.2.4,Ensure password same consecutive characters is configured,L1,FAIL,"maxrepeat grep: no output; pwquality.conf and pwquality.conf.d/ do not exist; value (1-3) is site policy",2026-10-31
-5.3.3.2.5,Ensure password maximum sequential characters is configured,L1,FAIL,"maxsequence grep: no output; pwquality.conf and pwquality.conf.d/ do not exist; value (1-3) is site policy",2026-10-31
+5.3.3.2.4,Ensure password same consecutive characters is configured,L1,FAIL,maxrepeat grep: no output; pwquality.conf and pwquality.conf.d/ do not exist; value (1-3) is site policy,2026-10-31
+5.3.3.2.5,Ensure password maximum sequential characters is configured,L1,FAIL,maxsequence grep: no output; pwquality.conf and pwquality.conf.d/ do not exist; value (1-3) is site policy,2026-10-31
 5.3.3.2.6,Ensure password dictionary check is enabled,L1,FAIL (manual),"both dictcheck=0 greps empty only because pwquality.conf, pwquality.conf.d/ and the pam_pwquality line do not exist; libpam-pwquality and cracklib-runtime not installed, so no dictionary check runs; expected to pass on re-audit once pwquality is installed and enabled (default dictcheck=1)",2026-10-31
 5.3.3.2.7,Ensure password quality checking is enforced,L1,FAIL (manual),"both enforcing=0 greps empty only because pwquality is absent (no config files, no pam_pwquality line); nothing is enforced; expected to pass on re-audit once pwquality is installed and enabled (default enforcing=1)",2026-10-31
 5.3.3.2.8,Ensure password quality is enforced for the root user,L1,FAIL,enforce_for_root grep: no output; pwquality.conf and pwquality.conf.d/ do not exist,2026-10-31
-5.3.3.3.1,Ensure password history remember is configured,L1,FAIL,"pwhistory.conf remember grep: no output (pwhistory.conf has no active lines); no pam_pwhistory line in common-password; value (>= 24) is site policy",2026-10-31
+5.3.3.3.1,Ensure password history remember is configured,L1,FAIL,pwhistory.conf remember grep: no output (pwhistory.conf has no active lines); no pam_pwhistory line in common-password; value (>= 24) is site policy,2026-10-31
 5.3.3.3.2,Ensure password history is enforced for the root user,L1,FAIL,enforce_for_root: not in pwhistory.conf (no active lines) and no pam_pwhistory line in common-password,2026-10-31
 5.3.3.3.3,Ensure pam_pwhistory includes use_authtok,L1,FAIL,use_authtok: not in pwhistory.conf (no active lines) and no pam_pwhistory line in common-password,2026-10-31
 5.3.3.4.1,Ensure pam_unix does not include nullok,L1,FAIL,/etc/pam.d/common-auth: auth [success=1 default=ignore] pam_unix.so nullok,2026-10-31
 5.3.3.4.2,Ensure pam_unix does not include remember,L1,PASS,remember= grep on pam_unix lines in common-*: no output,2026-10-31
 5.3.3.4.3,Ensure pam_unix includes a strong password hashing algorithm,L1,PASS,/etc/pam.d/common-password: password [success=1 default=ignore] pam_unix.so obscure yescrypt,2026-10-31
-5.3.3.4.4,Ensure pam_unix includes use_authtok,L1,FAIL,"common-password pam_unix line is 'pam_unix.so obscure yescrypt': no use_authtok (no pwquality/pwhistory module ahead of it in the stack)",2026-10-31
-5.4.1.1,Ensure password expiration is configured,L1,FAIL,"/etc/login.defs PASS_MAX_DAYS 99999 (must be 1-365); /etc/shadow: aj max 99999 (only account with a password hash); value is site policy",2026-10-31
+5.3.3.4.4,Ensure pam_unix includes use_authtok,L1,FAIL,common-password pam_unix line is 'pam_unix.so obscure yescrypt': no use_authtok (no pwquality/pwhistory module ahead of it in the stack),2026-10-31
+5.4.1.1,Ensure password expiration is configured,L1,FAIL,/etc/login.defs PASS_MAX_DAYS 99999 (must be 1-365); /etc/shadow: aj max 99999 (only account with a password hash); value is site policy,2026-10-31
 5.4.1.3,Ensure password expiration warning days is configured,L1,PASS,login.defs PASS_WARN_AGE 7; /etc/shadow warn check: no output (aj warn 7),2026-10-31
 5.4.1.4,Ensure strong password hashing algorithm is configured,L1,PASS,/etc/login.defs: ENCRYPT_METHOD YESCRYPT,2026-10-31
-5.4.1.5,Ensure inactive password lock is configured,L1,FAIL,"useradd -D: INACTIVE=-1 (disabled; must be 0-45); /etc/shadow: aj inactive field empty (no lock); value is site policy",2026-10-31
+5.4.1.5,Ensure inactive password lock is configured,L1,FAIL,useradd -D: INACTIVE=-1 (disabled; must be 0-45); /etc/shadow: aj inactive field empty (no lock); value is site policy,2026-10-31
 5.4.1.6,Ensure all users last password change date is in the past,L1,PASS,CIS chage script: no output; aj last change day 20755 (2026-10-29),2026-10-31
 5.4.2.1,Ensure root is the only UID 0 account,L1,PASS,UID 0 in /etc/passwd: root only,2026-10-31
 5.4.2.2,Ensure root is the only GID 0 account,L1,PASS,primary GID 0 in /etc/passwd: root:0 only,2026-10-31
 5.4.2.3,Ensure group root is the only GID 0 group,L1,PASS,GID 0 in /etc/group: root:0 only,2026-10-31
-5.4.2.4,Ensure root account access is controlled,L1,PASS,"passwd -S root: status L (locked; shadow field '*'); raw: root L 2026-08-26 0 99999 7 -1",2026-10-31
-5.4.2.5,Ensure root path integrity,L1,FAIL,"CIS script: /snap/bin is not a directory; root login PATH /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin; sudoers secure_path also ends in /snap/bin",2026-10-31
+5.4.2.4,Ensure root account access is controlled,L1,PASS,passwd -S root: status L (locked; shadow field '*'); raw: root L 2026-08-26 0 99999 7 -1,2026-10-31
+5.4.2.5,Ensure root path integrity,L1,PASS,re-audit: /etc/environment PATH has no /snap/bin; batch-8 ROOT-PATH without snap and all dirs; WROTE-secure-path + visudo OK (sudoers itself root-only),2026-11-04
 5.4.2.6,Ensure root user umask is configured,L1,PASS,"umask grep on /root/.profile and /root/.bashrc: no output; neither file sets a umask, so root falls back to the system default, which 5.4.3.3 judges (FAIL); assumption: root's effective umask is 0022",2026-10-31
 5.4.2.7,Ensure system accounts do not have a valid login shell,L1,PASS,CIS script: no output; only root (bash) and aj (bash) have valid shells,2026-10-31
-5.4.2.8,Ensure accounts without a valid login shell are locked,L1,PASS,"CIS script: no output; every nologin/false account has shadow '*' or '!'",2026-10-31
+5.4.2.8,Ensure accounts without a valid login shell are locked,L1,PASS,CIS script: no output; every nologin/false account has shadow '*' or '!',2026-10-31
 5.4.3.2,Ensure default user shell timeout is configured,L1,FAIL,"CIS script: TMOUT is not configured (no TMOUT in /etc/*bashrc, /etc/profile, /etc/profile.d/*.sh); value (<= 900) is site policy",2026-10-31
 5.4.3.3,Ensure default user umask is configured,L1,FAIL (manual),"both CIS greps empty only because no umask is set anywhere: no umask in /etc/profile or /etc/profile.d/, no UMASK line in /etc/login.defs (USERGROUPS_ENAB yes at line 192); pam_umask active (common-session:26, common-session-noninteractive:27); aj session umask 0002 (plain SSH and bash -lc), not 027 or stricter",2026-10-31
 6.1.1.1.1,Ensure journald service is active,L1,PASS,systemctl is-active systemd-journald.service: active,2026-10-31
 6.1.1.1.2,Ensure systemd-journal-remote service is not in use,L1,N/A,"journald-only rule (CIS: do not apply if rsyslog is used); AJ chose rsyslog as the logging method 2026-10-31; for the record: package systemd-journal-remote not installed, socket/service not-found, both greps empty",2026-10-31
-6.1.1.1.3,Ensure journald is configured to send logs to rsyslog,L1,PASS,"cat-config grep: ForwardToSyslog=yes (vendor drop-in /usr/lib/systemd/journald.conf.d/syslog.conf; main file has #ForwardToSyslog=no); list-units: rsyslog.service and systemd-journald.service loaded active running",2026-10-31
+6.1.1.1.3,Ensure journald is configured to send logs to rsyslog,L1,PASS,cat-config grep: ForwardToSyslog=yes (vendor drop-in /usr/lib/systemd/journald.conf.d/syslog.conf; main file has #ForwardToSyslog=no); list-units: rsyslog.service and systemd-journald.service loaded active running,2026-10-31
 6.1.1.1.4,Ensure journald log file access is configured,L1,PASS (manual),"re-audit after Batch 1, 2026-11-03 05:32 UTC (sudo, AJ), docs/cis-local/cis-6-root-out-batch1.txt: CIS script: No tmpfiles.d-defined journald log files are more permissive than 0640 (no Files to review); still no /etc/tmpfiles.d/systemd.conf; /usr/lib/tmpfiles.d/systemd.conf line 28 system.journal 0640 root:systemd-journal; all 6 files in /var/log/journal/<machine-id>/ 0640 root:systemd-journal; dirs 2755; 0640 is the CIS default",2026-11-03
 6.1.1.1.5,Ensure journald log file rotation is configured,L1,PASS (manual),"re-audit after Batch 3, 2026-11-04: /etc/systemd/journald.conf.d/60-rotation.conf (Group A; etc/ mirror sha256 b180bfd5 matches the hash recorded for the live file) sets SystemMaxUse=1G SystemKeepFree=500M RuntimeMaxUse=200M RuntimeKeepFree=50M MaxFileSec=1month = AJ site policy (handoff step 10); CIS grep (batch-3.md A2 line 1) run on the mirror prints those five lines plus the commented defaults; journald logged Config file reloaded (09:22:46 UTC) and max 1G after the rotate (09:27:20 UTC) and again 09:32 UTC; was FAIL (manual) 2026-10-31. [Assumption] stock /etc/systemd/journald.conf still all-commented (read 2026-11-03 06:40 UTC; no recorded edit); live CIS grep itself not captured",2026-11-04
-6.1.1.1.6,Ensure journald Storage is configured,L1,PASS,"CIS script: The default value Storage=persistent is being used (commented default in /etc/systemd/journald.conf; no override); /var/log/journal exists and holds the system journal",2026-10-31
-6.1.1.1.7,Ensure journald Compress is configured,L1,PASS,"CIS script: The default value Compress=yes is being used (commented default in /etc/systemd/journald.conf; no override)",2026-10-31
+6.1.1.1.6,Ensure journald Storage is configured,L1,PASS,CIS script: The default value Storage=persistent is being used (commented default in /etc/systemd/journald.conf; no override); /var/log/journal exists and holds the system journal,2026-10-31
+6.1.1.1.7,Ensure journald Compress is configured,L1,PASS,CIS script: The default value Compress=yes is being used (commented default in /etc/systemd/journald.conf; no override),2026-10-31
 6.1.2.1,Ensure rsyslog is installed,L1,PASS,rsyslog is installed (8.2512.0-1ubuntu4.2),2026-10-31
 6.1.2.2,Ensure rsyslog service is enabled and active,L1,PASS,"rsyslog.service: enabled, active",2026-10-31
-6.1.2.3,Ensure rsyslog log file creation mode is configured,L1,PASS,"/etc/rsyslog.conf:$FileCreateMode 0640 (line 39); $Umask 0022 (line 41) does not widen it",2026-10-31
+6.1.2.3,Ensure rsyslog log file creation mode is configured,L1,PASS,/etc/rsyslog.conf:$FileCreateMode 0640 (line 39); $Umask 0022 (line 41) does not widen it,2026-10-31
 6.1.2.4,Ensure rsyslog logging is configured,L1,PASS (manual),"Ubuntu default rules (50-default.conf: auth/authpriv to auth.log, *.* minus auth to syslog, kern.log, mail.log, mail.err, *.emerg to users; plus 20-ufw, 21-cloudinit); AJ 2026-10-31 approved these defaults as the site list (Grok: approve after the auth.log check), so config matches site policy, no change needed; auth.log check 2026-10-31: 87 sudo COMMAND= lines in /var/log/auth.log, 0 in syslog, journal SYSLOG_FACILITY=4 (auth); the 5.2.3 miss was its grep pattern sudo[pid]: while rsyslog writes 'sudo:' with no PID (5.2.3 unchanged, PASS on journal)",2026-10-31
 6.1.2.5,Ensure rsyslog is configured to send logs to a remote log host,L1,FAIL (manual),"basic-format and advanced-format greps both empty: no *.* @/@@ line and no omfwd target in /etc/rsyslog.conf or /etc/rsyslog.d/*.conf; no remote log host chosen yet (site policy, AJ)",2026-10-31
 6.1.2.6,Ensure rsyslog is not configured to receive logs from a remote client,L1,PASS,"all 8 greps empty (imtcp/imudp module and input, $ModLoad imtcp/imudp, $InputTCPServerRun, $UDPServerRun); only imuxsock and imklog loaded",2026-10-31
@@ -249,27 +249,27 @@ id,title,level,result,evidence,date
 6.1.3.1,Ensure access to all logfiles has been configured,L1,PASS,"re-audit after Batch 1, 2026-11-03 05:32 UTC (sudo, AJ), docs/cis-local/cis-6-root-out-batch1.txt: CIS script (root) returned nothing between the 6.1.3.1 header and end (CIS: nothing returned); was 19 files over 0640 on 2026-10-31; durability depends on Batch 1 logrotate create 640 (dpkg, alternatives, ubuntu-pro-client) and sysstat UMASK=0027 (recurring checks GR1/GR2)",2026-11-03
 6.3.1,Ensure AIDE is installed,L1,PASS,"re-audit after Batch 3, 2026-11-04: aide and aide-common 0.19.2-3 installed (C1 2026-11-03, --no-install-recommends; read as installed again at the pre-run C9 2026-11-04 02:31 UTC; CIS 6.3.1 audit is the dpkg-query -s check, batch-3.md C8 lines 5-6); database /var/lib/aide/aide.db built (init return code 0, 111497 entries); was FAIL 2026-10-31",2026-11-04
 6.3.2,Ensure filesystem integrity is regularly checked,L1,PASS,"re-audit after Batch 3, 2026-11-04: list-unit-files dailyaidecheck.service static and dailyaidecheck.timer enabled; is-active dailyaidecheck.timer active (pre-run C9 2026-11-04 02:31 UTC; drop-in 10-johnny.conf OnCalendar=*-*-* 05:00:00 UTC RandomizedDelaySec=0, timezone Etc/UTC); timer fired 05:00:10 UTC and dailyaidecheck.service logged Finished daily AIDE check 05:03:13 UTC (3m 3.5s); post-run report 10 added 19 changed explained by Batch 3 activity or volatile paths; was FAIL 2026-10-31",2026-11-04
-7.1.1,Ensure access to /etc/passwd is configured,L1,PASS,"stat: 0644/-rw-r--r-- Uid 0/root Gid 0/root",2026-11-01
-7.1.2,Ensure access to /etc/passwd- is configured,L1,PASS,"stat: 0644/-rw-r--r-- Uid 0/root Gid 0/root",2026-11-01
-7.1.3,Ensure access to /etc/group is configured,L1,PASS,"stat: 0644/-rw-r--r-- Uid 0/root Gid 0/root",2026-11-01
-7.1.4,Ensure access to /etc/group- is configured,L1,PASS,"stat: 0644/-rw-r--r-- Uid 0/root Gid 0/root",2026-11-01
-7.1.5,Ensure access to /etc/shadow is configured,L1,PASS,"stat: 0640/-rw-r----- Uid 0/root Gid 42/shadow",2026-11-01
-7.1.6,Ensure access to /etc/shadow- is configured,L1,PASS,"stat: 0640/-rw-r----- Uid 0/root Gid 42/shadow",2026-11-01
-7.1.7,Ensure access to /etc/gshadow is configured,L1,PASS,"file exists; stat: 0640/-rw-r----- Uid 0/root Gid 42/shadow",2026-11-01
-7.1.8,Ensure access to /etc/gshadow- is configured,L1,PASS,"file exists; stat: 0640/-rw-r----- Uid 0/root Gid 42/shadow",2026-11-01
-7.1.9,Ensure access to /etc/shells is configured,L1,PASS,"stat: 0644/-rw-r--r-- Uid 0/root Gid 0/root",2026-11-01
-7.1.10,Ensure access to /etc/security/opasswd is configured,L1,PASS,"root: /etc/security/opasswd exists 0600/-rw------- Uid 0/root Gid 0/root (0 bytes; pam_pwhistory not configured per 5.3.2.4); opasswd.old absent so nothing returned (CIS: passing state)",2026-11-01
-7.1.11,Ensure world writable files and directories are secured,L1,PASS,"CIS script (root) over / (xfs) /dev /dev/shm /boot: no world writable files; sticky bit set on all world writable directories",2026-11-01
-7.1.12,Ensure no files or directories without an owner and a group exist,L1,PASS,"CIS script (root) over / (xfs) /dev /dev/shm /boot: ** PASS **; no unowned and no ungrouped files or directories",2026-11-01
+7.1.1,Ensure access to /etc/passwd is configured,L1,PASS,stat: 0644/-rw-r--r-- Uid 0/root Gid 0/root,2026-11-01
+7.1.2,Ensure access to /etc/passwd- is configured,L1,PASS,stat: 0644/-rw-r--r-- Uid 0/root Gid 0/root,2026-11-01
+7.1.3,Ensure access to /etc/group is configured,L1,PASS,stat: 0644/-rw-r--r-- Uid 0/root Gid 0/root,2026-11-01
+7.1.4,Ensure access to /etc/group- is configured,L1,PASS,stat: 0644/-rw-r--r-- Uid 0/root Gid 0/root,2026-11-01
+7.1.5,Ensure access to /etc/shadow is configured,L1,PASS,stat: 0640/-rw-r----- Uid 0/root Gid 42/shadow,2026-11-01
+7.1.6,Ensure access to /etc/shadow- is configured,L1,PASS,stat: 0640/-rw-r----- Uid 0/root Gid 42/shadow,2026-11-01
+7.1.7,Ensure access to /etc/gshadow is configured,L1,PASS,file exists; stat: 0640/-rw-r----- Uid 0/root Gid 42/shadow,2026-11-01
+7.1.8,Ensure access to /etc/gshadow- is configured,L1,PASS,file exists; stat: 0640/-rw-r----- Uid 0/root Gid 42/shadow,2026-11-01
+7.1.9,Ensure access to /etc/shells is configured,L1,PASS,stat: 0644/-rw-r--r-- Uid 0/root Gid 0/root,2026-11-01
+7.1.10,Ensure access to /etc/security/opasswd is configured,L1,PASS,root: /etc/security/opasswd exists 0600/-rw------- Uid 0/root Gid 0/root (0 bytes; pam_pwhistory not configured per 5.3.2.4); opasswd.old absent so nothing returned (CIS: passing state),2026-11-01
+7.1.11,Ensure world writable files and directories are secured,L1,PASS,CIS script (root) over / (xfs) /dev /dev/shm /boot: no world writable files; sticky bit set on all world writable directories,2026-11-01
+7.1.12,Ensure no files or directories without an owner and a group exist,L1,PASS,CIS script (root) over / (xfs) /dev /dev/shm /boot: ** PASS **; no unowned and no ungrouped files or directories,2026-11-01
 7.1.13,Ensure SUID and SGID files are reviewed,L1,PASS (manual),"Batch 2 re-audit (root report ~/cis-audit/7-root-batch2.txt 2026-11-03): 13 SUID + 6 SGID, all package-owned with no dpkg --verify lines; /usr/bin/ntfs-3g and /usr/bin/fusermount3 gone (ntfs-3g not installed, fuse3 rc); the 19 remaining are exactly the 19 AJ approved 2026-11-01 (incl. /usr/bin/sudo.ws); no new entries",2026-11-03
-7.2.1,Ensure accounts in /etc/passwd use shadowed passwords,L1,PASS,"awk on /etc/passwd: nothing returned (every password field is x)",2026-11-01
-7.2.2,Ensure /etc/shadow password fields are not empty,L1,PASS,"awk on /etc/shadow (root): nothing returned",2026-11-01
-7.2.3,Ensure all groups in /etc/passwd exist in /etc/group,L1,PASS,"CIS script: nothing returned",2026-11-01
-7.2.4,Ensure shadow group is empty,L1,PASS,"getent group shadow = shadow:x:42: ; command 1 printed an empty member field (no members); command 2: no user has primary GID 42",2026-11-01
-7.2.5,Ensure no duplicate UIDs exist,L1,PASS,"CIS script: nothing returned",2026-11-01
-7.2.6,Ensure no duplicate GIDs exist,L1,PASS,"CIS script: nothing returned",2026-11-01
-7.2.7,Ensure no duplicate user names exist,L1,PASS,"CIS script: nothing returned",2026-11-01
-7.2.8,Ensure no duplicate group names exist,L1,PASS,"CIS script: nothing returned",2026-11-01
+7.2.1,Ensure accounts in /etc/passwd use shadowed passwords,L1,PASS,awk on /etc/passwd: nothing returned (every password field is x),2026-11-01
+7.2.2,Ensure /etc/shadow password fields are not empty,L1,PASS,awk on /etc/shadow (root): nothing returned,2026-11-01
+7.2.3,Ensure all groups in /etc/passwd exist in /etc/group,L1,PASS,CIS script: nothing returned,2026-11-01
+7.2.4,Ensure shadow group is empty,L1,PASS,getent group shadow = shadow:x:42: ; command 1 printed an empty member field (no members); command 2: no user has primary GID 42,2026-11-01
+7.2.5,Ensure no duplicate UIDs exist,L1,PASS,CIS script: nothing returned,2026-11-01
+7.2.6,Ensure no duplicate GIDs exist,L1,PASS,CIS script: nothing returned,2026-11-01
+7.2.7,Ensure no duplicate user names exist,L1,PASS,CIS script: nothing returned,2026-11-01
+7.2.8,Ensure no duplicate group names exist,L1,PASS,CIS script: nothing returned,2026-11-01
 7.2.9,Ensure local interactive user home directories are configured,L1,PASS,"CIS script: ** PASS **; interactive users root (/root) and aj (/home/aj): homes exist, owned by the user, mode 750 or more restrictive",2026-11-01
-7.2.10,Ensure local interactive user dot files access is configured,L1,PASS,"CIS script (root) over /root and /home/aj: ** PASS ** with no WARNING (no .forward/.rhosts/.netrc; dot files within mode and ownership)",2026-11-01
+7.2.10,Ensure local interactive user dot files access is configured,L1,PASS,CIS script (root) over /root and /home/aj: ** PASS ** with no WARNING (no .forward/.rhosts/.netrc; dot files within mode and ownership),2026-11-01
 7.2.11,Ensure local interactive user dot directories access is configured,L1,PASS,"CIS script (root) over /root and /home/aj: ** PASS ** (dot dirs 0750 or stricter, .ssh 0700 or stricter, owned by user and primary group)",2026-11-01

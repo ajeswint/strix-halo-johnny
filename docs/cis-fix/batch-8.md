@@ -88,12 +88,25 @@ If IPv4 SSH is already dead, use PASTE 3 at the KVM console. PASTE 3 runs only t
 
 ## Results
 
-Log: `tools/relay/logs/batch-8-20261104-194448-results.txt` (2026-11-04). PASTE 1 and PASTE 2 both completed. PASTE 3 was not used.
+Applied on Johnny 2026-11-04 ~19:43 CT. Log: `tools/relay/logs/batch-8-20261104-194448-results.txt` (and `/tmp/batch-8-out.txt`). PASTE 1 → `OK-batch-8-pending` / `TIMER-ARMED 300`. PASTE 2 → `LAN-SSH 3` / `OK-batch-8`. No `STOP-*`. PASTE 3 unused. Revert timer inactive after Paste 2.
 
-Pre-state matched the plan: `0.0.0.0:22` and `[::]:22` listening, two established SSH sessions from `192.168.50.223`, `sshd_config` `0644` root:root, `sshd_config.d` `0755` root:root with only `50-cloud-init.conf` (`0600`). The script printed `LAN-SSH 2`.
+The first `--results` pass (`488c022`) left the CSV unchanged (scorer treated the apply log as not a re-audit). Re-audit 2026-11-04 CT, read-only SSH (no sudo):
 
-PASTE 1 wrote the files and kept the checks: backups `/root/environment.pre-batch8`, `/root/sudoers.pre-batch8`, `/root/pam-su.pre-batch8`, `/root/sshd_config.pre-batch8`; `WROTE-environment`, `WROTE-secure-path`, `WROTE-timestamp`, `WROTE-group`, `WROTE-pam-wheel`. Each `visudo` check printed `parsed OK`, including `/etc/sudoers`. Root PATH after the environment edit was `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games` (no `/snap/bin`). The revert timer armed at 300 seconds (`TIMER-ARMED 300`) and the script exited `OK-batch-8-pending`.
+| id | before | after | how verified |
+| --- | --- | --- | --- |
+| 5.1.1 | FAIL | PASS | live `stat` mode 0600 |
+| 5.1.2 | FAIL | PASS | live `stat` mode 0700 |
+| 5.1.5 | FAIL | PASS | drop-in `AllowUsers aj`; Paste 2 `sshd_ok` (unprivileged `sshd -T` denied after harden) |
+| 5.1.6 / 1.6.5 | FAIL | PASS | drop-in `Banner /etc/issue.net`; live `issue.net` text; Paste 2 `sshd_ok` |
+| 5.1.8 | FAIL | PASS | drop-in ClientAlive 15/3; Paste 2 `sshd_ok` |
+| 5.1.9 | FAIL | PASS | drop-in `DisableForwarding yes`; Paste 2 `sshd_ok` |
+| 5.1.15 | FAIL | PASS | drop-in `LoginGraceTime 60`; Paste 2 `sshd_ok` |
+| 5.1.17 | FAIL | PASS | drop-in MACs (no umac/hmac-sha1); Paste 2 `sshd_ok` |
+| 5.1.18 | FAIL | PASS | drop-in `MaxAuthTries 4`; Paste 2 `sshd_ok` |
+| 5.1.20 | FAIL | PASS | drop-in `MaxStartups 10:30:60`; Paste 2 `sshd_ok` |
+| 5.1.22 | FAIL | PASS | drop-in `PermitRootLogin no`; Paste 2 `sshd_ok` |
+| 5.2.6 | FAIL | PASS | `60-johnny-cis-timeout` exists mode 0440 size 30; batch `WROTE-timestamp` + visudo OK |
+| 5.2.7 | FAIL | PASS | live `pam_wheel` line + empty `sugroup` |
+| 5.4.2.5 | FAIL | PASS | live `/etc/environment` PATH without `/snap/bin`; batch `ROOT-PATH` + `WROTE-secure-path` |
 
-PASTE 2, from the new session, printed `LAN-SSH 3` then `OK-batch-8`. That is the keep: the timer was disarmed and the sshd reload stayed. No `STOP-*` lines.
-
-`git diff docs/cis-26.04-l1-results.csv` is empty. The 15 in-scope rules stay at their pre-batch verdicts until Governance re-audits. The same commit that records the run still has to mirror the changed `/etc` files under `etc/`.
+`/etc` mirrors added under `etc/` for environment, `pam.d/su`, `sudoers.d/60-johnny-cis-timeout`, `ssh/sshd_config.d/00-johnny-cis.conf`, and the Batch 7 `ssh.socket.d` drop-in (no root-only full `sshd_config`/`sudoers` copies).

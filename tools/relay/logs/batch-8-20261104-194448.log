@@ -11,3 +11,5 @@ PASTE 1 started from the expected pre-state: listeners on `0.0.0.0:22` and `[::]
 PASTE 2 printed `LAN-SSH 3` and then `OK-batch-8`. The new session was counted, the timer was disarmed, and the sshd reload was kept. There are no `STOP-*` lines. PASTE 3 was not used.
 
 `git diff docs/cis-26.04-l1-results.csv` is empty. The 15 in-scope rules stay at their pre-batch verdicts until Governance re-audits. The `/etc` mirror under `etc/` is still outstanding for the commit that records the run. The status line at the
+[19:45:30 CT] Committed+pushed 488c022
+Counter({'PASS': 189, 'FAIL': 36, 'N/A': 31, 'PASS (manual)': 12, 'FAIL (manual)': 6})
