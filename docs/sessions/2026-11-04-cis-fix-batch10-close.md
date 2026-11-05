@@ -1,6 +1,6 @@
 # Batch 10 close — CIS L1 fix pass complete (2026-11-04 ~23:06 CT)
 
-Historical once the next session starts. Current state: `docs/os-handoff.md` rev 66.
+Historical once the next session starts. Current state: `docs/os-handoff.md` rev 67.
 
 ## Outcome
 
@@ -32,9 +32,12 @@ Historical once the next session starts. Current state: `docs/os-handoff.md` rev
 
 ## Still open (not blocking tool install)
 
-- **ksmbd** risk entry: still pending AJ acceptance (rec A).
 - Ableton reboot proof for the AtStartup task.
 - Parked: Ableton Ubuntu / Security Onion rebuild.
+
+## Accepted
+
+- **ksmbd** risk entry: accepted, option A (AJ, 2026-11-04 America/Chicago): leave loadable. B and C were not chosen. No modprobe change.
 
 ## Next
 
