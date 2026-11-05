@@ -85,3 +85,15 @@ sudo groupdel sugroup
 `groupdel` fails if `sugroup` is missing or no longer empty; that is fine only after you confirm the `pam_wheel` line is gone. Do not restart `ssh.socket`. `0.0.0.0:22` must still be listening before the session is closed.
 
 If IPv4 SSH is already dead, use PASTE 3 at the KVM console. PASTE 3 runs only the sshd revert. It does not undo sudo, `/etc/environment`, or `pam_wheel`.
+
+## Results
+
+Log: `tools/relay/logs/batch-8-20261104-194448-results.txt` (2026-11-04). PASTE 1 and PASTE 2 both completed. PASTE 3 was not used.
+
+Pre-state matched the plan: `0.0.0.0:22` and `[::]:22` listening, two established SSH sessions from `192.168.50.223`, `sshd_config` `0644` root:root, `sshd_config.d` `0755` root:root with only `50-cloud-init.conf` (`0600`). The script printed `LAN-SSH 2`.
+
+PASTE 1 wrote the files and kept the checks: backups `/root/environment.pre-batch8`, `/root/sudoers.pre-batch8`, `/root/pam-su.pre-batch8`, `/root/sshd_config.pre-batch8`; `WROTE-environment`, `WROTE-secure-path`, `WROTE-timestamp`, `WROTE-group`, `WROTE-pam-wheel`. Each `visudo` check printed `parsed OK`, including `/etc/sudoers`. Root PATH after the environment edit was `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games` (no `/snap/bin`). The revert timer armed at 300 seconds (`TIMER-ARMED 300`) and the script exited `OK-batch-8-pending`.
+
+PASTE 2, from the new session, printed `LAN-SSH 3` then `OK-batch-8`. That is the keep: the timer was disarmed and the sshd reload stayed. No `STOP-*` lines.
+
+`git diff docs/cis-26.04-l1-results.csv` is empty. The 15 in-scope rules stay at their pre-batch verdicts until Governance re-audits. The same commit that records the run still has to mirror the changed `/etc` files under `etc/`.

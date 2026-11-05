@@ -1,0 +1,13 @@
+csv: 274 rows, merged 0, bad 0
+[19:44:48 CT] Claude scoring results into docs/cis-26.04-l1-results.csv ...
+csv: 274 rows, merged 0, bad 0
+[19:45:08 CT] Grok (grok-4.7-low-fast) round results ...
+I'll read the batch-8 results log, the CSV diff, and the end of `docs/cis-fix/batch-8.md` so the Results section matches what actually ran.The run log shows both pastes finished; the CSV is unchanged. I'll append that as `## Results` only.## Detail
+
+Batch 8 ran through both SSH pastes. `tools/relay/logs/batch-8-20261104-194448-results.txt` ends in `OK-batch-8`. I appended that as `## Results` on `docs/cis-fix/batch-8.md` and left the rest of the file alone.
+
+PASTE 1 started from the expected pre-state: listeners on `0.0.0.0:22` and `[::]:22`, two established sessions from `192.168.50.223`, `sshd_config` mode `0644`, and `sshd_config.d` mode `0755` with only `50-cloud-init.conf`. The script counted `LAN-SSH 2`, wrote the environment, sudoers, `sugroup`, and `pam_wheel` changes, and printed `parsed OK` from each `visudo` check. Root's PATH after the environment edit was `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games`. The 300-second revert timer armed (`TIMER-ARMED 300`) and PASTE 1 exited `OK-batch-8-pending`.
+
+PASTE 2 printed `LAN-SSH 3` and then `OK-batch-8`. The new session was counted, the timer was disarmed, and the sshd reload was kept. There are no `STOP-*` lines. PASTE 3 was not used.
+
+`git diff docs/cis-26.04-l1-results.csv` is empty. The 15 in-scope rules stay at their pre-batch verdicts until Governance re-audits. The `/etc` mirror under `etc/` is still outstanding for the commit that records the run. The status line at the
