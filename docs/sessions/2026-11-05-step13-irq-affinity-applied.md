@@ -1,6 +1,6 @@
 # Step 13 — IRQ affinity (applied)
 
-Applied 2026-11-05 America/Chicago. Handoff rev 87. AJ's paste printed `STEP13-IRQ-DONE`. The paste was tip `c765e01`. Soft nits in `b19ab07` did not run and do not require a re-run. This closeout did not SSH to Johnny. The raw log stays at `/root/step13-apply.log`.
+Applied 2026-11-05 America/Chicago. Handoff rev 87. Closeout commit `e0a7c42` is 2026-11-05 20:19:35Z (~14:19 CT), after `b19ab07` at 20:13:58Z. CSV times in `Johnny_Step13_Session_Log_2026-11-05.csv` are those commit times, in order. The Johnny paste clock was not in the summary. AJ's paste printed `STEP13-IRQ-DONE`. The paste was tip `c765e01`. **[Inference]** AJ's scp file sizes matched that tip. This repo does not store that listing. Soft nits in `b19ab07` did not run and do not require a re-run. This closeout did not SSH to Johnny. The raw log stays at `/root/step13-apply.log`.
 
 ## Result
 
@@ -14,7 +14,7 @@ rock-box `sudo -v` failed three times (wrong password for that host). Johnny `ss
 
 ## Verify
 
-Same day, read-only from rock-box. `HOST johnny`. `KERNEL 7.0.0-42-generic`. Tuning `active enabled`. `IRQUNIT inactive enabled`: the unit is enabled, and systemd has not started the oneshot, because the paste ran the helper itself. `IRQBALANCE inactive`. `eno3` `192.168.50.152/24`. Default via `192.168.50.1` dev `eno3`. `ip -br link show eno1np0 eno2np1 eno3` failed (`eno2np1` is garbage). That one-liner is not a link-flag check. IRQs 187–201 and 217–229 confirm CPU 1.
+Same day, read-only from rock-box. `HOST johnny`. `KERNEL 7.0.0-42-generic`. Tuning `active enabled`. `IRQUNIT inactive enabled`: the unit is enabled, and systemd has not started the oneshot, because the paste ran the helper itself. **[Inference]** A later boot would start it after `network-online.target`. The unit has not run under systemd, and there has been no reboot since this paste. `IRQBALANCE inactive`. `eno3` `192.168.50.152/24`. Default via `192.168.50.1` dev `eno3`. `ip -br link show eno1np0 eno2np1 eno3` failed (`eno2np1` is garbage). The corrected read is one `ip -br link show dev` per name. That corrected command was not re-run for this note. IRQs 187–201 and 217–229 confirm CPU 1.
 
 ## Not on Johnny
 

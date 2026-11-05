@@ -1,6 +1,6 @@
 # Step 13 — IRQ affinity (applied 2026-11-05)
 
-Rev 4, 2026-11-05 ~14:18 CT. Applied on Johnny. AJ's paste printed `STEP13-IRQ-DONE`. The paste was tip `c765e01` (scp sizes match that tip). Soft nits in `b19ab07` did not run and do not require a re-run. Do not re-run this step to spread the IRQs. The live pin put every recorded `eno1np0` vector on CPU 1.
+Rev 4, 2026-11-05. Applied on Johnny. The closeout commit `e0a7c42` is 2026-11-05 20:19:35Z (~14:19 CT), after rev 86's commit `b19ab07` at 20:13:58Z (~14:13 CT). An earlier line on this rev said ~14:18 CT. AJ's paste printed `STEP13-IRQ-DONE`. The paste was tip `c765e01`. **[Inference]** AJ's scp file sizes matched that tip. This repo does not store that size listing. Soft nits in `b19ab07` did not run and do not require a re-run. Do not re-run this step to spread the IRQs. The live pin put every recorded `eno1np0` vector on CPU 1.
 
 ## After the run
 
@@ -45,7 +45,7 @@ Rock-box read-only verify, same day, after `STEP13-IRQ-DONE`:
 - `HOST johnny`, `KERNEL 7.0.0-42-generic`
 - `ip -br link show eno1np0 eno2np1 eno3` failed: `Error: either "dev" is duplicate, or "eno2np1" is garbage.` iproute2 does not take three device names that way. The one-liner in the old verify block is wrong. `eno3` was still read from the address and route lines: UP, `192.168.50.152/24`, default via `192.168.50.1` dev `eno3`. This verify did not re-print `eno1np0` or `eno2np1` flags.
 - `TUNING active enabled`
-- `IRQUNIT inactive enabled`. The paste enabled the unit and ran the helper itself. It did not `systemctl start` the unit, so systemd has not marked the oneshot active. `RemainAfterExit=yes` would show `active` only after systemd runs `ExecStart`. Inactive here is not a failed pin. Boot still starts it after `network-online.target`.
+- `IRQUNIT inactive enabled`. The paste enabled the unit and ran the helper itself. It did not `systemctl start` the unit, so systemd has not marked the oneshot active. `RemainAfterExit=yes` would show `active` only after systemd runs `ExecStart`. Inactive here is not a failed pin. **[Inference]** A later boot would start the oneshot after `network-online.target`, because the unit is enabled and ordered after that target. The unit has not run under systemd, and Johnny has not rebooted since this paste.
 - `IRQBALANCE inactive`
 - `LOCKDOWN none[integrity]confidentiality`
 - `RPS 000000`, `XPS 000000`
@@ -158,7 +158,7 @@ If `irqbalance` is `active`, and its command line does not already contain that 
 
 Writes go to `/proc/irq/N/smp_affinity_list`, which is the CPU-list form of the allowed mask ([IRQ affinity](https://docs.kernel.org/core-api/irq/irq-affinity.html)). If that file is not writable, the paste stops with `STOP-affinity-ro` before it saves masks, installs the unit, or edits `irqbalance`. Managed interrupts are not movable from `/proc` ([managed IRQs](https://docs.kernel.org/core-api/irq/managed_irq.html)). This step does not set `isolcpus=managed_irq` and does not touch GRUB. A failed write is `STOP-affinity-write` and reverts.
 
-**[Inference]** A userspace write updates the NAPI affinity notifier's stored mask, so a later `irq_set_affinity()` from `napi_restore_config` keeps the pin. That inference is from `netif_napi_irq_notify` in the `v7.0` file above. The paste does not bounce the link to test it. The boot unit re-applies the pin after `network-online.target`.
+**[Inference]** A userspace write updates the NAPI affinity notifier's stored mask, so a later `irq_set_affinity()` from `napi_restore_config` keeps the pin. That inference is from `netif_napi_irq_notify` in the `v7.0` file above. The paste does not bounce the link to test it. **[Inference]** On a later boot the enabled oneshot would re-apply the pin after `network-online.target`. That has not happened. The unit has not run under systemd, and there has been no reboot since this paste.
 
 ## Files the paste writes
 
@@ -168,7 +168,7 @@ These repo files are the bytes the paste installs. They are not on Johnny until 
 |---|---|---|---|
 | `/etc/johnny/irq-affinity.sh` | `etc/johnny/irq-affinity.sh` | 0755 | `77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e` |
 | `/etc/johnny/irqbalance-policy.sh` | `etc/johnny/irqbalance-policy.sh` | 0755 | `7a3eeb944be0ee60ba94099b3ae4da3c905c941003c5c50221921032a9ffb0a8` |
-| `/etc/systemd/system/johnny-capture-irq.service` | `etc/systemd/system/johnny-capture-irq.service` | 0644 | `03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a` |
+| `/etc/systemd/system/johnny-capture-irq.service` | `etc/systemd/system/johnny-capture-irq.service` | 0644 | repo file after `b19ab07`: `03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a` (has `Wants=network-online.target`). Not the live file. Live install from `c765e01`: `9df4969fbb8e9000c13d409cc1788846ca9b1acf06275fd7336eb616cd6bb355` (no `Wants=`). Soft-nit `Wants=` is not on Johnny. |
 | `/root/step13-revert.sh` | `docs/tool-install/step-13-revert.sh` | 0755 | `c9dd1522e278bc3bad3a711a4fdcd18b1b768d9da19dff07376a5db7dfa4cc1d` |
 | `/home/aj/cis-audit/step-13-irq-affinity.sh` | `docs/tool-install/step-13-irq-affinity.sh` | 0755 | `701cdae4eb871a7e5a26071866c813f2d1e2baf97e431585323515f2922bc14d` |
 
@@ -230,10 +230,10 @@ The script refuses any host other than `johnny` (`STOP-host`) and any kernel oth
 Not part of the paste. On rock-box, after `STEP13-IRQ-DONE`, read-only:
 
 ```bash
-ssh aj@192.168.50.152 'echo HOST $(hostname -s); echo KERNEL $(uname -r); ip -br link show eno1np0 eno2np1 eno3; ip -br addr show eno3; ip -4 route show default; echo TUNING $(systemctl is-active johnny-capture-tuning.service) $(systemctl is-enabled johnny-capture-tuning.service); echo IRQUNIT $(systemctl is-active johnny-capture-irq.service) $(systemctl is-enabled johnny-capture-irq.service); echo IRQBALANCE $(systemctl is-active irqbalance.service || true); echo LOCKDOWN $(tr -d "[:space:]" < /sys/kernel/security/lockdown); echo RPS $(tr -d "[:space:]" < /sys/class/net/eno1np0/queues/rx-0/rps_cpus); echo XPS $(tr -d "[:space:]" < /sys/class/net/eno1np0/queues/tx-0/xps_cpus); for n in /sys/class/net/eno1np0/device/msi_irqs/*; do i=$(basename "$n"); printf "ENO1 %s %s %s\n" "$i" "$(tr -d "[:space:]" < /proc/irq/$i/smp_affinity_list)" "$(tr -d "[:space:]" < /proc/irq/$i/effective_affinity_list)"; done'
+ssh aj@192.168.50.152 'echo HOST $(hostname -s); echo KERNEL $(uname -r); ip -br link show dev eno1np0; ip -br link show dev eno2np1; ip -br link show dev eno3; ip -br addr show eno3; ip -4 route show default; echo TUNING $(systemctl is-active johnny-capture-tuning.service) $(systemctl is-enabled johnny-capture-tuning.service); echo IRQUNIT $(systemctl is-active johnny-capture-irq.service) $(systemctl is-enabled johnny-capture-irq.service); echo IRQBALANCE $(systemctl is-active irqbalance.service || true); echo LOCKDOWN $(tr -d "[:space:]" < /sys/kernel/security/lockdown); echo RPS $(tr -d "[:space:]" < /sys/class/net/eno1np0/queues/rx-0/rps_cpus); echo XPS $(tr -d "[:space:]" < /sys/class/net/eno1np0/queues/tx-0/xps_cpus); for n in /sys/class/net/eno1np0/device/msi_irqs/*; do i=$(basename "$n"); printf "ENO1 %s %s %s\n" "$i" "$(tr -d "[:space:]" < /proc/irq/$i/smp_affinity_list)" "$(tr -d "[:space:]" < /proc/irq/$i/effective_affinity_list)"; done'
 ```
 
-The 2026-11-05 verify used this block. `ip -br link show` with three names failed (`eno2np1` is garbage). Read each device with `ip -br link show dev` and one name. Do not re-run the affinity paste to fix that one-liner.
+The 2026-11-05 verify used `ip -br link show eno1np0 eno2np1 eno3`. That failed: `Error: either "dev" is duplicate, or "eno2np1" is garbage.` The block above is the corrected read, one `ip -br link show dev` per name. It was not re-run for this note. Do not re-run the affinity paste to fix that one-liner.
 
 What that verify actually printed: `HOST johnny`, `KERNEL 7.0.0-42-generic`, `eno3` `192.168.50.152/24`, default via `192.168.50.1` dev `eno3`, tuning `active enabled`, IRQ unit `inactive enabled` (enabled, not active), `IRQBALANCE inactive`, lockdown `none[integrity]confidentiality`, RPS and XPS `000000`. IRQs 187–201 and 217–229 are mask `1` and effective `1`. This run did not spread them across CPUs 2–4.
 
