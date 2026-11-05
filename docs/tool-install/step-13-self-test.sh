@@ -91,6 +91,7 @@ fi
 cpulist_has_cpu0 0-23 || fail "cpu0 in 0-23"
 cpulist_has_cpu0 0 || fail "cpu0 alone"
 cpulist_has_cpu0 'x' || fail "bad spec is not cpu0-clear"
+cpulist_has_cpu0 '' || fail "empty spec is not cpu0-clear"
 if cpulist_has_cpu0 1; then fail "cpu1 has cpu0"; fi
 if cpulist_has_cpu0 10-12; then fail "10-12 has cpu0"; fi
 if cpulist_has_cpu0 1,2,3,4; then fail "1,2,3,4 has cpu0"; fi
