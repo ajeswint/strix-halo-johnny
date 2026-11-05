@@ -1,3 +1,9 @@
+# relay — standing seats (2026-11-05)
+
+Standing seats are now **two Claude Code instances** (Sonnet, medium effort): **code-writer** drafts, **adversarial-reviewer** reviews. ROCK-BOX-BOT relays. Prefer `claude --model sonnet --effort medium --agent code-writer|adversarial-reviewer`. The Grok draft loop below remains for historical CIS batch scoring; do not treat `GROK_MODEL` as the standing writer seat.
+
+---
+
 # relay — Grok drafts, Claude reviews, one commit per batch
 
 ```
