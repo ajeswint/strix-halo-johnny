@@ -1,6 +1,8 @@
 # Batch 10 close — CIS L1 fix pass complete (2026-11-04 ~23:06 CT)
 
-Historical once the next session starts. Current state: `docs/os-handoff.md` rev 67.
+Historical once the next session starts. Current state: `docs/os-handoff.md` rev 68.
+
+Corrected 2026-11-04 23:55 CT (handoff rev 68): Ableton reboot proof passed 2026-11-04 CT (JohnnySyslogCollector AtStartup came back; TCP 514 OK from Johnny). Step 7 is recorded applied in the handoff SBOM. Next is step 11, drafted, not applied. The sections below are the 2026-11-04 close as written.
 
 ## Outcome
 

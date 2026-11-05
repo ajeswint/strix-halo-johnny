@@ -1,0 +1,15 @@
+[Unit]
+Description=Johnny capture-core EPP and idle tuning
+After=multi-user.target
+ConditionPathExists=/etc/johnny/capture-cores
+ConditionPathExists=/etc/johnny/capture-tuning.sh
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/etc/johnny/capture-tuning.sh apply
+ExecStop=/etc/johnny/capture-tuning.sh revert
+TimeoutStartSec=30
+
+[Install]
+WantedBy=multi-user.target
