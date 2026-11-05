@@ -8,7 +8,9 @@
 # NO REBOOT in this script.
 # Rollback: docs/cis-fix/batch-10.md ## Rollback.
 #
-# 6.1.2.5 is not configured here. No remote log host is named in the repo.
+# 6.1.2.5 forwards to ableton_box (docs/hosts/ableton_box.md) at 192.168.50.211
+# TCP syslog port 514. The script stops before writing that forwarder if
+# TCP 514 is not accepted. UDP is not used.
 # 3.2.7 only re-asserts dccp, sctp, rds, and tipc. esp4, esp6, and rxrpc stay loadable.
 #
 # After any later grub-common upgrade, repeat the supervised KVM reboot test.
@@ -141,6 +143,17 @@ if [ -f "$NETBAK" ]; then
   cp -a "$NETBAK" "$NET"
 fi
 rm -f /etc/grub.d/01_johnny_users /root/batch10-grub.cfg.new
+# batch10-syslog-undo: drop-ins added for 6.1.2.5. Vendor ForwardToSyslog stays.
+rm -f /etc/rsyslog.d/60-johnny-remote.conf
+rm -f /etc/systemd/journald.conf.d/61-batch10-forward-syslog.conf
+if systemctl is-active --quiet rsyslog; then
+  systemctl reload rsyslog
+fi
+if systemctl is-active --quiet systemd-journald; then
+  # No ExecReload on systemd-journald (checked 2026-11-04). A failing reload
+  # must not skip rm of the tar or REVERTED.
+  systemctl reload systemd-journald || systemctl try-restart systemd-journald || true
+fi
 rm -f "$TAR"
 echo REVERTED
 EOF
@@ -267,6 +280,96 @@ EOF
     exit 1
   fi
 
+  # --- 6.1.2.5 ableton_box, TCP/514. No write until the probe succeeds. ---
+  # Rollback: sudo rm -f /etc/rsyslog.d/60-johnny-remote.conf /etc/systemd/journald.conf.d/61-batch10-forward-syslog.conf
+  #   then: sudo systemctl reload rsyslog; sudo systemctl reload systemd-journald || sudo systemctl try-restart systemd-journald || true
+  # A helper written by this revision also removes those two files.
+  LOGIP=192.168.50.211
+  RSYS=/etc/rsyslog.d/60-johnny-remote.conf
+  JRN=/etc/systemd/journald.conf.d/61-batch10-forward-syslog.conf
+  resolved=""
+  for name in ableton_box.local ableton_box; do
+    got=$(getent ahostsv4 "$name" 2>/dev/null | awk 'NR==1 { print $1 }' || true)
+    if [ -n "$got" ]; then
+      resolved=$got
+      break
+    fi
+  done
+  if [ -n "$resolved" ] && [ "$resolved" != "$LOGIP" ]; then
+    echo "STOP-resolve-mismatch $resolved"
+    echo "ableton_box resolved to an address other than $LOGIP. Not forwarding."
+    exit 1
+  fi
+  if [ -z "$resolved" ]; then
+    echo "RESOLVE-FALLBACK $LOGIP ableton_box"
+  else
+    echo "RESOLVE-OK $resolved"
+  fi
+  if ! timeout 5 bash -c "echo >/dev/tcp/${LOGIP}/514"; then
+    echo STOP-collector-514
+    echo "No TCP connection to ${LOGIP}:514 (ableton_box). Stand up syslog on ABLETON_BOX so it listens on TCP 514, then rerun. No forwarder was written."
+    exit 1
+  fi
+  echo "PROBE-OK ${LOGIP}:514"
+  if ! grep -q '\$WorkDirectory' /etc/rsyslog.conf /etc/rsyslog.d/*.conf 2>/dev/null; then
+    echo STOP-no-workdirectory
+    exit 1
+  fi
+  if [ -f "$REVERT" ] && ! grep -q 'batch10-syslog-undo' "$REVERT"; then
+    echo STOP-revert-old
+    echo "$REVERT has no syslog undo. Run it, then rerun PASTE 1 so the helper is rewritten."
+    exit 1
+  fi
+  want=$(cat << EOF
+# ableton_box (ableton_box.local) ${LOGIP} — docs/hosts/ableton_box.md
+# TCP syslog 514 (omfwd). UDP is not used. Hostname is a comment: target is the documented address.
+action(type="omfwd" target="${LOGIP}" port="514" protocol="tcp" action.resumeRetryCount="-1" action.resumeInterval="30" queue.type="LinkedList" queue.filename="batch10fwd" queue.saveOnShutdown="on")
+EOF
+)
+  if [ -f "$RSYS" ] && [ "$(cat "$RSYS")" = "$want" ]; then
+    echo RSYSLOG-KEPT
+  else
+    if [ -f "$RSYS" ] && [ ! -f /root/batch10-60-johnny-remote.conf.bak ]; then
+      cp -a "$RSYS" /root/batch10-60-johnny-remote.conf.bak
+      echo BACKUP /root/batch10-60-johnny-remote.conf.bak
+    fi
+    printf '%s\n' "$want" > "$RSYS"
+    chmod 644 "$RSYS"
+    if ! rsyslogd -N1; then
+      rm -f "$RSYS"
+      echo STOP-rsyslog-syntax
+      exit 1
+    fi
+    systemctl reload rsyslog
+    echo RSYSLOG-OK
+  fi
+  if [ ! -d /etc/systemd/journald.conf.d ]; then
+    echo STOP-no-journald-dir
+    exit 1
+  fi
+  jwant=$(cat << 'EOF'
+[Journal]
+ForwardToSyslog=yes
+EOF
+)
+  if [ -f "$JRN" ] && [ "$(cat "$JRN")" = "$jwant" ]; then
+    echo JOURNAL-KEPT
+  else
+    if [ -f "$JRN" ] && [ ! -f /root/batch10-61-batch10-forward-syslog.conf.bak ]; then
+      cp -a "$JRN" /root/batch10-61-batch10-forward-syslog.conf.bak
+    fi
+    printf '%s\n' "$jwant" > "$JRN"
+    chmod 644 "$JRN"
+    # Vendor already sets ForwardToSyslog=yes. The unit has no ExecReload
+    # (checked 2026-11-04). The cat-config check below is the gate.
+    systemctl reload systemd-journald || systemctl try-restart systemd-journald || true
+    echo JOURNAL-OK
+  fi
+  if ! systemd-analyze cat-config systemd/journald.conf | grep -q '^ForwardToSyslog=yes$'; then
+    echo STOP-journal-forward
+    exit 1
+  fi
+
   echo BATCH10-SSH-DONE
 }
 
@@ -328,6 +431,8 @@ paste2() {
     cp -a /mnt/root/batch10-johnny-cis-net.conf.bak /mnt/etc/modprobe.d/johnny-cis-net.conf
   fi
   rm -f /mnt/etc/grub.d/01_johnny_users /mnt/root/batch10-grub.cfg.new
+  rm -f /mnt/etc/rsyslog.d/60-johnny-remote.conf
+  rm -f /mnt/etc/systemd/journald.conf.d/61-batch10-forward-syslog.conf
   rm -f /mnt/root/batch10-grub-before.tar
   echo KVM-REVERTED-LIVE
 }

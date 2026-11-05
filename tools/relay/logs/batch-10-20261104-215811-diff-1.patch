@@ -1,0 +1,550 @@
+diff --git a/docs/cis-fix/batch-10.md b/docs/cis-fix/batch-10.md
+new file mode 100644
+index 0000000..bd213e6
+--- /dev/null
++++ b/docs/cis-fix/batch-10.md
+@@ -0,0 +1,99 @@
++# CIS L1 fix pass, Batch 10: bootloader password, remote logs, unused net modules
++
++**Status:** DRAFT (Grok, 2026-11-04). Not run.
++
++**Rules in scope:** 1.4.1 bootloader password, 6.1.2.5 remote log forwarding, 3.2.7 unneeded network protocol modules (manual).
++
++**Live read (2026-11-04, `aj` over SSH, no sudo):** kernel `7.0.0-42-generic`. `/etc/default/grub` has `GRUB_TIMEOUT_STYLE=hidden` and `GRUB_TIMEOUT=0`. `aj` cannot read `/boot/grub/grub.cfg` (mode 600). `/etc/grub.d/10_linux` line 33 is `CLASS="--class gnu-linux --class gnu --class os"` with no `--unrestricted`. Same base CLASS in `10_linux_zfs`. `20_linux_xen` has that string plus `--class xen`. `GRUB_DISABLE_OS_PROBER=false` is commented. `dccp` has no `.ko` (`modprobe -n -v` → module not found). `sctp`, `rds`, `tipc`, `atm`, and `can` are not loaded; `modprobe -n -v` ends in `install /bin/false` for those five (`sctp` and `tipc` print `udp_tunnel` `insmod` lines first). `esp4`, `esp6`, and `rxrpc` still dry-run to `insmod` of their own `.ko`. No `set superusers` check was possible without root.
++
++## Plan
++
++The script AJ runs is [`batch-10.sh`](batch-10.sh). Copy it from the laptop, then create the hash file, then run PASTE 1. PASTE 1 does not reboot. A password prompt at the next boot means the unrestricted gate failed: use Rollback.
++
++**1.4.1.** The password gates GRUB menu editing and the command line. It must not gate a normal boot. PASTE 1 writes `/etc/grub.d/01_johnny_users` (`set superusers="johnny"` plus `password_pbkdf2`) and appends `--unrestricted` to the base `CLASS=` line in `10_linux`, `10_linux_zfs`, and `20_linux_xen` so generated Linux entries boot with no prompt. It builds a candidate `grub.cfg`, runs `grub-script-check`, and requires the first `menuentry` line to contain `--unrestricted` before it replaces `/boot/grub/grub.cfg`. The revert helper is written before any `grub.d` edit. An ERR trap calls it on a `set -e` failure after that (a plain `exit 1` does not fire ERR, so those STOP branches call the helper themselves). The helper restores the tar and then deletes it, so a failed run can be rerun. If `STOP-tar-exists` prints, run the helper first. Do not delete the tar by hand. AJ types the password only in `grub-mkpasswd-pbkdf2`. The script accepts a hash file. It never contains a password or a hash.
++
++A later `grub-common` upgrade can replace the patched `10_linux` and drop `--unrestricted` (for example an apt run without force-confold). Repeat the supervised KVM reboot test after any such upgrade. The first `menuentry` line in `/boot/grub/grub.cfg` must still contain `--unrestricted`. PASTE 1 checks that line before it installs the cfg and again when it sees an existing password config.
++
++**6.1.2.5 — configure, TCP, after the GRUB and module steps.** AJ (2026-11-04 21:57 CT) named the collector: `ableton_box` in [`docs/hosts/ableton_box.md`](../hosts/ableton_box.md) (mDNS `ableton_box.local`, address `192.168.50.211`). No port is in that doc, so the forward uses syslog **514**. Transport is **TCP** (`omfwd`, protocol `tcp`, the `@@` form). A TCP connect shows that something accepted the session. UDP (`@`) would not, so it is not used.
++
++Live read the same night, `aj` over SSH: `getent` returned nothing for `ableton_box` and `ableton_box.local`. `resolvectl query ableton_box.local` failed (`No appropriate name servers or networks`). `ip neigh` showed `192.168.50.211` on `eno3`, MAC `3c:7c:3f:4e:14:7d`, state `STALE`. `timeout 3 bash -c 'echo >/dev/tcp/192.168.50.211/514'` failed. rsyslog is `active` and `enabled`. `imjournal.so` is installed. Effective journald is `ForwardToSyslog=yes` from `/usr/lib/systemd/journald.conf.d/syslog.conf`. `/etc/systemd/journald.conf` still has that line commented. `/etc/systemd/journald.conf.d/` has only Batch 3's `60-rotation.conf`. rsyslog loads `imuxsock` and `imklog`, not `imjournal`. No `omfwd` line exists.
++
++PASTE 1 resolves `ableton_box.local`, then `ableton_box`. A hit must be `192.168.50.211` or the script stops (`STOP-resolve-mismatch`). No hit uses that documented address and records the hostname in a comment. It then opens TCP 514 on that address with a 5 second timeout. Failure prints `STOP-collector-514` and exits 1. It does not write `/etc/rsyslog.d/60-johnny-remote.conf`, does not write the journald drop-in, and does not print `BATCH10-SSH-DONE`. That is the expected result until ABLETON_BOX listens on TCP 514. The GRUB and module steps above that probe still run; a rerun after the collector is up is idempotent for those steps.
++
++On success the script writes `action(type="omfwd" target="192.168.50.211" port="514" protocol="tcp" ...)` so the CIS advanced-format grep matches, checks `rsyslogd -N1`, and reloads rsyslog. Journal events already reach rsyslog through `imuxsock` because `ForwardToSyslog=yes` is effective. The script does not load `imjournal` (that would copy the same events twice). It adds `/etc/systemd/journald.conf.d/61-batch10-forward-syslog.conf` with `ForwardToSyslog=yes` so the setting also lives under `/etc`, reloads `systemd-journald` only when that file is new, and stops if the merged value is not `yes`. No apt. CSV stays unchanged until scoring.
++
++**3.2.7 — decision, narrow change.** The site deny list beyond the CIS four is still open (Detection has not signed off on capture or XDP needs). `esp4`, `esp6`, and `rxrpc` stay available. PASTE 1 only makes sure `dccp`, `sctp`, `rds`, and `tipc` have `blacklist` and `install /bin/false` in `/etc/modprobe.d/johnny-cis-net.conf`, and it stops if any of those four is loaded or listed for autoload. That edit runs only after the GRUB gate is confirmed (or already present). `/root/batch10-johnny-cis-net.conf.bak` is created only when it does not already exist, so a rerun cannot overwrite the original with an already-edited file. `sctp`, `rds`, and `tipc` are already in that file from Batch 4. `dccp` is not in this kernel; the lines are still added so a later kernel module cannot load. `atm` and `can` are left as Batch 4 wrote them. Scoring 3.2.7 stays **FAIL (manual)** until AJ approves a fuller list. CSV is unchanged.
++
++```bash
++# RUNS ON: LAPTOP
++# RUNS IN: LAPTOP
++scp docs/cis-fix/batch-10.sh aj@192.168.50.152:cis-audit/batch-10.sh
++```
++
++On Johnny, SSH, type the password only into `grub-mkpasswd-pbkdf2`. Copy the printed `grub.pbkdf2.sha512...` line into the file. Do not put the password in the file, the repo, or this doc.
++
++```bash
++# RUNS ON: JOHNNY (SSH)
++# RUNS IN: SSH
++sudo grub-mkpasswd-pbkdf2
++sudo install -m 600 /dev/null /root/batch10-grub.pbkdf2
++sudoedit /root/batch10-grub.pbkdf2
++```
++
++`sudoedit` needs a working editor and a sudoers policy that allows it. If it will not open the file, paste the hash at this prompt instead (one line, then Ctrl-D). The password stays out of the file.
++
++```bash
++# RUNS ON: JOHNNY (SSH)
++# RUNS IN: SSH
++sudo tee /root/batch10-grub.pbkdf2 >/dev/null
++sudo chmod 600 /root/batch10-grub.pbkdf2
++sudo chown root:root /root/batch10-grub.pbkdf2
++```
++
++Either path should leave one line and mode 600 root-owned.
++
++```bash
++# RUNS ON: JOHNNY (SSH)
++# RUNS IN: SSH
++# PASTE 1
++sudo bash ~/cis-audit/batch-10.sh
++```
++
++Expect `GRUB-OK` and `BATCH10-SSH-DONE`. Then a supervised reboot with KVM watching, LUKS recovery passphrase at hand. This script does not reboot. Normal boot should show no GRUB password prompt (`timeout` is 0 and hidden). To confirm the gate, at KVM press Esc or Shift during firmware handoff so the menu appears, then try `e` on the default entry: that edit must ask for user `johnny` and the password. Boot the default entry without typing it. Repeat that reboot test after a `grub-common` package upgrade.
++
++PASTE 2 is the KVM rollback in the next section. It is not a second apply step.
++
++## Rollback
++
++Not part of the apply paste.
++
++If the machine still boots (the expected case), from SSH:
++
++```bash
++# RUNS ON: JOHNNY (SSH)
++# RUNS IN: SSH
++sudo bash /root/batch10-revert.sh
++```
++
++That extracts `/root/batch10-grub-before.tar` (pre-change `/etc/grub.d` and `/boot/grub/grub.cfg`), restores `johnny-cis-net.conf` from `/root/batch10-johnny-cis-net.conf.bak` when that file exists, deletes `/etc/grub.d/01_johnny_users`, deletes `/etc/rsyslog.d/60-johnny-remote.conf` and `/etc/systemd/journald.conf.d/61-batch10-forward-syslog.conf` when the helper contains the syslog undo (a helper written before this revision does not; use the block below), reloads `rsyslog` and `systemd-journald` when those units are active, and then removes the tar. It does not ask for the GRUB password. After `REVERTED`, PASTE 1 can be run again.
++
++Syslog and journald drop-ins only, installed root, SSH. This does not undo GRUB or the module file.
++
++```bash
++# RUNS ON: JOHNNY (SSH)
++# RUNS IN: SSH
++sudo rm -f /etc/rsyslog.d/60-johnny-remote.conf /etc/systemd/journald.conf.d/61-batch10-forward-syslog.conf
++sudo systemctl reload rsyslog
++sudo systemctl reload systemd-journald
++```
++
++If GRUB asks for a password before any menu entry boots, do not type one. At the firmware boot menu (outside GRUB), boot Ubuntu installer media, choose the rescue shell, and run PASTE 2 there. Device names are from the disk row in `docs/os-handoff.md`: `/dev/nvme0n1p3` is LUKS (the existing recovery passphrase, slot 0), `/dev/nvme0n1p2` is `/boot`, and the volume group is `ubuntu-vg` / `ubuntu-lv`. `johnny-root` is only the mapper name PASTE 2 passes to `cryptsetup open` in the installer shell. The live mapper on a normal boot is `dm_crypt-0`. A wrong disk stops the script. Copy the script onto a USB stick from the laptop (`cp docs/cis-fix/batch-10.sh` onto the stick), mount that stick in the installer, and run:
++
++```bash
++# RUNS ON: JOHNNY (KVM)
++# RUNS IN: KVM
++# PASTE 2
++sudo bash batch-10.sh 2
++```
++
++If `/root/batch10-grub-before.tar` is already visible, PASTE 2 only runs `/root/batch10-revert.sh` and does not call `cryptsetup`.
+diff --git a/docs/cis-fix/batch-10.sh b/docs/cis-fix/batch-10.sh
+new file mode 100644
+index 0000000..f11db56
+--- /dev/null
++++ b/docs/cis-fix/batch-10.sh
+@@ -0,0 +1,439 @@
++#!/bin/bash
++# CIS L1 Batch 10. The deliverable AJ runs from SSH:
++#   sudo bash ~/cis-audit/batch-10.sh
++# PASTE 2 is KVM recovery. It does not run unless AJ passes 2:
++#   sudo bash ~/cis-audit/batch-10.sh 2
++# from the installed root, or from the Ubuntu installer shell after this
++# script's live-media steps have mounted that root on /mnt (see batch-10.md).
++# NO REBOOT in this script.
++# Rollback: docs/cis-fix/batch-10.md ## Rollback.
++#
++# 6.1.2.5 forwards to ableton_box (docs/hosts/ableton_box.md) at 192.168.50.211
++# TCP syslog port 514. The script stops before writing that forwarder if
++# TCP 514 is not accepted. UDP is not used.
++# 3.2.7 only re-asserts dccp, sctp, rds, and tipc. esp4, esp6, and rxrpc stay loadable.
++#
++# After any later grub-common upgrade, repeat the supervised KVM reboot test.
++# A replaced 10_linux can drop --unrestricted and gate a normal boot on the password.
++
++set -euo pipefail
++
++if [ "$#" -gt 1 ]; then
++  echo STOP-args
++  exit 1
++fi
++paste=1
++if [ "$#" -eq 1 ]; then
++  paste=$1
++fi
++case "$paste" in
++  1|2) ;;
++  *)
++    echo STOP-args
++    exit 1
++    ;;
++esac
++
++# PASTE 1
++# RUNS IN: SSH
++# Rollback: sudo bash /root/batch10-revert.sh
++# or, if GRUB asks for a password before any boot, PASTE 2 from KVM.
++paste1() {
++  set -euo pipefail
++
++  TAR=/root/batch10-grub-before.tar
++  REVERT=/root/batch10-revert.sh
++  HASH=/root/batch10-grub.pbkdf2
++  USERS=/etc/grub.d/01_johnny_users
++  NEWCFG=/root/batch10-grub.cfg.new
++  NET=/etc/modprobe.d/johnny-cis-net.conf
++  NETBAK=/root/batch10-johnny-cis-net.conf.bak
++
++  if [ "$(id -u)" -ne 0 ]; then
++    echo STOP-not-root
++    exit 1
++  fi
++  if [ ! -f /etc/default/grub ] || [ ! -d /etc/grub.d ] || [ ! -f /boot/grub/grub.cfg ]; then
++    echo STOP-grub-layout
++    exit 1
++  fi
++  if [ ! -x /usr/sbin/grub-mkconfig ] || [ ! -x /usr/bin/grub-script-check ]; then
++    echo STOP-grub-tools
++    exit 1
++  fi
++
++  # Read-only 3.2.7 checks. No file is written until GRUB is confirmed below.
++  for mod in dccp sctp rds tipc; do
++    if lsmod | awk -v m="$mod" '$1==m { found=1 } END { exit !found }'; then
++      echo "STOP-loaded $mod"
++      exit 1
++    fi
++    if grep -RqsE "^[[:space:]]*${mod}([[:space:]]|\$)" /etc/modules /etc/modules-load.d 2>/dev/null; then
++      echo "STOP-modules-load $mod"
++      exit 1
++    fi
++  done
++  if [ ! -f "$NET" ]; then
++    echo STOP-no-net-conf
++    exit 1
++  fi
++
++  # --- 1.4.1 ---
++  if [ ! -f "$HASH" ]; then
++    echo STOP-no-hash
++    echo "Create $HASH first. One line, the grub.pbkdf2.sha512 string from grub-mkpasswd-pbkdf2. Mode 600, root. No password in the file."
++    exit 1
++  fi
++  if [ "$(stat -c '%u:%a' "$HASH")" != "0:600" ]; then
++    echo STOP-hash-mode
++    exit 1
++  fi
++  mapfile -t hash_lines < "$HASH"
++  if [ "${#hash_lines[@]}" -ne 1 ]; then
++    echo STOP-hash-lines
++    exit 1
++  fi
++  hash=${hash_lines[0]}
++  if ! printf '%s\n' "$hash" | grep -Eq '^grub\.pbkdf2\.sha512\.[0-9]+\.[0-9A-Fa-f]+\.[0-9A-Fa-f]+$'; then
++    echo STOP-hash-format
++    exit 1
++  fi
++
++  grub_done=0
++  if grep -q 'password_pbkdf2' /boot/grub/grub.cfg || grep -q 'set superusers' /boot/grub/grub.cfg; then
++    if grep -q -- '--unrestricted' /boot/grub/grub.cfg && [ -f "$USERS" ] && grep -qF "$hash" "$USERS"; then
++      first=$(grep -n '^menuentry ' /boot/grub/grub.cfg | head -1 || true)
++      if [ -n "$first" ] && printf '%s\n' "$first" | grep -q -- '--unrestricted'; then
++        echo ALREADY-1.4.1
++        grub_done=1
++      fi
++    fi
++    if [ "$grub_done" -ne 1 ]; then
++      echo STOP-grub-password-partial
++      echo "Run sudo bash /root/batch10-revert.sh (it restores the tar and then removes it), then rerun."
++      exit 1
++    fi
++  fi
++
++  if [ "$grub_done" -eq 0 ]; then
++    if [ -e "$TAR" ]; then
++      echo STOP-tar-exists
++      echo "A previous run left $TAR. Run sudo bash /root/batch10-revert.sh so it restores and removes the tar, then rerun. Do not delete the tar until that restore has succeeded."
++      exit 1
++    fi
++    tar -C / -czf "$TAR" etc/grub.d boot/grub/grub.cfg
++    echo "BACKUP $TAR"
++
++    cat > "$REVERT" << 'EOF'
++#!/bin/bash
++# Rollback helper for CIS batch 10. Restores /etc/grub.d and /boot/grub/grub.cfg
++# from the tar taken before 1.4.1, and restores johnny-cis-net.conf if that
++# backup exists. Does not need the GRUB password. Run on the installed root.
++# After a successful restore it removes the tar so PASTE 1 can be rerun.
++set -euo pipefail
++TAR=/root/batch10-grub-before.tar
++NET=/etc/modprobe.d/johnny-cis-net.conf
++NETBAK=/root/batch10-johnny-cis-net.conf.bak
++if [ ! -f "$TAR" ]; then
++  echo STOP-no-tar
++  exit 1
++fi
++tar -C / -xzf "$TAR"
++if [ -f "$NETBAK" ]; then
++  cp -a "$NETBAK" "$NET"
++fi
++rm -f /etc/grub.d/01_johnny_users /root/batch10-grub.cfg.new
++# batch10-syslog-undo: drop-ins added for 6.1.2.5. Vendor ForwardToSyslog stays.
++rm -f /etc/rsyslog.d/60-johnny-remote.conf
++rm -f /etc/systemd/journald.conf.d/61-batch10-forward-syslog.conf
++if systemctl is-active --quiet rsyslog; then
++  systemctl reload rsyslog
++fi
++if systemctl is-active --quiet systemd-journald; then
++  systemctl reload systemd-journald
++fi
++rm -f "$TAR"
++echo REVERTED
++EOF
++    chmod 700 "$REVERT"
++
++    # exit 1 does not fire ERR. This trap covers set -e failures
++    # (patch write, grub-mkconfig, grub-script-check, install) after $USERS.
++    # Explicit STOP branches below still call bash "$REVERT" themselves.
++    trap 'rc=$?; [ -x "$REVERT" ] && bash "$REVERT"; exit $rc' ERR
++
++    cat > "$USERS" << EOF
++#!/bin/sh
++exec tail -n +3 \$0
++set superusers="johnny"
++password_pbkdf2 johnny ${hash}
++EOF
++    chmod 700 "$USERS"
++
++    patch_class() {
++      file=$1
++      expect=$2
++      n=$(grep -cF "$expect" "$file" || true)
++      if [ "$n" -ne 1 ]; then
++        echo "STOP-class-count $file"
++        bash "$REVERT"
++        exit 1
++      fi
++      if grep -q -- '--unrestricted' "$file"; then
++        echo "CLASS-KEPT $file"
++        return 0
++      fi
++      repl="${expect%\"} --unrestricted\""
++      tmp=$(mktemp)
++      awk -v old="$expect" -v new="$repl" 'BEGIN{c=0} $0==old && c==0 {print new; c=1; next} {print}' "$file" > "$tmp"
++      cat "$tmp" > "$file"
++      rm -f "$tmp"
++      echo "CLASS-PATCHED $file"
++    }
++    patch_class /etc/grub.d/10_linux 'CLASS="--class gnu-linux --class gnu --class os"'
++    patch_class /etc/grub.d/10_linux_zfs 'CLASS="--class gnu-linux --class gnu --class os"'
++    patch_class /etc/grub.d/20_linux_xen 'CLASS="--class gnu-linux --class gnu --class os --class xen"'
++
++    grub-mkconfig -o "$NEWCFG"
++    grub-script-check "$NEWCFG"
++    if ! grep -q '^set superusers="johnny"$' "$NEWCFG"; then
++      echo STOP-no-superusers
++      bash "$REVERT"
++      exit 1
++    fi
++    if ! grep -q "^password_pbkdf2 johnny ${hash}$" "$NEWCFG"; then
++      echo STOP-no-password-line
++      bash "$REVERT"
++      exit 1
++    fi
++    first=$(grep -n '^menuentry ' "$NEWCFG" | head -1 || true)
++    if [ -z "$first" ] || ! printf '%s\n' "$first" | grep -q -- '--unrestricted'; then
++      echo STOP-default-not-unrestricted
++      bash "$REVERT"
++      exit 1
++    fi
++    install -m 600 "$NEWCFG" /boot/grub/grub.cfg
++    if ! grep -q -- '--unrestricted' /boot/grub/grub.cfg; then
++      echo STOP-installed-cfg
++      bash "$REVERT"
++      exit 1
++    fi
++    first=$(grep -n '^menuentry ' /boot/grub/grub.cfg | head -1 || true)
++    if [ -z "$first" ] || ! printf '%s\n' "$first" | grep -q -- '--unrestricted'; then
++      echo STOP-installed-first-entry
++      bash "$REVERT"
++      exit 1
++    fi
++    trap - ERR
++    echo GRUB-OK
++    echo "Supervised reboot is recommended with KVM watching. This script does not reboot."
++    echo "Repeat that test after any grub-common upgrade. The first menuentry must still contain --unrestricted."
++    echo "A password prompt before the countdown is a failed gate. Run PASTE 2 or /root/batch10-revert.sh."
++  fi
++
++  # --- 3.2.7 after the GRUB gate. Backup only if this file has no backup yet. ---
++  # Rollback for this file: cp -a /root/batch10-johnny-cis-net.conf.bak "$NET"
++  changed=0
++  for mod in dccp sctp rds tipc; do
++    if ! grep -qx "blacklist ${mod}" "$NET" || ! grep -qx "install ${mod} /bin/false" "$NET"; then
++      changed=1
++    fi
++  done
++  if [ "$changed" -eq 1 ]; then
++    if [ ! -f "$NETBAK" ]; then
++      cp -a "$NET" "$NETBAK"
++      echo "BACKUP $NETBAK"
++    else
++      echo "BACKUP-KEPT $NETBAK"
++    fi
++    for mod in dccp sctp rds tipc; do
++      if ! grep -qx "blacklist ${mod}" "$NET"; then
++        printf 'blacklist %s\n' "$mod" >> "$NET"
++        echo "MODULE-ADDED blacklist $mod"
++      fi
++      if ! grep -qx "install ${mod} /bin/false" "$NET"; then
++        printf 'install %s /bin/false\n' "$mod" >> "$NET"
++        echo "MODULE-ADDED install $mod"
++      fi
++    done
++  else
++    echo MODULE-KEPT-all
++  fi
++  for mod in sctp rds tipc atm can; do
++    out=$(modprobe -n -v "$mod" 2>&1 || true)
++    if ! printf '%s\n' "$out" | grep -qx 'install /bin/false'; then
++      echo "STOP-modprobe $mod"
++      if [ -f "$NETBAK" ]; then
++        cp -a "$NETBAK" "$NET"
++      fi
++      exit 1
++    fi
++  done
++  out=$(modprobe -n -v dccp 2>&1 || true)
++  if printf '%s\n' "$out" | grep -q 'insmod'; then
++    echo STOP-dccp-insmod
++    if [ -f "$NETBAK" ]; then
++      cp -a "$NETBAK" "$NET"
++    fi
++    exit 1
++  fi
++
++  # --- 6.1.2.5 ableton_box, TCP/514. No write until the probe succeeds. ---
++  # Rollback: sudo rm -f /etc/rsyslog.d/60-johnny-remote.conf /etc/systemd/journald.conf.d/61-batch10-forward-syslog.conf
++  #   then: sudo systemctl reload rsyslog; sudo systemctl reload systemd-journald
++  # A helper written by this revision also removes those two files.
++  LOGIP=192.168.50.211
++  RSYS=/etc/rsyslog.d/60-johnny-remote.conf
++  JRN=/etc/systemd/journald.conf.d/61-batch10-forward-syslog.conf
++  resolved=""
++  for name in ableton_box.local ableton_box; do
++    got=$(getent ahostsv4 "$name" 2>/dev/null | awk 'NR==1 { print $1 }' || true)
++    if [ -n "$got" ]; then
++      resolved=$got
++      break
++    fi
++  done
++  if [ -n "$resolved" ] && [ "$resolved" != "$LOGIP" ]; then
++    echo "STOP-resolve-mismatch $resolved"
++    echo "ableton_box resolved to an address other than $LOGIP. Not forwarding."
++    exit 1
++  fi
++  if [ -z "$resolved" ]; then
++    echo "RESOLVE-FALLBACK $LOGIP ableton_box"
++  else
++    echo "RESOLVE-OK $resolved"
++  fi
++  if ! timeout 5 bash -c "echo >/dev/tcp/${LOGIP}/514"; then
++    echo STOP-collector-514
++    echo "No TCP connection to ${LOGIP}:514 (ableton_box). Stand up syslog on ABLETON_BOX so it listens on TCP 514, then rerun. No forwarder was written."
++    exit 1
++  fi
++  echo "PROBE-OK ${LOGIP}:514"
++  if ! grep -q '\$WorkDirectory' /etc/rsyslog.conf /etc/rsyslog.d/*.conf 2>/dev/null; then
++    echo STOP-no-workdirectory
++    exit 1
++  fi
++  if [ -f "$REVERT" ] && ! grep -q 'batch10-syslog-undo' "$REVERT"; then
++    echo STOP-revert-old
++    echo "$REVERT has no syslog undo. Run it, then rerun PASTE 1 so the helper is rewritten."
++    exit 1
++  fi
++  want=$(cat << EOF
++# ableton_box (ableton_box.local) ${LOGIP} — docs/hosts/ableton_box.md
++# TCP syslog 514 (omfwd). UDP is not used. Hostname is a comment: target is the documented address.
++action(type="omfwd" target="${LOGIP}" port="514" protocol="tcp" action.resumeRetryCount="-1" action.resumeInterval="30" queue.type="LinkedList" queue.filename="batch10fwd" queue.saveOnShutdown="on")
++EOF
++)
++  if [ -f "$RSYS" ] && [ "$(cat "$RSYS")" = "$want" ]; then
++    echo RSYSLOG-KEPT
++  else
++    if [ -f "$RSYS" ] && [ ! -f /root/batch10-60-johnny-remote.conf.bak ]; then
++      cp -a "$RSYS" /root/batch10-60-johnny-remote.conf.bak
++      echo BACKUP /root/batch10-60-johnny-remote.conf.bak
++    fi
++    printf '%s\n' "$want" > "$RSYS"
++    chmod 644 "$RSYS"
++    if ! rsyslogd -N1; then
++      rm -f "$RSYS"
++      echo STOP-rsyslog-syntax
++      exit 1
++    fi
++    systemctl reload rsyslog
++    echo RSYSLOG-OK
++  fi
++  if [ ! -d /etc/systemd/journald.conf.d ]; then
++    echo STOP-no-journald-dir
++    exit 1
++  fi
++  jwant=$(cat << 'EOF'
++[Journal]
++ForwardToSyslog=yes
++EOF
++)
++  if [ -f "$JRN" ] && [ "$(cat "$JRN")" = "$jwant" ]; then
++    echo JOURNAL-KEPT
++  else
++    if [ -f "$JRN" ] && [ ! -f /root/batch10-61-batch10-forward-syslog.conf.bak ]; then
++      cp -a "$JRN" /root/batch10-61-batch10-forward-syslog.conf.bak
++    fi
++    printf '%s\n' "$jwant" > "$JRN"
++    chmod 644 "$JRN"
++    systemctl reload systemd-journald
++    echo JOURNAL-OK
++  fi
++  if ! systemd-analyze cat-config systemd/journald.conf | grep -q '^ForwardToSyslog=yes$'; then
++    echo STOP-journal-forward
++    exit 1
++  fi
++
++  echo BATCH10-SSH-DONE
++}
++
++# PASTE 2
++# RUNS IN: KVM
++# Rollback path: put the pre-change grub.cfg and grub.d back without the new password.
++# On the installed system (normal boot still works): sudo bash ~/cis-audit/batch-10.sh 2
++# If GRUB demands a password before boot: use the installer shell. See batch-10.md.
++#
++# Assumptions (docs/os-handoff.md disk row): LUKS is /dev/nvme0n1p3, /boot is
++# /dev/nvme0n1p2, LVM is ubuntu-vg/ubuntu-lv. johnny-root is the name this
++# paste passes to cryptsetup open. It is not the live mapper (live is dm_crypt-0).
++# A wrong name stops at STOP-not-luks or STOP-not-johnny-root.
++paste2() {
++  set -euo pipefail
++  if [ "$(id -u)" -ne 0 ]; then
++    echo STOP-not-root
++    exit 1
++  fi
++  if [ -f /root/batch10-grub-before.tar ] && [ -d /etc/grub.d ] && [ -f /root/batch10-revert.sh ]; then
++    bash /root/batch10-revert.sh
++    echo KVM-REVERTED-INSTALLED
++    exit 0
++  fi
++  if [ ! -b /dev/nvme0n1p3 ] || [ ! -b /dev/nvme0n1p2 ]; then
++    echo STOP-disks
++    exit 1
++  fi
++  if ! blkid -t TYPE=crypto_LUKS -o device | grep -qx /dev/nvme0n1p3; then
++    echo STOP-not-luks
++    exit 1
++  fi
++  if [ ! -e /dev/mapper/johnny-root ]; then
++    cryptsetup open /dev/nvme0n1p3 johnny-root
++  fi
++  if ! command -v vgchange >/dev/null 2>&1; then
++    echo STOP-no-lvm
++    exit 1
++  fi
++  vgchange -ay ubuntu-vg
++  mkdir -p /mnt
++  if ! mountpoint -q /mnt; then
++    mount /dev/ubuntu-vg/ubuntu-lv /mnt
++  fi
++  if [ ! -d /mnt/etc/grub.d ]; then
++    echo STOP-not-johnny-root
++    exit 1
++  fi
++  mkdir -p /mnt/boot
++  if ! mountpoint -q /mnt/boot; then
++    mount /dev/nvme0n1p2 /mnt/boot
++  fi
++  if [ ! -f /mnt/root/batch10-grub-before.tar ]; then
++    echo STOP-no-tar
++    exit 1
++  fi
++  tar -C /mnt -xzf /mnt/root/batch10-grub-before.tar
++  if [ -f /mnt/root/batch10-johnny-cis-net.conf.bak ]; then
++    cp -a /mnt/root/batch10-johnny-cis-net.conf.bak /mnt/etc/modprobe.d/johnny-cis-net.conf
++  fi
++  rm -f /mnt/etc/grub.d/01_johnny_users /mnt/root/batch10-grub.cfg.new
++  rm -f /mnt/etc/rsyslog.d/60-johnny-remote.conf
++  rm -f /mnt/etc/systemd/journald.conf.d/61-batch10-forward-syslog.conf
++  rm -f /mnt/root/batch10-grub-before.tar
++  echo KVM-REVERTED-LIVE
++}
++
++case "$paste" in
++  1) paste1 ;;
++  2) paste2 ;;
++esac
