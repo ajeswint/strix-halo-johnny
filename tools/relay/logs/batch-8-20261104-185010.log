@@ -1,0 +1,33 @@
+[18:50:10 CT] Batch batch-8 base 0a4f3fedbf228ecb6bf60adf9b63115096646f43 dry=0
+[18:50:10 CT] Grok (grok-4.7-low-fast) round 1 ...
+I'll draft Batch 8 from the CIS results and the existing batch notes, then check Johnny's live SSH and sudo state read-only before writing the script.Live SSH is still on `0.0.0.0:22` with three LAN sessions, and the Batch 7 socket drop-in is on disk only. I’ll write the plan and one script that changes sshd behind a revert timer and leaves that socket alone.## Detail
+
+Batch 8 is drafted and has not been run. The files are `docs/cis-fix/batch-8.md` and `docs/cis-fix/batch-8.sh`. Live read today, no sudo: `ssh.service` can reload, `0.0.0.0:22` is listening, three sessions are up from `192.168.50.223`, `/etc/issue.net` is already the site banner, `sugroup` does not exist, and the Batch 7 socket drop-in is on disk only. This script does not restart `ssh.socket` and does not reboot.
+
+Copy and run:
+
+```bash
+# RUNS ON: LAPTOP
+# RUNS IN: LAPTOP
+scp docs/cis-fix/batch-8.sh aj@192.168.50.152:cis-audit/batch-8.sh
+```
+
+```bash
+# RUNS ON: JOHNNY (SSH)
+# RUNS IN: SSH
+# PASTE 1
+sudo bash ~/cis-audit/batch-8.sh
+```
+
+Keep at least two LAN SSH sessions open. PASTE 1 edits files, runs `sshd -t`, arms a 300-second revert timer, then reloads `ssh.service`. It leaves the timer armed.
+
+```bash
+# RUNS ON: JOHNNY (SSH)
+# RUNS IN: SSH
+# PASTE 2
+sudo bash ~/cis-audit/batch-8.sh 2
+```
+
+Open a new SSH session after the reload, leave the old ones up, and run PASTE 2 within 300 seconds. That is the new-session check. It disarms the timer. If you do not, the timer restores `/etc/ssh/sshd_config` and remove
+[18:52:29 CT] Claude review round 1 (diff vs 0a4f3fedbf228ecb6bf60adf9b63115096646f43) ...
+[18:53:57 CT] Claude verdict: {"verdict": "approve", "issues": ["Nit: The docs say su fails for everyone, including root, once pam_wheel is on. The appended line sits after the stock `auth sufficient pam_rootok.so`, so root's su probably still succeeds and only aj is blocked. That is fine for CIS 5.2.7 and the script's order is safe. Drop or soften the claim, and re-test the 5.4.2.5 su-based audit before assuming it can't run.", "Nit: The pre-pam_wheel check `su - root -c` assumes root su is non-interactive (pam_rootok). If 26.04's su prompts or behaves differently, the script exits silently under set -e. Nothing is left half-done: sudoers and /etc/environment are already backed up, and the script can be re-run. A `STOP-root-path` message on failure would be clearer.", "Nit: The idempotent SKIP-sshd-reload branch compares the on-disk config (`sshd -T`), not the running daemon. If an earlier run wrote the files and then died before the reload, the next run skips the reload. A one-line note, or reloading anyway, would close that gap.", "Nit: The revert script's `chmod $dirmode` uses the mode read at the start of the run. A re-run after a partial run could capture 700 instead of 755. Hard-coding 755 (the recorded original) would be safer.", "Nit: After `systemctl reload`, the `listen_v4_22` and `sshd -T` re-checks can run before sshd finishes re-exec. A `sleep 2` first would make the post-reload check meaningful. Failure there errs toward revert, so this is not unsafe.", "Nit: The 'Secure_path' edit assumes a literal tab after `Defaults` and that sudo-rs reads /etc/sudoers (not /etc/sudoers-rs). If either is wrong, the script stops with STOP-secure-path and changes nothing further. This is safe, but it would stop the batch before the sshd part.", "Nit: The laptop scp block is labeled `RUNS ON: LAPTOP`. That is fine as setup, but keep it clearly separate from PASTE 1 to 3."]}

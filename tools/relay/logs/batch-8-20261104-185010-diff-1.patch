@@ -1,0 +1,558 @@
+=== NEW FILE docs/cis-fix/batch-8.md
+# CIS L1 fix pass, Batch 8: SSH and sudo
+
+**Status:** DRAFT rev 1 (Grok, 2026-11-04). Nothing in this batch has run on Johnny.
+
+**Rules in scope (15):** 5.1.1, 5.1.2, 5.1.5, 5.1.6, 5.1.8, 5.1.9, 5.1.15, 5.1.17, 5.1.18, 5.1.20, 5.1.22, 1.6.5 (same `Banner` as 5.1.6), 5.2.6, 5.2.7, 5.4.2.5.
+
+**Not in this batch:** PAM other than the one `pam_wheel` line in `/etc/pam.d/su` (5.3.x is Batch 9). `Defaults logfile` (sudo-rs; 5.2.3 already passes on the journal). Restart of `ssh.socket`. GRUB. Reboot.
+
+## Plan
+
+The script AJ runs is [`batch-8.sh`](batch-8.sh). Copy it from the laptop. A second SSH session from `192.168.50.0/24` is already open before PASTE 1. PASTE 1 applies the files, checks `sshd -t`, arms a 300-second revert timer, then reloads `ssh.service`. It does not disarm that timer. PASTE 2, from a **new** SSH session opened after the reload, disarms the timer. If PASTE 2 is not run in time, the timer puts the sshd files back and reloads sshd. PASTE 3 is typed at the KVM console only if IPv4 SSH is already dead.
+
+```bash
+# RUNS ON: LAPTOP
+# RUNS IN: LAPTOP
+scp docs/cis-fix/batch-8.sh aj@192.168.50.152:cis-audit/batch-8.sh
+```
+
+```bash
+# RUNS ON: JOHNNY (SSH)
+# RUNS IN: SSH
+# PASTE 1
+sudo bash ~/cis-audit/batch-8.sh
+```
+
+```bash
+# RUNS ON: JOHNNY (SSH)
+# RUNS IN: SSH
+# PASTE 2
+sudo bash ~/cis-audit/batch-8.sh 2
+```
+
+```bash
+# RUNS ON: JOHNNY (KVM)
+# RUNS IN: KVM
+# PASTE 3
+sudo bash ~/cis-audit/batch-8.sh 3
+```
+
+**No reboot.**
+
+Live read, 2026-11-04, no sudo: `ssh.service` is active and `CanReload=yes`. `ss` shows TCP `0.0.0.0:22` and `[::]:22`. `systemctl show ssh.socket -p Listen` is `0.0.0.0:22` only. The Batch 7 file `/etc/systemd/system/ssh.socket.d/60-johnny-cis-ipv4.conf` is present. This batch does not restart `ssh.socket`, so the live `[::]:22` socket stays. Three established SSH sessions were `192.168.50.152:22` from `192.168.50.223`. `/etc/ssh/sshd_config` is `0644` root:root. `/etc/ssh/sshd_config.d` is `0755` root:root with only `50-cloud-init.conf` (`0600`; unreadable as `aj`). `Include` is still the early include in `sshd_config`. `/etc/issue` and `/etc/issue.net` are both `Authorized use only. Activity is monitored.` `visudo` is visudo-rs 0.2.13 (`visudo -c` and `-f` exist). `sudo` is sudo-rs. Group `sugroup` does not exist. Group `sudo` contains `aj`. `/etc/sudoers.d` has only `README`. The 2026-10-31 root audit recorded `Defaults secure_path="...:/snap/bin"` in `/etc/sudoers` (tab after `Defaults`). `/etc/environment` PATH still ends in `/snap/bin`. `/etc/login.defs` and `/etc/profile` have no `snap` string. `sshd -T` as `aj` cannot read `50-cloud-init.conf`.
+
+Site values already chosen (AJ, 2026-10-31): `AllowUsers aj`; banner text as above, file `/etc/issue.net`; `ClientAliveInterval 15` and `ClientAliveCountMax 3` (dead-client drop after about 45 seconds, not an idle logout); `timestamp_timeout=15`; su group `sugroup` with no members (`su` off for everyone, including `aj`; use `sudo -i`).
+
+Values set here to the CIS bound, because that handoff did not name a number: `LoginGraceTime 60` (audit wants 1–60; live default 120). `MaxAuthTries 4` (audit wants 4 or less; live 6). `MaxStartups 10:30:60` (audit fails when any field is above 10, 30, or 60; live `10:30:100`). `DisableForwarding yes`. `PermitRootLogin no`. MACs `hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256`. The 5.1.17 audit fails on the named weak list (umac-64, umac-128-etm, hmac-sha1-96, and the other names in that grep). This list omits those and also omits `hmac-sha1` and `umac-128`.
+
+Drop-in path: `/etc/ssh/sshd_config.d/00-johnny-cis.conf`. The name sorts before `50-cloud-init.conf`. OpenSSH keeps the first value it reads. `sshd -t` runs before `systemctl reload ssh.service`. The reload is skipped when `sshd -T` already matches and the timer is not armed.
+
+**5.2.7 versus the 5.4.2.5 audit command.** The local 5.4.2.5 check reads root's PATH with `sudo su - root -c env`. After `pam_wheel` and an empty `sugroup`, that `su` fails for everyone, including root. PASTE 1 therefore checks root's login PATH with `su - root` **before** it enables `pam_wheel`, and it stops if `/snap/bin` is still there. After PASTE 1, `su` is expected to fail. Governance's later re-audit of 5.4.2.5 cannot use that `su` line until 5.2.7 is undone. `sudo -i` still works for `aj`.
+
+PASTE 1 is idempotent. It prints `STATE`, then:
+
+1. Stops unless it is root, at least two established SSH peers are in `192.168.50.0/24` on local `192.168.50.152:22`, and `0.0.0.0:22` is listening. A peer of `192.168.50.152` is `NOTE-ssh-self` and is not counted. Any established SSH peer outside `192.168.50.0/24` is `STOP-ssh-peer`. Peer parsing matches Batch 7: `ss -H -tn sport = :22`, awk `$1=="ESTAB"`, field 5.
+2. Stops if `/etc/issue.net` is not exactly the site banner line. It does not rewrite the banner files.
+3. Stops if `sugroup` exists and has members. An empty group is required before the `pam_wheel` line is active. It does not enable `pam_wheel` with any other group.
+4. Copies `/etc/environment` to `/root/environment.pre-batch8` once and removes the trailing `:/snap/bin` from the PATH assignment only. Any other `snap` token is `STOP-environment`.
+5. Copies `/etc/sudoers` to `/root/sudoers.pre-batch8` once. Replaces the single recorded `secure_path` line (the `:/snap/bin` suffix only) on a temp copy, runs `visudo -c -f` on that copy, then installs it mode `0440`. Writes `/etc/sudoers.d/60-johnny-cis-timeout` with `Defaults timestamp_timeout=15`, mode `0440`, and runs `visudo -c -f` on it and `visudo -c` on the whole policy. It does not write `Defaults logfile`. A `timestamp_timeout` that is already present and is not `15` is `STOP-timestamp`.
+6. Creates system group `sugroup` if missing. Re-checks that it has no members. Copies `/etc/pam.d/su` to `/root/pam-su.pre-batch8` once and appends `auth required pam_wheel.so use_uid group=sugroup` if that active line is absent. Any other active `pam_wheel` line is `STOP-pam-wheel`. This is the only PAM edit.
+7. Confirms `su - root` PATH has no `/snap/bin` and every element is a directory. Then the `pam_wheel` line is what makes later `su` fail.
+8. If `/run/systemd/transient/johnny-cis-batch8-revert.timer` is active, `STOP-timer-armed`.
+9. If the sshd drop-in, modes, and `sshd -T` already match, it prints `SKIP-sshd-reload` and `OK-batch-8`. It does not arm a timer and does not reload.
+10. Otherwise it copies `/etc/ssh/sshd_config` to `/root/sshd_config.pre-batch8` once, writes `/root/batch8-sshd-revert.sh` to restore that copy, remove `00-johnny-cis.conf`, restore the directory mode, run `sshd -t`, and `systemctl reload ssh.service`. It sets `sshd_config` to `0600` and `sshd_config.d` to `0700`, writes the drop-in, and runs `sshd -t`. A failed check runs the revert script immediately and exits `STOP-sshd-t`. It records the LAN session count in `/run/johnny-batch8-ssh-count`, arms `systemd-run --on-active=300s --unit=johnny-cis-batch8-revert`, then reloads `ssh.service`. It re-checks `0.0.0.0:22`, at least two LAN sessions, and `sshd -T`. On that failure it runs the revert script, stops the timer, and exits `STOP-ssh-after-reload`. It leaves the timer armed on success and prints `OK-batch-8-pending`.
+
+PASTE 2 stops if the timer is not active, if `sshd -T` drifted, if `0.0.0.0:22` is down, or if the LAN session count is not greater than the count stored before the reload. That greater count is the new-session test: open a new SSH session and leave the previous ones up, then run PASTE 2 within 300 seconds of the reload. It then stops the timer and prints `OK-batch-8`.
+
+`OK-batch-8` means the sshd reload was kept. The ssh.socket drop-in from Batch 7 is still not applied to the live socket. No reboot is required. Governance re-audits after AJ sends the output. Verdicts stay in the CSV until that re-audit. The same commit that records the run mirrors the changed `/etc` files under `etc/` in this repo.
+
+## Rollback
+
+Not part of the paste. If the timer is still armed, stopping it without PASTE 2 leaves the new sshd config in place. If SSH still works and the new config should be undone:
+
+```bash
+sudo systemctl stop johnny-cis-batch8-revert.timer
+sudo systemctl stop johnny-cis-batch8-revert.service
+sudo bash /root/batch8-sshd-revert.sh
+sudo cp -a /root/environment.pre-batch8 /etc/environment
+sudo cp -a /root/sudoers.pre-batch8 /etc/sudoers
+sudo rm -f /etc/sudoers.d/60-johnny-cis-timeout
+sudo visudo -c
+sudo cp -a /root/pam-su.pre-batch8 /etc/pam.d/su
+sudo groupdel sugroup
+```
+
+`groupdel` fails if `sugroup` is missing or no longer empty; that is fine only after you confirm the `pam_wheel` line is gone. Do not restart `ssh.socket`. `0.0.0.0:22` must still be listening before the session is closed.
+
+If IPv4 SSH is already dead, use PASTE 3 at the KVM console. PASTE 3 runs only the sshd revert. It does not undo sudo, `/etc/environment`, or `pam_wheel`.
+=== NEW FILE docs/cis-fix/batch-8.sh
+#!/bin/bash
+# CIS L1 Batch 8. The deliverable AJ runs from SSH:
+#   sudo bash ~/cis-audit/batch-8.sh
+#   sudo bash ~/cis-audit/batch-8.sh 2
+# PASTE 3 is KVM recovery and does not run unless AJ passes 3:
+#   sudo bash ~/cis-audit/batch-8.sh 3
+# NO REBOOT. Does not restart ssh.socket. Does not edit GRUB.
+# Rollback: docs/cis-fix/batch-8.md ## Rollback.
+
+set -euo pipefail
+
+if [ "$#" -gt 1 ]; then
+  echo STOP-args
+  exit 1
+fi
+paste=1
+if [ "$#" -eq 1 ]; then
+  paste=$1
+fi
+case "$paste" in
+  1|2|3) ;;
+  *)
+    echo STOP-args
+    exit 1
+    ;;
+esac
+
+if [ "$paste" = 1 ]; then
+# RUNS ON: JOHNNY (SSH)
+# PASTE 1
+# RUNS IN: SSH
+set -euo pipefail
+# Rollback: docs/cis-fix/batch-8.md ## Rollback.
+# sshd revert is /root/batch8-sshd-revert.sh, also armed for 300s.
+# sudo, environment, and pam_wheel are not inside that timer.
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo STOP-not-root
+  exit 1
+fi
+
+SSHD=/etc/ssh/sshd_config
+SSHD_DIR=/etc/ssh/sshd_config.d
+DROPIN=$SSHD_DIR/00-johnny-cis.conf
+CLOUD=$SSHD_DIR/50-cloud-init.conf
+ENV=/etc/environment
+SUDOERS=/etc/sudoers
+TIMEOUT=/etc/sudoers.d/60-johnny-cis-timeout
+PAMSU=/etc/pam.d/su
+REVERT=/root/batch8-sshd-revert.sh
+COUNTFILE=/run/johnny-batch8-ssh-count
+BANNER='Authorized use only. Activity is monitored.'
+SECURE_OLD='Defaults	secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"'
+SECURE_NEW='Defaults	secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"'
+WHEEL='auth required pam_wheel.so use_uid group=sugroup'
+MACS='hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256'
+
+backup_once() {
+  src=$1
+  dest=$2
+  if [ -e "$dest" ]; then
+    if ! cmp -s "$src" "$dest"; then
+      echo "BACKUP-DIFFERS $dest"
+      echo "The kept backup is not the current live file. Rollback restores this copy, not the file as it is now."
+    fi
+    echo "BACKUP-KEPT $dest"
+    return 0
+  fi
+  if [ ! -e "$src" ]; then
+    echo "STOP-backup-missing $src"
+    exit 1
+  fi
+  if ! cp -a "$src" "$dest"; then
+    echo "STOP-backup $src"
+    exit 1
+  fi
+  echo "BACKUP $dest"
+}
+
+listen_v4_22() {
+  ss -H -lnt sport = :22 | awk 'BEGIN { found = 0 } $4 == "0.0.0.0:22" { found = 1 } END { exit (found ? 0 : 1) }'
+}
+
+lan_ssh_count() {
+  ss -H -tn sport = :22 | awk '$1=="ESTAB"{print $5}' | sed 's/:[0-9]*$//' | awk '
+    $0 == "" { next }
+    $0 == "192.168.50.152" { next }
+    $0 ~ /^192\.168\.50\./ { n++; next }
+    { print "STOP-ssh-peer " $0 > "/dev/stderr"; bad = 1 }
+    END { if (bad) exit 2; print n+0 }
+  '
+}
+
+sshd_ok() {
+  t=$(sshd -T)
+  printf '%s\n' "$t" | awk -v macs="$MACS" '
+    $1=="allowusers" && $2=="aj" { a=1 }
+    $1=="banner" && $2=="/etc/issue.net" { b=1 }
+    $1=="clientaliveinterval" && $2=="15" { c=1 }
+    $1=="clientalivecountmax" && $2=="3" { d=1 }
+    $1=="disableforwarding" && $2=="yes" { e=1 }
+    $1=="logingracetime" && $2=="60" { f=1 }
+    $1=="macs" && $2==macs { g=1 }
+    $1=="maxauthtries" && $2=="4" { h=1 }
+    $1=="maxstartups" && $2=="10:30:60" { i=1 }
+    $1=="permitrootlogin" && $2=="no" { j=1 }
+    END { exit (a&&b&&c&&d&&e&&f&&g&&h&&i&&j ? 0 : 1) }
+  '
+}
+
+write_dropin() {
+  cat > "$DROPIN" <<EOF
+# Johnny CIS batch 8. Lexical order before 50-cloud-init.conf.
+AllowUsers aj
+Banner /etc/issue.net
+ClientAliveInterval 15
+ClientAliveCountMax 3
+DisableForwarding yes
+LoginGraceTime 60
+MACs $MACS
+MaxAuthTries 4
+MaxStartups 10:30:60
+PermitRootLogin no
+EOF
+  chmod 0600 "$DROPIN"
+}
+
+echo "=== STATE ==="
+ss -H -lnt sport = :22 || true
+ss -H -tn sport = :22 || true
+stat -c '%a %U %G %n' "$SSHD" "$SSHD_DIR" || true
+ls -la "$SSHD_DIR" || true
+echo "=== END STATE ==="
+
+if ! listen_v4_22; then
+  echo STOP-no-v4-ssh
+  exit 1
+fi
+set +e
+lan=$(lan_ssh_count)
+lan_rc=$?
+set -e
+if [ "$lan_rc" -ne 0 ]; then
+  exit 1
+fi
+if [ "$lan" -lt 2 ]; then
+  echo STOP-need-two-lan-ssh
+  exit 1
+fi
+echo "LAN-SSH $lan"
+
+if [ "$(head -n 1 /etc/issue.net)" != "$BANNER" ] || [ "$(wc -l < /etc/issue.net)" -ne 1 ]; then
+  echo STOP-banner
+  exit 1
+fi
+if [ ! -f "$CLOUD" ]; then
+  echo STOP-cloud-init-missing
+  exit 1
+fi
+
+if getent group sugroup >/dev/null; then
+  members=$(getent group sugroup | awk -F: '{print $4}')
+  if [ -n "$members" ]; then
+    echo STOP-sugroup-members
+    exit 1
+  fi
+fi
+
+if grep -q snap "$ENV"; then
+  if ! grep -Fq ':/snap/bin"' "$ENV"; then
+    echo STOP-environment
+    exit 1
+  fi
+fi
+
+# --- 5.4.2.5 environment, before pam_wheel ---
+backup_once "$ENV" /root/environment.pre-batch8
+if grep -Fq ':/snap/bin"' "$ENV"; then
+  tmp=$(mktemp)
+  sed 's#:\/snap\/bin"#"#' "$ENV" > "$tmp"
+  if grep -q snap "$tmp"; then
+    rm -f "$tmp"
+    echo STOP-environment
+    exit 1
+  fi
+  cat "$tmp" > "$ENV"
+  rm -f "$tmp"
+  echo WROTE-environment
+else
+  echo SKIP-environment
+fi
+
+# --- 5.4.2.5 secure_path and 5.2.6 ---
+backup_once "$SUDOERS" /root/sudoers.pre-batch8
+if grep -Fq "$SECURE_NEW" "$SUDOERS"; then
+  echo SKIP-secure-path
+elif grep -Fq "$SECURE_OLD" "$SUDOERS"; then
+  tmp=$(mktemp)
+  sed "s#$SECURE_OLD#$SECURE_NEW#" "$SUDOERS" > "$tmp"
+  if ! visudo -c -f "$tmp"; then
+    rm -f "$tmp"
+    echo STOP-visudo
+    exit 1
+  fi
+  install -m 0440 -o root -g root "$tmp" "$SUDOERS"
+  rm -f "$tmp"
+  echo WROTE-secure-path
+else
+  echo STOP-secure-path
+  exit 1
+fi
+
+if [ -f "$TIMEOUT" ]; then
+  if ! cmp -s - "$TIMEOUT" <<'EOF'
+Defaults timestamp_timeout=15
+EOF
+  then
+    echo STOP-timestamp
+    exit 1
+  fi
+  echo SKIP-timestamp
+else
+  tmp=$(mktemp)
+  printf '%s\n' 'Defaults timestamp_timeout=15' > "$tmp"
+  if ! visudo -c -f "$tmp"; then
+    rm -f "$tmp"
+    echo STOP-visudo
+    exit 1
+  fi
+  install -m 0440 -o root -g root "$tmp" "$TIMEOUT"
+  rm -f "$tmp"
+  echo WROTE-timestamp
+fi
+if ! visudo -c; then
+  echo STOP-visudo
+  exit 1
+fi
+
+# PATH check while su still works, then 5.2.7.
+path_now=$(su - root -c 'printf %s "$PATH"')
+echo "ROOT-PATH $path_now"
+case "$path_now" in
+  *snap*)
+    echo STOP-root-path
+    exit 1
+    ;;
+esac
+IFS=':' read -ra path_elems <<< "$path_now"
+if [ "${#path_elems[@]}" -eq 0 ]; then
+  echo STOP-root-path
+  exit 1
+fi
+for el in "${path_elems[@]}"; do
+  if [ ! -d "$el" ]; then
+    echo "STOP-root-path $el"
+    exit 1
+  fi
+done
+
+if getent group sugroup >/dev/null; then
+  echo SKIP-group
+else
+  groupadd --system sugroup
+  echo WROTE-group
+fi
+members=$(getent group sugroup | awk -F: '{print $4}')
+if [ -n "$members" ]; then
+  echo STOP-sugroup-members
+  exit 1
+fi
+
+backup_once "$PAMSU" /root/pam-su.pre-batch8
+if grep -Eq '^[[:space:]]*auth[[:space:]]+(required|requisite)[[:space:]]+pam_wheel\.so' "$PAMSU"; then
+  if grep -Fxq "$WHEEL" "$PAMSU"; then
+    echo SKIP-pam-wheel
+  else
+    echo STOP-pam-wheel
+    exit 1
+  fi
+else
+  printf '\n%s\n' "$WHEEL" >> "$PAMSU"
+  echo WROTE-pam-wheel
+fi
+members=$(getent group sugroup | awk -F: '{print $4}')
+if [ -n "$members" ]; then
+  echo STOP-sugroup-members
+  exit 1
+fi
+
+# --- sshd. Timer stays armed until PASTE 2. ---
+if systemctl is-active --quiet johnny-cis-batch8-revert.timer; then
+  echo STOP-timer-armed
+  exit 1
+fi
+
+dirmode=$(stat -c '%a' "$SSHD_DIR")
+filemode=$(stat -c '%a' "$SSHD")
+dropin_match=0
+if [ -f "$DROPIN" ]; then
+  if cmp -s - "$DROPIN" <<EOF
+# Johnny CIS batch 8. Lexical order before 50-cloud-init.conf.
+AllowUsers aj
+Banner /etc/issue.net
+ClientAliveInterval 15
+ClientAliveCountMax 3
+DisableForwarding yes
+LoginGraceTime 60
+MACs $MACS
+MaxAuthTries 4
+MaxStartups 10:30:60
+PermitRootLogin no
+EOF
+  then
+    dropin_match=1
+  else
+    echo STOP-sshd-dropin
+    exit 1
+  fi
+fi
+
+if [ "$filemode" = 600 ] && [ "$dirmode" = 700 ] && [ "$dropin_match" -eq 1 ] && sshd_ok; then
+  echo SKIP-sshd-reload
+  echo OK-batch-8
+  exit 0
+fi
+
+backup_once "$SSHD" /root/sshd_config.pre-batch8
+cat > "$REVERT" <<EOF
+#!/bin/bash
+set -euo pipefail
+cp -a /root/sshd_config.pre-batch8 $SSHD
+rm -f $DROPIN
+chmod $dirmode $SSHD_DIR
+sshd -t
+systemctl reload ssh.service
+EOF
+chmod 0700 "$REVERT"
+
+chmod 0600 "$SSHD"
+chmod 0700 "$SSHD_DIR"
+write_dropin
+if ! sshd -t; then
+  bash "$REVERT" || true
+  echo STOP-sshd-t
+  exit 1
+fi
+if ! sshd_ok; then
+  bash "$REVERT" || true
+  echo STOP-sshd-T
+  exit 1
+fi
+
+printf '%s\n' "$lan" > "$COUNTFILE"
+systemd-run --on-active=300s --unit=johnny-cis-batch8-revert "$REVERT"
+systemctl reload ssh.service
+
+if ! listen_v4_22; then
+  systemctl stop johnny-cis-batch8-revert.timer || true
+  bash "$REVERT" || true
+  echo STOP-ssh-after-reload
+  exit 1
+fi
+set +e
+lan2=$(lan_ssh_count)
+lan2_rc=$?
+set -e
+if [ "$lan2_rc" -ne 0 ] || [ "$lan2" -lt 2 ] || ! sshd_ok; then
+  systemctl stop johnny-cis-batch8-revert.timer || true
+  bash "$REVERT" || true
+  echo STOP-ssh-after-reload
+  exit 1
+fi
+echo "TIMER-ARMED 300"
+echo "Open a new SSH session from 192.168.50.0/24 and leave this one up."
+echo "Within 300 seconds run: sudo bash ~/cis-audit/batch-8.sh 2"
+echo OK-batch-8-pending
+exit 0
+fi
+
+if [ "$paste" = 2 ]; then
+# RUNS ON: JOHNNY (SSH)
+# PASTE 2
+# RUNS IN: SSH
+set -euo pipefail
+# Rollback: docs/cis-fix/batch-8.md ## Rollback.
+# Disarms the revert timer after a new LAN session is present.
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo STOP-not-root
+  exit 1
+fi
+
+MACS='hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256'
+COUNTFILE=/run/johnny-batch8-ssh-count
+
+if ! systemctl is-active --quiet johnny-cis-batch8-revert.timer; then
+  echo STOP-timer-not-armed
+  exit 1
+fi
+if [ ! -f "$COUNTFILE" ]; then
+  echo STOP-no-count
+  exit 1
+fi
+prev=$(cat "$COUNTFILE")
+set +e
+now=$(ss -H -tn sport = :22 | awk '$1=="ESTAB"{print $5}' | sed 's/:[0-9]*$//' | awk '
+  $0 == "" { next }
+  $0 == "192.168.50.152" { next }
+  $0 ~ /^192\.168\.50\./ { n++; next }
+  { print "STOP-ssh-peer " $0 > "/dev/stderr"; bad = 1 }
+  END { if (bad) exit 2; print n+0 }
+')
+now_rc=$?
+set -e
+if [ "$now_rc" -ne 0 ]; then
+  exit 1
+fi
+if ! ss -H -lnt sport = :22 | awk 'BEGIN { found = 0 } $4 == "0.0.0.0:22" { found = 1 } END { exit (found ? 0 : 1) }'; then
+  echo STOP-no-v4-ssh
+  exit 1
+fi
+sshd -T | awk -v macs="$MACS" '
+  $1=="allowusers" && $2=="aj" { a=1 }
+  $1=="banner" && $2=="/etc/issue.net" { b=1 }
+  $1=="clientaliveinterval" && $2=="15" { c=1 }
+  $1=="clientalivecountmax" && $2=="3" { d=1 }
+  $1=="disableforwarding" && $2=="yes" { e=1 }
+  $1=="logingracetime" && $2=="60" { f=1 }
+  $1=="macs" && $2==macs { g=1 }
+  $1=="maxauthtries" && $2=="4" { h=1 }
+  $1=="maxstartups" && $2=="10:30:60" { i=1 }
+  $1=="permitrootlogin" && $2=="no" { j=1 }
+  END { exit (a&&b&&c&&d&&e&&f&&g&&h&&i&&j ? 0 : 1) }
+' || { echo STOP-sshd-T; exit 1; }
+if [ "$now" -le "$prev" ]; then
+  echo "STOP-no-new-session prev=$prev now=$now"
+  exit 1
+fi
+systemctl stop johnny-cis-batch8-revert.timer
+echo "LAN-SSH $now"
+echo OK-batch-8
+exit 0
+fi
+
+# RUNS ON: JOHNNY (KVM)
+# PASTE 3
+# RUNS IN: KVM
+set -euo pipefail
+# Rollback: docs/cis-fix/batch-8.md ## Rollback.
+# Use only if PASTE 1 left no IPv4 SSH. Restores sshd only.
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo STOP-not-root
+  exit 1
+fi
+
+systemctl stop johnny-cis-batch8-revert.timer 2>/dev/null || true
+systemctl stop johnny-cis-batch8-revert.service 2>/dev/null || true
+if [ ! -f /root/batch8-sshd-revert.sh ]; then
+  echo STOP-no-revert
+  exit 1
+fi
+bash /root/batch8-sshd-revert.sh
+if ! ss -H -lnt sport = :22 | awk 'BEGIN { found = 0 } $4 == "0.0.0.0:22" { found = 1 } END { exit (found ? 0 : 1) }'; then
+  echo STOP-no-v4-ssh
+  exit 1
+fi
+echo OK-paste-3
+exit 0
