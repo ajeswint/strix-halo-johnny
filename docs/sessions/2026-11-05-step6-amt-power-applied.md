@@ -2,6 +2,8 @@
 
 Applied 2026-11-05 America/Chicago. Handoff rev 76 (nits on rev 75). No secret values are in this note. AJ ran the power clicks and the DMT rotate on rock-box. This closeout does not change Johnny's live config, the MeshCommander tree, or DMT `config.yml`.
 
+MeshCommander cleanup was still open in this note. Handoff rev 77 records it **closed** (AJ, 2026-11-05): computer deleted, node killed, Chrome site data for `http://127.0.0.1:3000` cleared. The step 8 draft did not watch that desktop.
+
 ## Result
 
 MeshCommander `meshcommander@0.9.5-a` on rock-box, Digest/TLS, to AMT `192.168.51.10`. The admin password was accepted. The value is not recorded.
@@ -16,7 +18,7 @@ Pass criterion is boot time, uptime, or KVM. MeshCommander `powerActionResponse4
 
 Local patch, not in git, under `~/meshcommander-step6` (package directory `node_modules/meshcommander`, where the paste runs `node meshcommander.js`): `public/default.htm` prefers `qop` `auth` over `auth-int`. `interceptor.js` `GetAuthArgs` is quote-aware. The rollback `rm -rf /home/aj/meshcommander-step6` destroys that patch with the install.
 
-MeshCommander cleanup was not confirmed after the power tests. Still open on rock-box: Disconnect, Delete the computer, Ctrl-C the server, and clear Chrome site data for `http://127.0.0.1:3000`. Do not treat that as done.
+MeshCommander cleanup was not confirmed when this note was written. Handoff rev 77 records it closed (AJ, 2026-11-05): computer deleted, node killed, Chrome site data for `http://127.0.0.1:3000` cleared. The step 8 draft did not watch that desktop.
 
 DMT: AJ ran `docs/tool-install/step-6-dmt-rotate.sh`, confirmed the password rotate, then `--shred-backup`. Output `SHRED-OK 1`. `jwtKey` and `adminPassword` were rotated. The backups were shredded. The password-manager copy is the runbook step before shred. **[Assumption]** that copy was made. A Devices-page login proof was not stated and is not recorded. **[Assumption]** `ADMIN-USER` is still `standalone`. `config.yml` is what the console reads. It is not the operator's only copy. Do not echo the values. Do not run the rotate again on this config.
 
@@ -24,7 +26,7 @@ DMT: AJ ran `docs/tool-install/step-6-dmt-rotate.sh`, confirmed the password rot
 
 ## Unchanged
 
-CIS L1 totals stay **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). Next open items stay 8 thermal soak, 9 EDAC, 12 signed UKI (option D), and IRQ affinity later. MeshCommander cleanup is a rock-box follow-up, not a new numbered step.
+CIS L1 totals stay **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). As of handoff rev 77, step 8 thermal soak is drafted and not applied. Next open after that run: 9 EDAC, 12 signed UKI (option D), and IRQ affinity later. MeshCommander cleanup is closed in that revision, not a new numbered step.
 
 ## Record
 

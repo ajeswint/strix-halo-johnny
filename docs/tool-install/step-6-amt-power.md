@@ -16,11 +16,11 @@ AJ ran this from rock-box. MeshCommander `meshcommander@0.9.5-a`, Digest/TLS, to
 
 **Local deviation, not in git.** Under `~/meshcommander-step6`, in the package directory the paste starts (`node_modules/meshcommander`): `public/default.htm` prefers `qop` `auth` over `auth-int`, and `interceptor.js` `GetAuthArgs` is quote-aware. That patch is not committed. The rollback `rm -rf /home/aj/meshcommander-step6` deletes it with the install.
 
-**MeshCommander cleanup is open.** Chat did not confirm Disconnect, Delete, Ctrl-C, or clearing Chrome site data for `http://127.0.0.1:3000` after the power tests. Do not record those as done. They remain a follow-up on rock-box. The AMT password can still sit in that browser cache until they are done.
+**MeshCommander cleanup is closed** (handoff rev 77, AJ 2026-11-05). The computer was deleted, the node was killed, and Chrome site data for `http://127.0.0.1:3000` was cleared. The step 8 draft did not watch that desktop. It is not a follow-up.
 
 **DMT rotate done.** AJ ran `docs/tool-install/step-6-dmt-rotate.sh`, said the password rotate was confirmed, then `--shred-backup`. The script printed `SHRED-OK 1`. `jwtKey` and `adminPassword` were rotated. The backups were shredded. The password-manager copy is the runbook step before shred. **[Assumption]** that copy was made. A Devices-page login proof was not stated in chat and is not recorded. **[Assumption]** `ADMIN-USER` is still `standalone`. The values are not in this repo and are not repeated here.
 
-CIS L1 totals are unchanged: **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). Next open items stay 8 thermal soak, 9 EDAC, 12 signed UKI, and IRQ affinity later.
+CIS L1 totals are unchanged: **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). As of handoff rev 77, step 8 thermal soak is drafted and not applied. Next open after that run: 9 EDAC, 12 signed UKI, and IRQ affinity later.
 
 The sections below are the rev 1 runbook, with the power-action choice corrected to the result above. AJ decides any later rerun.
 
@@ -325,10 +325,10 @@ Recorded 2026-11-05. These are the lines that closed the step. A later rerun use
 - Power cycle PASS: boot 2026-11-05 16:07 UTC (~10:07 CT). This boot has the post-check: `HOST johnny`, `OK-eno3`, `OK-eno1-up`, `OK-promisc`, `OK-eno2`, `TUNING-ACTIVE active`, `TUNING-ENABLED enabled`. `eno3` still `192.168.50.152/24`.
 - `PROBE-514` printed `NOTE-514` on that Power cycle post-check. That is a note, not a rollback.
 - DMT: AJ confirmed the rotate, then `--shred-backup` printed `SHRED-OK 1`. `jwtKey` and `adminPassword` rotated. Backups shredded. Password-manager copy is the runbook step. **[Assumption]** it was made. Devices-page login proof is not recorded. **[Assumption]** `ADMIN-USER` is still `standalone`. No value in git.
-- MeshCommander cleanup (Disconnect, Delete, Ctrl-C, clear `http://127.0.0.1:3000`) is not part of the pass. It was not confirmed. It stays open on rock-box.
+- MeshCommander cleanup (Disconnect, Delete, Ctrl-C, clear `http://127.0.0.1:3000`) was not part of the step 6 pass. Handoff rev 77 records it closed (AJ, 2026-11-05): computer deleted, node killed, Chrome site data cleared. The step 8 draft did not watch that desktop.
 - No secret in the transcript. Step 11 was not reverted. No BIOS, GRUB, MEBx, or AMT provisioning change. No Johnny live config change in the closeout.
 
-There is no single `STEP6-DONE` line. The closeout is the Reset boot time, the Power cycle boot time and its `OK-*` lines, and `SHRED-OK 1`. MeshCommander cleanup is still open.
+There is no single `STEP6-DONE` line. The closeout is the Reset boot time, the Power cycle boot time and its `OK-*` lines, and `SHRED-OK 1`. MeshCommander cleanup is closed in handoff rev 77.
 
 ## Stop
 
@@ -366,4 +366,4 @@ Do not restore by `cat` or by copying the backup into the repo. Do not run `/roo
 
 ## Applied record
 
-The 2026-11-05 rock-box run is the apply. Rev 1 of this file did not claim a session. Rev 2 recorded the run. Rev 3 corrects the nits: Reset PASS is boot time only; the `OK-*` lines are the Power cycle post-check; TPM unlock is an inference from `johnny login:` with no LUKS prompt; AJ confirmed the DMT rotate and then shredded (`SHRED-OK 1`); Devices-page login proof is not recorded; the password-manager copy is the runbook step (**[Assumption]** it was made); MeshCommander cleanup is still open; the `qop=auth` patch is `public/default.htm` plus quote-aware `GetAuthArgs` in `interceptor.js`, and `rm -rf` destroys it. The self-test of the rotate script (`bash docs/tool-install/step-6-dmt-rotate.sh --self-test`) prints `SELF-TEST-OK` on a temp directory. It is not the rock-box paste.
+The 2026-11-05 rock-box run is the apply. Rev 1 of this file did not claim a session. Rev 2 recorded the run. Rev 3 corrects the nits: Reset PASS is boot time only; the `OK-*` lines are the Power cycle post-check; TPM unlock is an inference from `johnny login:` with no LUKS prompt; AJ confirmed the DMT rotate and then shredded (`SHRED-OK 1`); Devices-page login proof is not recorded; the password-manager copy is the runbook step (**[Assumption]** it was made); MeshCommander cleanup was still open at rev 3 and is closed in handoff rev 77; the `qop=auth` patch is `public/default.htm` plus quote-aware `GetAuthArgs` in `interceptor.js`, and `rm -rf` destroys it. The self-test of the rotate script (`bash docs/tool-install/step-6-dmt-rotate.sh --self-test`) prints `SELF-TEST-OK` on a temp directory. It is not the rock-box paste.
