@@ -409,7 +409,7 @@ export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true
 
 # Finish any half-configured packages from a prior hung install (no prompts).
-if ! timeout 120 dpkg --configure -a; then
+if ! timeout 120 dpkg --force-confdef --force-confold --configure -a; then
   echo STOP-dpkg-configure
   bash "$REVERT"
   systemctl stop "${UNIT}.timer" 2>/dev/null || true
