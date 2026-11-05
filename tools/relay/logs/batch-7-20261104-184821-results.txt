@@ -1,0 +1,31 @@
+=== STATE ===
+3: eno3    inet 192.168.50.152/24 metric 100 brd 192.168.50.255 scope global dynamic eno3\       valid_lft 75661sec preferred_lft 75661sec
+default via 192.168.50.1 dev eno3 proto dhcp src 192.168.50.152 metric 100 
+udp UNCONN 0      0               127.0.0.54:53  0.0.0.0:*
+udp UNCONN 0      0            127.0.0.53%lo:53  0.0.0.0:*
+udp UNCONN 0      0      192.168.50.152%eno3:68  0.0.0.0:*
+udp UNCONN 0      0                127.0.0.1:323 0.0.0.0:*
+udp UNCONN 0      0                    [::1]:323    [::]:*
+tcp LISTEN 0      4096               0.0.0.0:22  0.0.0.0:*
+tcp LISTEN 0      4096            127.0.0.54:53  0.0.0.0:*
+tcp LISTEN 0      4096         127.0.0.53%lo:53  0.0.0.0:*
+tcp LISTEN 0      4096                  [::]:22     [::]:*
+net.ipv6.conf.all.disable_ipv6 = 0
+net.ipv6.conf.default.disable_ipv6 = 0
+=== END STATE ===
+WROTE /etc/systemd/system/ssh.socket.d/60-johnny-cis-ipv4.conf
+SKIP-ssh-restart
+BACKUP /root/60-johnny-cis-network.conf.pre-batch7
+APPENDED-disable-ipv6
+net.ipv6.conf.default.disable_ipv6 = 1
+net.ipv6.conf.all.disable_ipv6 = 1
+=== VERIFY ===
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+3: eno3    inet 192.168.50.152/24 metric 100 brd 192.168.50.255 scope global dynamic eno3\       valid_lft 75661sec preferred_lft 75661sec
+LISTEN 0      4096   0.0.0.0:22 0.0.0.0:*
+LISTEN 0      4096      [::]:22    [::]:*
+=== END VERIFY ===
+OK-batch-7

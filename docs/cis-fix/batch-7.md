@@ -60,3 +60,20 @@ sudo systemctl daemon-reload
 ```
 
 Do not restart `ssh.socket` in the same step as the undo. `0.0.0.0:22` must still be listening before the session is closed.
+
+## Results
+
+Source: `tools/relay/logs/batch-7-20261104-184821-results.txt`. Script printed `OK-batch-7`. PASTE 2 was not used.
+
+- Pre-state: `eno3` `192.168.50.152/24`, default via `192.168.50.1` on `eno3`, both `disable_ipv6` keys `0`, listeners limited to the allowed set (`0.0.0.0:22`, `[::]:22`, stub DNS, DHCP client UDP 68, chrony `127.0.0.1:323` and `[::1]:323`).
+- Wrote `/etc/systemd/system/ssh.socket.d/60-johnny-cis-ipv4.conf`. Printed `SKIP-ssh-restart` (socket not restarted; `[::]:22` still listening after verify).
+- Backed up the sysctl file to `/root/60-johnny-cis-network.conf.pre-batch7` and appended both `disable_ipv6 = 1` lines. Verify (including `sysctl --system`) showed both keys `1`. IPv4 address and `0.0.0.0:22` still up.
+
+CSV (`git diff docs/cis-26.04-l1-results.csv`), dated 2026-11-04:
+
+| id | was | now |
+|---|---|---|
+| 3.1.1 | FAIL (manual) | PASS (manual) |
+| 3.3.2.1–3.3.2.8 | FAIL | N/A |
+
+No other CSV rows changed. Repo copies of the live sysctl file and the ssh.socket drop-in are still outstanding (plan step 7).

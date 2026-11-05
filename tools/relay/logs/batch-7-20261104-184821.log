@@ -1,0 +1,15 @@
+csv: 274 rows, merged 0, bad 0
+[18:48:21 CT] Claude scoring results into docs/cis-26.04-l1-results.csv ...
+csv: 274 rows, merged 0, bad 0
+[18:48:55 CT] Grok (grok-4.7-low-fast) round results ...
+I'll read the batch results, the CSV diff, and the end of `batch-7.md` so the Results section matches what actually changed.## Detail
+
+`docs/cis-fix/batch-7.md` now ends with a `## Results` section. Nothing else in that file was changed. The CSV was not edited.
+
+The run log `tools/relay/logs/batch-7-20261104-184821-results.txt` ends with `OK-batch-7`. Before the change, `eno3` held `192.168.50.152/24`, the default route was via `192.168.50.1` on `eno3`, and both `disable_ipv6` keys were `0`. Listeners were the allowed set only. The script wrote `/etc/systemd/system/ssh.socket.d/60-johnny-cis-ipv4.conf`, printed `SKIP-ssh-restart`, backed up the sysctl file to `/root/60-johnny-cis-network.conf.pre-batch7`, and appended both `disable_ipv6 = 1` lines. After `sysctl --system`, both keys were `1`. `192.168.50.152/24` and `0.0.0.0:22` were still up. `[::]:22` was still listening, which matches the skip of the socket restart. PASTE 2 was not used.
+
+`git diff docs/cis-26.04-l1-results.csv` changes nine rows, all dated 2026-11-04: `3.1.1` from FAIL (manual) to PASS (manual), and `3.3.2.1` through `3.3.2.8` from FAIL to N/A. The plan’s post-run mirror of the live sysctl file and the ssh.socket drop-in into `etc/` is still outstanding.
+
+## Relay
+
+Batch 7 closed `OK-batch-7` (log `batch-7-20261104-184821`). Both `disable_ipv6` keys are 1 and persisted; IPv4 SSH stayed up; ssh.socket was not restarted (`[::]:22` still listening). CSV: 3.1.1 PASS (manual); 3.3.2.1–8 N/A. `etc/` mirrors of 
