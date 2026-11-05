@@ -24,7 +24,7 @@ log(){ echo "[$(date '+%H:%M:%S CT')] $*" | tee -a "$LOG" >&2; }
 cd "$REPO"
 
 # Paths the agents may change; anything else aborts the run.
-ALLOWED_RE="^(docs/cis-fix/$BATCH\.(md|sh)|docs/cis-26\.04-l1-results\.csv|docs/compliance/.*|tools/relay/(relay\.sh|README\.md|logs/.*|state/.*))$"
+ALLOWED_RE="^(docs/cis-fix/$BATCH\.(md|sh)|docs/cis-26\.04-l1-results\.csv|docs/compliance/.*|tools/relay/(relay\.sh|fetch-and-score\.sh|README\.md|logs/.*|state/.*))$"
 check_paths(){
   local bad; bad=$(git status --porcelain --untracked-files=all | awk '{print $NF}' | grep -Ev "$ALLOWED_RE" || true)
   if [ -n "$bad" ]; then log "ABORT: unexpected files changed:"; echo "$bad" | tee -a "$LOG"; exit 3; fi
