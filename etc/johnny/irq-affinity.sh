@@ -159,7 +159,6 @@ read_trim() {
 SYSFS_NET=/sys/class/net
 WAIT_STEP_SEC=2
 WAIT_ENO1_TRIES=50
-WAIT_TUNING_TRIES=30
 WAIT_NOTE_EVERY=3
 
 read_eno1_state() {
@@ -183,43 +182,6 @@ wait_eno1_link() {
     fi
     if [ $((i % WAIT_NOTE_EVERY)) -eq 0 ]; then
       echo "NOTE-wait-eno1 try=$i speed=$E_SPEED flags=$E_FLAGS carrier=$E_CARRIER oper=$E_OPER"
-    fi
-    i=$((i + 1))
-    sleep "$WAIT_STEP_SEC"
-  done
-}
-
-capture_epp_all_performance() {
-  local cpu epp
-  for cpu in "${CAPTURE_CPUS[@]}"; do
-    epp=$(read_trim "/sys/devices/system/cpu/cpu${cpu}/cpufreq/energy_performance_preference")
-    [ "$epp" = performance ] || return 1
-  done
-  return 0
-}
-
-# The irq unit cannot say After=johnny-capture-tuning.service (ordering cycle:
-# tuning is After=multi-user.target). So wait here for the unit to be active.
-# EPP alone is not accepted: the gate after this wants the unit active too.
-# Stops early on failed. Returns 1 on timeout or failed.
-wait_tuning_ready() {
-  local i=0 st epp=no
-  while :; do
-    st=$(systemctl is-active johnny-capture-tuning.service 2>/dev/null || true)
-    if [ "$st" = active ]; then
-      return 0
-    fi
-    if [ "$st" = failed ]; then
-      echo "NOTE-wait-tuning failed state=$st"
-      return 1
-    fi
-    if [ "$i" -ge "$WAIT_TUNING_TRIES" ]; then
-      return 1
-    fi
-    if [ $((i % WAIT_NOTE_EVERY)) -eq 0 ]; then
-      epp=no
-      if capture_epp_all_performance; then epp=yes; fi
-      echo "NOTE-wait-tuning try=$i state=${st:-unknown} epp-performance=$epp"
     fi
     i=$((i + 1))
     sleep "$WAIT_STEP_SEC"
@@ -411,21 +373,22 @@ preflight() {
     echo STOP-no-rx-queue
     return 1
   fi
-  wait_tuning_ready || true
-  if [ "$(systemctl is-active johnny-capture-tuning.service 2>/dev/null || true)" != active ]; then
-    echo STOP-tuning
-    return 1
+  # Tuning is advisory here (step 13c): the irq oneshot must exit before
+  # tuning (After=multi-user.target) can go active, so never wait or stop on it.
+  # IRQ pins do not depend on the tuning oneshot having finished.
+  local tst ten epp
+  tst=$(systemctl is-active johnny-capture-tuning.service 2>/dev/null || true)
+  ten=$(systemctl is-enabled johnny-capture-tuning.service 2>/dev/null || true)
+  if [ "$tst" != active ]; then
+    echo "NOTE-tuning-not-active ${tst:-unknown}"
   fi
-  if [ "$(systemctl is-enabled johnny-capture-tuning.service 2>/dev/null || true)" != enabled ]; then
-    echo STOP-tuning
-    return 1
+  if [ "$ten" != enabled ]; then
+    echo "NOTE-tuning-not-enabled ${ten:-unknown}"
   fi
-  local epp
   for cpu in "${CAPTURE_CPUS[@]}"; do
     epp=$(read_trim "/sys/devices/system/cpu/cpu${cpu}/cpufreq/energy_performance_preference")
     if [ "$epp" != performance ]; then
-      echo "STOP-tuning-epp $cpu ${epp:-missing}"
-      return 1
+      echo "NOTE-tuning-epp $cpu ${epp:-missing}"
     fi
   done
   echo "CAPTURE-CPUS ${CAPTURE_CPUS[*]}"

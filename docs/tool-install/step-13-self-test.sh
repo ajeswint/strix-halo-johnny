@@ -376,7 +376,6 @@ grep -q "$UNIT_CYCLE" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail 
 # Step 13c: boot-race waits. Stub systemctl and sysfs; no sleeping.
 WAIT_STEP_SEC=0
 WAIT_ENO1_TRIES=2
-WAIT_TUNING_TRIES=2
 WAIT_NOTE_EVERY=1
 SYSFS_NET=$(mktemp -d)
 mkdir -p "$SYSFS_NET/eno1np0"
@@ -398,35 +397,17 @@ printf '1\n' > "$SYSFS_NET/eno1np0/carrier"
 printf 'up\n' > "$SYSFS_NET/eno1np0/operstate"
 wait_eno1_link >/dev/null || fail "eno1 wait should pass"
 rm -rf "$SYSFS_NET"
-# Tuning wait: activating then active passes; never active times out; failed stops early.
-CAPTURE_CPUS=()
-STUB_STATE_FILE=$(mktemp)
-systemctl() {
-  local st
-  st=$(cat "$STUB_STATE_FILE")
-  if [ "$st" = flip ]; then
-    echo activating
-    echo active > "$STUB_STATE_FILE"
-  else
-    echo "$st"
-  fi
-}
-echo flip > "$STUB_STATE_FILE"
-wait_tuning_ready >/dev/null || fail "tuning wait flip"
-echo activating > "$STUB_STATE_FILE"
-out=$(wait_tuning_ready) && fail "tuning wait should time out"
-printf '%s\n' "$out" | grep -q '^NOTE-wait-tuning try=0 state=activating' || fail "tuning wait note: $out"
-echo failed > "$STUB_STATE_FILE"
-out=$(wait_tuning_ready) && fail "tuning wait failed"
-printf '%s\n' "$out" | grep -q '^NOTE-wait-tuning failed' || fail "tuning failed note: $out"
-unset -f systemctl
-rm -f "$STUB_STATE_FILE"
-# Waits are bounded and preflight calls them. 2s x (50 + 30) = 160s; unit timeout covers it.
+# Tuning is never waited on (B1: waiting inside the irq oneshot deadlocks at boot).
+H13C="$ROOT/etc/johnny/irq-affinity.sh"
+if grep -q 'wait_tuning_ready\|WAIT_TUNING_TRIES\|capture_epp_all_performance' "$H13C"; then fail "tuning wait still in helper"; fi
+if grep -q 'STOP-tuning' "$H13C"; then fail "STOP-tuning still in helper"; fi
+grep -q 'NOTE-tuning-not-active' "$H13C" || fail "tuning NOTE missing"
+grep -q 'NOTE-tuning-not-enabled' "$H13C" || fail "tuning enabled NOTE missing"
+grep -q 'NOTE-tuning-epp' "$H13C" || fail "tuning epp NOTE missing"
+# eno1 wait is bounded and preflight calls it. 2s x 50 = 100s; unit timeout 150 covers it.
 grep -q '^WAIT_ENO1_TRIES=50$' "$ROOT/etc/johnny/irq-affinity.sh" || fail "eno1 tries"
-grep -q '^WAIT_TUNING_TRIES=30$' "$ROOT/etc/johnny/irq-affinity.sh" || fail "tuning tries"
 grep -q '^  wait_eno1_link || true$' "$ROOT/etc/johnny/irq-affinity.sh" || fail "preflight eno1 wait"
-grep -q '^  wait_tuning_ready || true$' "$ROOT/etc/johnny/irq-affinity.sh" || fail "preflight tuning wait"
-grep -q '^TimeoutStartSec=210$' "$IRQU" || fail "irq unit TimeoutStartSec"
+grep -q '^TimeoutStartSec=150$' "$IRQU" || fail "irq unit TimeoutStartSec"
 if grep -E '^(After|Requires|Wants|BindsTo)=.*johnny-capture-tuning' "$IRQU"; then fail "irq unit orders on tuning"; fi
 S13C="$ROOT/docs/tool-install/step-13c-eno1-wait.sh"
 bash -n "$S13C" || fail "13c syntax"

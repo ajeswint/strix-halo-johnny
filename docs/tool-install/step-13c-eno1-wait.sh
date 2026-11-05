@@ -1,7 +1,7 @@
 #!/bin/bash
 # Johnny step 13c: boot-race fix. Installs the helper that waits for eno1np0
-# link and for johnny-capture-tuning.service, plus the unit with a longer
-# TimeoutStartSec, then restarts the oneshot once. Helper + unit, hash-gated.
+# link (tuning is NOTE-only, never waited on), plus the unit with a longer
+# TimeoutStartSec=150, then restarts the oneshot once. Helper + unit, hash-gated.
 # No reboot, no netplan, no irqbalance change, tuning unit untouched.
 # AJ runs it on Johnny, as root, after both files are in /home/aj/cis-audit/.
 # Docs: docs/tool-install/step-13-irq-affinity.md (section "Boot race").
@@ -13,9 +13,9 @@ HELPER=/etc/johnny/irq-affinity.sh
 SRC_HELPER=/home/aj/cis-audit/irq-affinity-wait.sh
 PREV=/var/lib/johnny/step13c-prev
 UNIT_OLD_SHA256=a191cdbb7a2391ba8e8b91b3dd36235b0a344799d948a6db74d27ad21958953a
-UNIT_NEW_SHA256=5b2c7cf21049df7bf080593f55ec0c9e60dfe6291724cdcd93f5c9b1c6c99a37
+UNIT_NEW_SHA256=0220ecdff1cd603726b692fbd41a19c580d98640fd70cd68efcf530afa0e04ea
 HELPER_OLD_SHA256=29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530
-HELPER_NEW_SHA256=a192079eb8f2ef61c83ea5e5788f2fb41dc45fb143b3fd99bbe833a48d9eaa6b
+HELPER_NEW_SHA256=7c475e4a29d711ea5e104a115f0df3d01730fbf3a452eb68cdc3f8a2953fe388
 
 sha_of() {
   sha256sum "$1" | awk '{print $1}'
@@ -82,9 +82,9 @@ main() {
     echo STOP-unit-not-enabled
     exit 1
   fi
-  if [ "$(systemctl is-active johnny-capture-tuning.service)" != active ]; then
-    echo STOP-tuning-not-active
-    exit 1
+  tst=$(systemctl is-active johnny-capture-tuning.service || true)
+  if [ "$tst" != active ]; then
+    echo "NOTE-tuning-not-active ${tst:-unknown}"
   fi
   echo INPUTS-OK
 
@@ -133,8 +133,8 @@ main() {
     rollback
     exit 1
   fi
-  if ! grep -qx 'TimeoutStartSec=210' "$LIVE"; then
-    echo STOP-timeout-not-210s
+  if ! grep -qx 'TimeoutStartSec=150' "$LIVE"; then
+    echo STOP-timeout-not-150s
     rollback
     exit 1
   fi
