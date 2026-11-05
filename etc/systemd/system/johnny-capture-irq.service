@@ -1,0 +1,14 @@
+[Unit]
+Description=Pin eno1np0 ice IRQs to Johnny capture CPUs
+After=network-online.target irqbalance.service johnny-capture-tuning.service
+ConditionPathExists=/etc/johnny/capture-cores
+ConditionPathExists=/etc/johnny/irq-affinity.sh
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/etc/johnny/irq-affinity.sh apply
+TimeoutStartSec=30
+
+[Install]
+WantedBy=multi-user.target
