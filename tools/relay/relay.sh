@@ -29,7 +29,30 @@ check_paths(){
   local bad; bad=$(git status --porcelain --untracked-files=all | awk '{print $NF}' | grep -Ev "$ALLOWED_RE" || true)
   if [ -n "$bad" ]; then log "ABORT: unexpected files changed:"; echo "$bad" | tee -a "$LOG"; exit 3; fi
 }
-[ -z "$(git status --porcelain --untracked-files=no)" ] || { log "ABORT: working tree has uncommitted changes; commit/stash first"; exit 3; }
+# Auto-commit relay debris so a leftover log never blocks scoring.
+auto_commit_relay_debris(){
+  local paths dirt
+  # All dirty paths (tracked + untracked). Abort if anything outside logs/state.
+  paths=$(git status --porcelain --untracked-files=all | awk '{print $NF}')
+  [ -z "$paths" ] && return 0
+  dirt=$(echo "$paths" | grep -Ev '^tools/relay/(logs|state)/' || true)
+  if [ -n "$dirt" ]; then
+    log "ABORT: working tree has uncommitted changes; commit/stash first"
+    echo "$paths" | tee -a "$LOG" >&2
+    exit 3
+  fi
+  if [ $DRY = 1 ]; then
+    log "DRY RUN: would auto-commit relay logs/state debris"
+    git status --short | tee -a "$LOG" >&2
+    return 0
+  fi
+  git add tools/relay/logs tools/relay/state
+  if git diff --cached --quiet; then return 0; fi
+  git commit -q -m "relay: logs"
+  git push -q origin HEAD
+  log "Auto-committed relay logs/state as $(git rev-parse --short HEAD)"
+}
+auto_commit_relay_debris
 
 CONV="DELIVERY CONVENTION (overrides AGENTS.md paste rules): AJ copies $SH to Johnny with scp and runs it whole as 'sudo bash ~/cis-audit/$BATCH.sh' from an SSH session; KVM-only steps (reboot checks, console) are separate numbered pastes marked '# RUNS IN: KVM' that AJ types at the console. The .sh file IS the deliverable; $DOC links to it rather than duplicating it. Rollback goes in $DOC under '## Rollback'. "
 EXTRA=${RELAY_EXTRA:-}   # optional one-off instructions for this run (Grok and Claude)
@@ -103,7 +126,8 @@ if [ -z "$RESULTS" ]; then
       echo "scp $REPO/$SH $JOHNNY:~/cis-audit/$BATCH.sh   # from aj-rock-box"
       grep -nE '^# (PASTE|RUNS IN)' "$SH" || true
       echo "Then on Johnny (SSH or KVM per paste): sudo -v && sudo bash ~/cis-audit/$BATCH.sh 2>&1 | tee ~/cis-audit/$BATCH-out.txt"
-      echo "Bring back: scp $JOHNNY:~/cis-audit/$BATCH-out.txt /tmp/ && $0 $BATCH --results /tmp/$BATCH-out.txt"
+      echo "Score (one command): tools/relay/fetch-and-score.sh $BATCH"
+      echo "Or manual: scp $JOHNNY:~/cis-audit/$BATCH-out.txt /tmp/ && $0 $BATCH --results /tmp/$BATCH-out.txt"
       exit 0
     fi
     ISSUES=$(jq -r '.issues|join("\n- ")' <<<"$V")
