@@ -1,0 +1,34 @@
+# Step 12 — signed UKI research (draft)
+
+Drafted 2026-11-05 ~13:05 CT. Handoff rev 82. Not applied. No command from this session ran on Johnny, on rock-box, or on ABLETON_BOX.
+
+## Status
+
+Step 12 is **drafted, not applied**. Runbook: `docs/tool-install/step-12-signed-uki.md`. Lab TPM unlock stays option A (PCR 7 only). Fleet option D (signed UKI + signed PCR 11 policy) is research only. AJ has not run the inventory. CIS L1 totals unchanged: **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). Steps 6, 8, 9, and 11 stay applied. IRQ affinity stays later.
+
+The main paste is unprivileged. It refuses root (`STOP-root`), any host other than `johnny` (`STOP-host`), any kernel other than `7.0.0-42-generic` (`STOP-kernel`), and any user other than `aj` (`STOP-user`). It does not install a package, run `ukify` or `dracut`, sign a PE, import a MOK, or call `systemd-cryptenroll`. `STEP12-RESEARCH-DONE` means the inventory finished. It does not mean option D is in use.
+
+The optional sudo paste is not required for that line. It runs only after `STEP12-RESEARCH-DONE`. It reads LUKS slot types with `cryptsetup luksDump` and, when the unprivileged read failed, PCR banks 7, 11, and 14. It does not enroll or wipe. A second run prints `STOP-slots-already`.
+
+rock-box is the SSH client. ABLETON_BOX is Windows and is not a UKI target.
+
+## Check on this draft
+
+The two Johnny pastes were extracted and `bash -n` exited 0 on each. A scan of those pastes found no `apt-get`, `apt install`, `systemd-cryptenroll`, `wipe-slot`, `update-grub`, `update-initramfs`, or `mokutil --import`. The names `systemd-ukify` and `dracut` appear only as `dpkg-query` and `apt-cache policy` arguments, and `/usr/bin/ukify` is an existence check.
+
+On a host whose short name is not `johnny`, the main paste printed `STOP-host` and exited 1 before creating a log directory. The same file under `sudo -n` printed `STOP-root` and exited 1.
+
+A copy of the main paste with the host, kernel, and user gates opened, writing under `/tmp`, printed `STEP12-RESEARCH-DONE`. Installed `systemd` kept its version. Packages that `dpkg-query` reports as `not-installed` with exit 0 printed `NOT-INSTALLED`, not a blank version. `apt-cache policy` per name printed `POLICY systemd-ukify NONE` and `NOTE-no-candidate`. That host is not Johnny.
+
+A copy of the optional paste with those gates opened printed `STOP-no-probe` when the summary lacked `STEP12-RESEARCH-DONE`, then `STOP-no-luks-dev` when the LUKS uuid link was missing. With the link pointed at a 64-byte file that is not a LUKS volume, it printed `NOTE-luks-dump-failed`, then `SLOTS-DONE`. A second run printed `STOP-slots-already`. `chown` to `aj` printed `NOTE-chown-failed` on that copy because the copy was not root and the account `aj` is not this machine. The Johnny paste is `sudo bash`, so that `chown` runs as root.
+
+A PCR line fixture `7 : 0xB6D0F97F…F3FF` parsed to the handoff baseline with the `0x` prefix removed. A crypttab fixture whose third field was a key path printed `NOTE-crypttab-keyfile` and the name and UUID only. The `none` third field printed as `none`.
+
+That check did not read Johnny's TPM and did not write a LUKS slot.
+
+## Do not
+
+- Run `ukify`, `dracut --uefi`, or `systemd-cryptenroll` from this draft.
+- Treat `STEP12-RESEARCH-DONE` as an apply.
+- Unhold `shim-signed` or `secureboot-db`.
+- Switch the lab off option A.
