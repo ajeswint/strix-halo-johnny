@@ -1,6 +1,61 @@
-# Step 13 — IRQ affinity (draft, not applied)
+# Step 13 — IRQ affinity (applied 2026-11-05)
 
-Rev 3, 2026-11-05. Draft only. Tip `c765e01` is the paste AJ was cleared to run. A `STEP13-IRQ-DONE` from that tip counts. Do not re-run it for this revision. This revision adds `Wants=network-online.target`, makes the rock-box self-test required before a new paste, and corrects the hold and unrequested-vector wording. Nothing in this revision has run on Johnny.
+Rev 4, 2026-11-05 ~14:18 CT. Applied on Johnny. AJ's paste printed `STEP13-IRQ-DONE`. The paste was tip `c765e01` (scp sizes match that tip). Soft nits in `b19ab07` did not run and do not require a re-run. Do not re-run this step to spread the IRQs. The live pin put every recorded `eno1np0` vector on CPU 1.
+
+## After the run
+
+Raw transcript stays on Johnny at `/root/step13-apply.log`. This section is the summary. Grok did not SSH.
+
+Auth: rock-box `sudo -v` failed three times. That password is rock-box's, and it was the wrong one. Johnny `ssh -t` … `sudo` succeeded on the retry. No secret is stored here.
+
+Paste result:
+
+- `LOCKDOWN none[integrity]confidentiality` (the script strips spaces; the same string as `none [integrity] confidentiality`)
+- `PCI eno1np0 0000:01:00.0 eno2np1 0000:01:00.1`
+- `CAPTURE-CPUS 1 2 3 4`
+- `OK-tuning`
+- `NOTE-no-irqbalance` (no 12 second wait, no `IRQ-HELD`)
+- `REVERT-READY`
+- `QUEUES` RX 12 and TX 12; `RPS-RX0 000000`; `XPS-TX0 000000`
+- `NOTE-eno2-unrequested` for IRQs 204–215 (`eno2np1` admin-down, expected)
+- `AFFINITY-BACKUP`, helper, policyscript, and unit `INSTALLED`, `UNIT-ENABLED`
+- `PIN-NEEDED` then `PIN-OK`
+- `CPU0-CLEAR`, `ENO2-IRQ-UNCHANGED`, `ENO3-OK`, `LOCKDOWN-UNCHANGED`
+- `STEP13-IRQ-DONE`
+
+Name mismatch. The script's queue pattern is `eno1np0-TxRx-N`, `eno1np0-rx-N`, or `eno1np0-tx-N`. Live names are `ice-eno1np0-TxRx-0` through `ice-eno1np0-TxRx-11`, `ice-0000:01:00.0:misc`, `ll_ts`, `ctrl-TxRx-0`, and `irdma-0000:01:00.0-*` completion queues. The `ice-` prefix misses the pattern, so each of those printed `NOTE-irq-fallback` and was pinned to capture CPU 1 (the first ID in the file). `irdma-` names also printed `NOTE-irq-name`. Ice vectors are IRQs 187–201. irdma vectors are IRQs 217–229. All of them are on CPU 1. CPUs 2, 3, and 4 got none of these IRQs.
+
+During the pin, stderr repeated `/etc/johnny/irq-affinity.sh: line 28: printf: write error: Broken pipe`. Line 28 is the `printf` inside `expand_affinity`. The paste ignores SIGPIPE, the helper kept going, and `STEP13-IRQ-DONE` still printed. The noise is not a failed pin.
+
+**[Inference]** The installed helper, policyscript, revert script, and unit are the `c765e01` blobs. That paste hashes them before install, and it reached `STEP13-IRQ-DONE`. This closeout did not re-hash the live files. Those digests:
+
+| Installed path | c765e01 sha256 |
+|---|---|
+| `/etc/johnny/irq-affinity.sh` | `77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e` |
+| `/etc/johnny/irqbalance-policy.sh` | `7a3eeb944be0ee60ba94099b3ae4da3c905c941003c5c50221921032a9ffb0a8` |
+| `/etc/systemd/system/johnny-capture-irq.service` | `9df4969fbb8e9000c13d409cc1788846ca9b1acf06275fd7336eb616cd6bb355` |
+| `/root/step13-revert.sh` | `c9dd1522e278bc3bad3a711a4fdcd18b1b768d9da19dff07376a5db7dfa4cc1d` |
+
+The `c765e01` unit does not contain `Wants=network-online.target`. The repo copy after `b19ab07` does. That line is not on Johnny. It is not a reason to re-run.
+
+`irqbalance` is not installed (`NOTE-no-irqbalance`). The later read printed `IRQBALANCE inactive`. Nothing restarted it.
+
+Rock-box read-only verify, same day, after `STEP13-IRQ-DONE`:
+
+- `HOST johnny`, `KERNEL 7.0.0-42-generic`
+- `ip -br link show eno1np0 eno2np1 eno3` failed: `Error: either "dev" is duplicate, or "eno2np1" is garbage.` iproute2 does not take three device names that way. The one-liner in the old verify block is wrong. `eno3` was still read from the address and route lines: UP, `192.168.50.152/24`, default via `192.168.50.1` dev `eno3`. This verify did not re-print `eno1np0` or `eno2np1` flags.
+- `TUNING active enabled`
+- `IRQUNIT inactive enabled`. The paste enabled the unit and ran the helper itself. It did not `systemctl start` the unit, so systemd has not marked the oneshot active. `RemainAfterExit=yes` would show `active` only after systemd runs `ExecStart`. Inactive here is not a failed pin. Boot still starts it after `network-online.target`.
+- `IRQBALANCE inactive`
+- `LOCKDOWN none[integrity]confidentiality`
+- `RPS 000000`, `XPS 000000`
+- Every `ENO1` IRQ 187–201 and 217–229: `smp_affinity_list` `1` and `effective_affinity_list` `1`
+
+## Open follow-up
+
+Name match, not started. A later paste, after Claude reviews this closeout, should treat `ice-eno1np0-TxRx-N` as the queue name so those twelve queues can land on CPUs 1–4 instead of all on CPU 1. `irdma-0000:01:00.0-*` completion queues were pinned to CPU 1 only because the name missed the pattern. That later paste should leave irdma on the mask it had before this step, or say in the runbook why they stay on a capture CPU. No such paste is in this closeout. Do not re-run the `c765e01` paste to "fix" the spread. Rollback, if AJ wants the old masks back, is still `sudo bash /root/step13-revert.sh`.
+
+The sections below are the procedure AJ ran (`c765e01`), plus the later wording from `b19ab07`. They are not a second apply.
 
 This is the tool-install step that replaces the open item "IRQ affinity later" from step 11. Handoff Next steps item 13 stays the finished Agent team note. That bullet is not this step. There is no `docs/tool-install/step-13-*.md` before this draft, and the tool-install sequence after step 12 is 13.
 
@@ -178,7 +233,9 @@ Not part of the paste. On rock-box, after `STEP13-IRQ-DONE`, read-only:
 ssh aj@192.168.50.152 'echo HOST $(hostname -s); echo KERNEL $(uname -r); ip -br link show eno1np0 eno2np1 eno3; ip -br addr show eno3; ip -4 route show default; echo TUNING $(systemctl is-active johnny-capture-tuning.service) $(systemctl is-enabled johnny-capture-tuning.service); echo IRQUNIT $(systemctl is-active johnny-capture-irq.service) $(systemctl is-enabled johnny-capture-irq.service); echo IRQBALANCE $(systemctl is-active irqbalance.service || true); echo LOCKDOWN $(tr -d "[:space:]" < /sys/kernel/security/lockdown); echo RPS $(tr -d "[:space:]" < /sys/class/net/eno1np0/queues/rx-0/rps_cpus); echo XPS $(tr -d "[:space:]" < /sys/class/net/eno1np0/queues/tx-0/xps_cpus); for n in /sys/class/net/eno1np0/device/msi_irqs/*; do i=$(basename "$n"); printf "ENO1 %s %s %s\n" "$i" "$(tr -d "[:space:]" < /proc/irq/$i/smp_affinity_list)" "$(tr -d "[:space:]" < /proc/irq/$i/effective_affinity_list)"; done'
 ```
 
-Expect `HOST johnny`, `KERNEL 7.0.0-42-generic`, `eno1np0` still up with `PROMISC` and `NOARP`, `eno2np1` without the admin `UP` flag, `eno3` still `192.168.50.152`, the default route still `dev eno3`, tuning `active enabled`, the IRQ unit `active enabled`. Each `ENO1` line whose `/proc/irq` file exists has a mask of one of `1`, `2`, `3`, `4`. None of those masks is `0` or a list that contains `0`. `RPS` and `XPS` are whatever they were. This command does not write them.
+The 2026-11-05 verify used this block. `ip -br link show` with three names failed (`eno2np1` is garbage). Read each device with `ip -br link show dev` and one name. Do not re-run the affinity paste to fix that one-liner.
+
+What that verify actually printed: `HOST johnny`, `KERNEL 7.0.0-42-generic`, `eno3` `192.168.50.152/24`, default via `192.168.50.1` dev `eno3`, tuning `active enabled`, IRQ unit `inactive enabled` (enabled, not active), `IRQBALANCE inactive`, lockdown `none[integrity]confidentiality`, RPS and XPS `000000`. IRQs 187–201 and 217–229 are mask `1` and effective `1`. This run did not spread them across CPUs 2–4.
 
 `IRQ-HELD` in the paste log is the same kind of read, done 12 seconds after the pin, inside the paste. `STEP13-IRQ-DONE` after an active `irqbalance` means that read still matched. A mask outside `1`–`4` means the hold did not stick. The paste should have printed `STOP-irq-held` instead of `STEP13-IRQ-DONE`. If that run had changed the box, it also prints `REVERTING`. If it had changed nothing, it prints `CONFIG-KEPT` and leaves the masks. An `ENO1` line that errors because `/proc/irq` is missing is an allocated vector the driver did not request. The paste treats that on `eno1np0` as `STOP-eno1-unrequested` before it writes. A first run then prints `NO-CHANGE`.
 

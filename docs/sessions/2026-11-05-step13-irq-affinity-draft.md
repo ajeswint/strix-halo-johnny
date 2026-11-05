@@ -1,6 +1,8 @@
 # Step 13 — IRQ affinity (draft)
 
-Drafted 2026-11-05 ~13:51 CT. Handoff rev 84 at draft time. No command from this draft has run on Johnny, on rock-box, or on ABLETON_BOX.
+**Historical.** Superseded by the apply closeout `docs/sessions/2026-11-05-step13-irq-affinity-applied.md` and handoff rev 87. AJ's paste at `c765e01` printed `STEP13-IRQ-DONE`. The lines below are the draft, written before that run.
+
+Drafted 2026-11-05 ~13:51 CT. Handoff rev 84 at draft time. No command from this draft had run yet on Johnny, on rock-box, or on ABLETON_BOX.
 
 ## Status
 
