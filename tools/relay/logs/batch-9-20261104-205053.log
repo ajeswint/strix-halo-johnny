@@ -1,0 +1,7 @@
+[20:50:53 CT] ABORT: working tree has uncommitted changes; commit/stash first
+docs/cis-fix/batch-9.md
+docs/cis-fix/batch-9.sh
+tools/relay/README.md
+tools/relay/logs/batch-9-20261104-200322.log
+tools/relay/relay.sh
+tools/relay/state/batch-9.base

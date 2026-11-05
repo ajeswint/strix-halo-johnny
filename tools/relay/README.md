@@ -19,4 +19,4 @@ Env: `GROK_MODEL` (relay default `grok-4.7-high`; fetch-and-score defaults to `g
 Working tree: if the only uncommitted paths are under `tools/relay/logs/` or `tools/relay/state/`, relay auto-commits them as `relay: logs` and continues. Anything else still aborts — commit or stash first. Agents may only touch `docs/cis-fix/batch-N.{md,sh}`, the results CSV, `docs/compliance/`, and `tools/relay/`.
 
 Logs: `tools/relay/logs/<batch>-<ts>.{log,patch,json}`. Batch start commit: `tools/relay/state/<batch>.base`.
-Never runs sudo or writes on Johnny; AJ runs the printed sudo step himself. `fetch-and-score.sh` only downloads the out.txt.
+Never runs sudo or writes on Johnny; AJ runs the printed sudo step himself. APT/DPKG in batch scripts must be noninteractive (`DEBIAN_FRONTEND=noninteractive`, `force-confold`); interactive debconf under `| tee` hangs. `fetch-and-score.sh` only downloads the out.txt.

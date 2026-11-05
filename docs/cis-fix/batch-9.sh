@@ -57,6 +57,8 @@ write_revert() {
 # /etc/pam.d and /etc/security (plus login.defs and useradd defaults),
 # drops the profiles this batch added, and clears aj's faillock.
 set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+export DEBCONF_NONINTERACTIVE_SEEN=true
 TAR=/root/batch9-pam-security.tar
 CHAGE_BEFORE=/root/batch9-chage.before
 if [ ! -f "$TAR" ]; then
@@ -114,13 +116,19 @@ active_eq() {
   fi
   if [ "$(printf '%s\n' "$got" | wc -l)" -ne 1 ]; then
     echo "STOP-dup $file $key"
-    [ "${CHANGED:-0}" = 1 ] && bash "$REVERT"
+    if [ "${CHANGED:-0}" = 1 ]; then
+      bash "$REVERT"
+      systemctl stop "${UNIT}.timer" 2>/dev/null || true
+    fi
     exit 1
   fi
   val=$(printf '%s\n' "$got" | sed -E "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*//")
   if [ "$val" != "$want" ]; then
     echo "STOP-value $file $key $val"
-    [ "${CHANGED:-0}" = 1 ] && bash "$REVERT"
+    if [ "${CHANGED:-0}" = 1 ]; then
+      bash "$REVERT"
+      systemctl stop "${UNIT}.timer" 2>/dev/null || true
+    fi
     exit 1
   fi
   echo "KEEP $file $key"
@@ -135,7 +143,10 @@ active_bare() {
   fi
   if grep -E "^[[:space:]]*${key}[[:space:]]*=" "$file" >/dev/null; then
     echo "STOP-value $file $key"
-    [ "${CHANGED:-0}" = 1 ] && bash "$REVERT"
+    if [ "${CHANGED:-0}" = 1 ]; then
+      bash "$REVERT"
+      systemctl stop "${UNIT}.timer" 2>/dev/null || true
+    fi
     exit 1
   fi
   if [ -s "$file" ] && [ -n "$(tail -c1 "$file")" ]; then
@@ -150,7 +161,10 @@ refuse_active() {
   key=$2
   if grep -E "^[[:space:]]*${key}([[:space:]]|=|$)" "$file" >/dev/null; then
     echo "STOP-active $file $key"
-    [ "${CHANGED:-0}" = 1 ] && bash "$REVERT"
+    if [ "${CHANGED:-0}" = 1 ]; then
+      bash "$REVERT"
+      systemctl stop "${UNIT}.timer" 2>/dev/null || true
+    fi
     exit 1
   fi
 }
@@ -381,18 +395,54 @@ fi
 CHANGED=1
 # Unguarded failures after this point (chage, useradd, mkdir, sed, systemd-run)
 # and a dropped SSH session must not leave the new stack with no timer.
-trap 'trap - ERR HUP; echo ERR-REVERT; bash "$REVERT"' ERR HUP
+trap 'trap - ERR HUP; echo ERR-REVERT; bash "$REVERT"; systemctl stop "${UNIT}.timer" 2>/dev/null || true' ERR HUP
 lan_peers > "$PEERS"
 echo "PEERS-SAVED $(wc -l < "$PEERS")"
 before_last=$(last_change_line)
 
+# Arm the 300s revert BEFORE apt/pam so a hung debconf cannot leave changes
+# without a backstop. PASTE 2 still disarms after a new-session sudo check.
+systemd-run --on-active=300s --unit="$UNIT" "$REVERT"
+echo TIMER-ARMED 300
+
 export DEBIAN_FRONTEND=noninteractive
-if ! apt-get install -y libpam-pwquality cracklib-runtime; then
-  echo STOP-apt
+export DEBCONF_NONINTERACTIVE_SEEN=true
+
+# Finish any half-configured packages from a prior hung install (no prompts).
+if ! timeout 120 dpkg --configure -a; then
+  echo STOP-dpkg-configure
   bash "$REVERT"
+  systemctl stop "${UNIT}.timer" 2>/dev/null || true
   exit 1
 fi
-echo APT-OK
+
+need_apt=0
+for pkg in libpam-pwquality cracklib-runtime; do
+  st=$(dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null || true)
+  if [ "$st" != "install ok installed" ]; then
+    need_apt=1
+  fi
+done
+if [ "$need_apt" -eq 0 ]; then
+  echo SKIP-apt-already
+else
+  # Never hang on interactive pam-auth-update/debconf (seen 2026-11-04 hang).
+  if ! timeout 300 apt-get -y \
+      -o Dpkg::Options::=--force-confdef \
+      -o Dpkg::Options::=--force-confold \
+      install libpam-pwquality cracklib-runtime; then
+    echo STOP-apt
+    bash "$REVERT"
+    systemctl stop "${UNIT}.timer" 2>/dev/null || true
+    exit 1
+  fi
+  echo APT-OK
+fi
+
+# Package postinst may leave common-*.pam-old; ignore, do not delete or STOP.
+if ls /etc/pam.d/common-*.pam-old >/dev/null 2>&1; then
+  echo NOTE-pam-old-present
+fi
 
 mkdir -p "$PWQ_DIR"
 if [ ! -f "$PWQ" ]; then
@@ -425,6 +475,7 @@ if grep -E '^PASS_MAX_DAYS[[:space:]]' "$LOGIN" >/dev/null; then
     if [ "$cur" != "PASS_MAX_DAYS	99999" ] && [ "$cur" != "PASS_MAX_DAYS 99999" ]; then
       echo "STOP-pass-max $cur"
       bash "$REVERT"
+      systemctl stop "${UNIT}.timer" 2>/dev/null || true
       exit 1
     fi
     sed -i 's/^PASS_MAX_DAYS[[:space:]]\+99999$/PASS_MAX_DAYS\t365/' "$LOGIN"
@@ -435,12 +486,14 @@ if grep -E '^PASS_MAX_DAYS[[:space:]]' "$LOGIN" >/dev/null; then
 else
   echo STOP-pass-max-missing
   bash "$REVERT"
+  systemctl stop "${UNIT}.timer" 2>/dev/null || true
   exit 1
 fi
 if grep -E '^UMASK[[:space:]]' "$LOGIN" >/dev/null; then
   if ! grep -E '^UMASK[[:space:]]+027$' "$LOGIN" >/dev/null; then
     echo STOP-umask
     bash "$REVERT"
+    systemctl stop "${UNIT}.timer" 2>/dev/null || true
     exit 1
   fi
   echo KEEP-UMASK
@@ -459,9 +512,12 @@ chmod 644 "$SHELL_DROP"
 echo "WROTE $SHELL_DROP"
 
 write_profiles
-if ! pam-auth-update --disable unix --enable johnny-unix pwquality faillock-preauth faillock-authfail faillock-authsucc pwhistory; then
+# Explicit profiles only; --force so a prior package postinst /.pam-old does not
+# block as "locally modified". DEBIAN_FRONTEND already noninteractive.
+if ! pam-auth-update --force --disable unix --enable johnny-unix pwquality faillock-preauth faillock-authfail faillock-authsucc pwhistory; then
   echo STOP-pam-auth-update
   bash "$REVERT"
+  systemctl stop "${UNIT}.timer" 2>/dev/null || true
   exit 1
 fi
 echo PAM-AUTH-UPDATE-OK
@@ -473,6 +529,7 @@ after_last=$(last_change_line)
 if [ "$before_last" != "$after_last" ]; then
   echo "STOP-chage-last $after_last"
   bash "$REVERT"
+  systemctl stop "${UNIT}.timer" 2>/dev/null || true
   exit 1
 fi
 echo "CHAGE-LAST-UNCHANGED $after_last"
@@ -480,11 +537,13 @@ echo "CHAGE-LAST-UNCHANGED $after_last"
 if ! stack_ok; then
   echo STOP-validate
   bash "$REVERT"
+  systemctl stop "${UNIT}.timer" 2>/dev/null || true
   exit 1
 fi
 if ! policy_files_ok; then
   echo STOP-validate-files
   bash "$REVERT"
+  systemctl stop "${UNIT}.timer" 2>/dev/null || true
   exit 1
 fi
 # Runs as root, so this only refreshes root's credential cache. It does not
@@ -493,14 +552,14 @@ fi
 if ! sudo -n -v; then
   echo STOP-root-sudo-n
   bash "$REVERT"
+  systemctl stop "${UNIT}.timer" 2>/dev/null || true
   exit 1
 fi
 echo ROOT-SUDO-N-OK
 faillock --user aj --reset
 echo FAILLOCK-RESET-aj
 
-systemd-run --on-active=300s --unit="$UNIT" "$REVERT"
-echo TIMER-ARMED 300
+# Timer was armed before apt; PASTE 2 must disarm within 300s of TIMER-ARMED.
 echo OK-batch-9-pending
 exit 0
 fi
