@@ -1,0 +1,2 @@
+Seq,Time_UTC,Step,Issue,Actor,Action,Command,Result,Files_Changed,Status
+1,15:24,6,AMT power retest draft,Grok,Write MeshCommander runbook; rpc-go is not the remote client,"bash docs/tool-install/step-6-dmt-rotate.sh --self-test","SELF-TEST-OK; this VM prints STOP-no-ip; nothing applied on Johnny or rock-box","docs/tool-install/step-6-amt-power.md; docs/tool-install/step-6-dmt-rotate.sh; docs/os-handoff.md; docs/sessions/2026-11-05-step6-amt-power-draft.md",Draft
