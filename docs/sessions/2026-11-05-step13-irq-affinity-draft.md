@@ -35,6 +35,16 @@ Claude reviewed tip `df2ea53` APPROVE-WITH-NITS. The draft now:
 
 No new Johnny command. `STEP13-IRQ-DONE` is still not a result.
 
+## Soft nits (still not applied)
+
+After tip `c765e01`, which AJ may run. A `STEP13-IRQ-DONE` from that tip counts. This revision does not replace that run.
+
+- The rock-box self-test is required before a paste of this revision. Expect `SELF-TEST-OK`.
+- `johnny-capture-irq.service` has `Wants=network-online.target`. The unit sha256 in the runbook changed.
+- `STOP-irq-held` reverts only when this run changed the box. Otherwise it prints `CONFIG-KEPT`.
+- `STOP-eno1-unrequested` on a first run is `NO-CHANGE`. No mask was written.
+- The paste drops rock-box `sudo -v`. Payloads are copied to `/root` and hashed there before `source`.
+
 ## Do not
 
 - Treat this draft as applied.

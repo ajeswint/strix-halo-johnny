@@ -17,9 +17,12 @@ HELPER_SRC=$AUDIT/irq-affinity.sh
 POLICY_SRC=$AUDIT/irqbalance-policy.sh
 UNIT_SRC=$AUDIT/johnny-capture-irq.service
 REVERT_SRC=$AUDIT/step-13-revert.sh
+STAGE_HELPER=/root/step13-helper.sh
+STAGE_POLICY=/root/step13-policy.sh
+STAGE_UNIT=/root/step13-unit.service
 HELPER_SHA256=77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e
 POLICY_SHA256=7a3eeb944be0ee60ba94099b3ae4da3c905c941003c5c50221921032a9ffb0a8
-UNIT_SHA256=9df4969fbb8e9000c13d409cc1788846ca9b1acf06275fd7336eb616cd6bb355
+UNIT_SHA256=03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a
 REVERT_SHA256=c9dd1522e278bc3bad3a711a4fdcd18b1b768d9da19dff07376a5db7dfa4cc1d
 POLICY_ARG=--policyscript=/etc/johnny/irqbalance-policy.sh
 DEFAULT=/etc/default/irqbalance
@@ -173,7 +176,6 @@ main() {
       echo REVERTING || true
       bash /root/step13-revert.sh > /root/step13-revert.out 2>&1
       revert_rc=$?
-      cat /root/step13-revert.out >> /root/step13-apply.log || true
       cat /root/step13-revert.out || true
       if [ "$revert_rc" -ne 0 ]; then
         echo STOP-revert-failed || true
@@ -185,7 +187,7 @@ main() {
         echo NO-CHANGE || true
       fi
     fi
-    rm -f "${UNIT_TMP:-}" "${ENO2SNAP:-}" || true
+    rm -f "${UNIT_TMP:-}" "${ENO2SNAP:-}" "$STAGE_HELPER" "$STAGE_POLICY" "$STAGE_UNIT" || true
     exit "$rc"
   }
   # shellcheck disable=SC2317
@@ -209,25 +211,29 @@ main() {
   }
 
   local cmd
-  for cmd in python3 ethtool systemctl ip sha256sum install cmp awk flock hostname uname sha256sum; do
+  for cmd in python3 ethtool systemctl ip sha256sum install cmp awk flock hostname uname pgrep; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
       die "STOP-missing $cmd"
     fi
   done
 
   # This file cannot store its own sha256: the digest covers the constants
-  # below. sha_ok checks the helper, policyscript, unit, and revert copies
-  # in cis-audit before source. The runbook table lists this file's full
-  # sha256. The self-test compares that table to the repo file.
-  sha_ok "$HELPER_SRC" "$HELPER_SHA256" || die "STOP-hash $HELPER_SRC"
-  sha_ok "$POLICY_SRC" "$POLICY_SHA256" || die "STOP-hash $POLICY_SRC"
-  sha_ok "$UNIT_SRC" "$UNIT_SHA256" || die "STOP-hash $UNIT_SRC"
-  sha_ok "$REVERT_SRC" "$REVERT_SHA256" || die "STOP-hash $REVERT_SRC"
-  # sha_ok already printed STOP-hash on failure and returned 1. With set -e
-  # the `|| die` runs. A second STOP line is fine.
+  # below. Copies land under /root, which aj cannot write, and sha_ok runs
+  # on those copies. source uses the /root helper, not the cis-audit file.
+  # The runbook table lists this file's full sha256.
+  install -m 0755 -o root -g root "$HELPER_SRC" "$STAGE_HELPER"
+  install -m 0755 -o root -g root "$POLICY_SRC" "$STAGE_POLICY"
+  install -m 0644 -o root -g root "$UNIT_SRC" "$STAGE_UNIT"
+  install -m 0755 -o root -g root "$REVERT_SRC" /root/step13-revert.sh
+  sha_ok "$STAGE_HELPER" "$HELPER_SHA256" || die "STOP-hash $STAGE_HELPER"
+  sha_ok "$STAGE_POLICY" "$POLICY_SHA256" || die "STOP-hash $STAGE_POLICY"
+  sha_ok "$STAGE_UNIT" "$UNIT_SHA256" || die "STOP-hash $STAGE_UNIT"
+  sha_ok /root/step13-revert.sh "$REVERT_SHA256" || die STOP-hash-revert
+  revert_ready=1
+  echo REVERT-READY
 
   # shellcheck source=etc/johnny/irq-affinity.sh
-  source "$HELPER_SRC"
+  source "$STAGE_HELPER"
 
   if [ "${SUDO_USER:-}" != "" ] && [ "${SUDO_USER}" != aj ]; then
     die STOP-user
@@ -286,10 +292,6 @@ main() {
     esac
   fi
 
-  install -m 0755 -o root -g root "$REVERT_SRC" /root/step13-revert.sh
-  revert_ready=1
-  echo REVERT-READY
-
   local qbefore
   qbefore=$(snapshot_queues QUEUES)
   printf '%s\n' "$qbefore"
@@ -339,9 +341,9 @@ main() {
     mark_changed
     echo "INSTALLED $dest"
   }
-  install_if_diff 0755 "$HELPER_SRC" /etc/johnny/irq-affinity.sh
-  install_if_diff 0755 "$POLICY_SRC" /etc/johnny/irqbalance-policy.sh
-  install_if_diff 0644 "$UNIT_SRC" /etc/systemd/system/johnny-capture-irq.service
+  install_if_diff 0755 "$STAGE_HELPER" /etc/johnny/irq-affinity.sh
+  install_if_diff 0755 "$STAGE_POLICY" /etc/johnny/irqbalance-policy.sh
+  install_if_diff 0644 "$STAGE_UNIT" /etc/systemd/system/johnny-capture-irq.service
   sha_ok /etc/johnny/irq-affinity.sh "$HELPER_SHA256" || die STOP-install-hash
   sha_ok /etc/johnny/irqbalance-policy.sh "$POLICY_SHA256" || die STOP-install-hash
   sha_ok /etc/systemd/system/johnny-capture-irq.service "$UNIT_SHA256" || die STOP-install-hash
@@ -380,8 +382,6 @@ main() {
         systemctl restart irqbalance.service
         mark_changed
         echo IRQBALANCE-RESTARTED
-      else
-        echo IRQBALANCE-CMD-OK
       fi
       local n
       for n in 1 2 3 4 5; do

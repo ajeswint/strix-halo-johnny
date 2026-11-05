@@ -156,6 +156,11 @@ if grep -q '/tmp/step13-irqbalance.unit' "$ROOT/docs/tool-install/step-13-irq-af
   fail "predictable tmp path"
 fi
 
+grep -q '^Wants=network-online.target$' "$ROOT/etc/systemd/system/johnny-capture-irq.service" || fail "unit wants"
+if grep -q '^sudo -v$' "$ROOT/docs/tool-install/step-13-irq-affinity.md"; then
+  fail "sudo -v still in the runbook paste"
+fi
+
 host_out=$(bash "$ROOT/docs/tool-install/step-13-irq-affinity.sh" || true)
 printf '%s\n' "$host_out" | grep -qx STOP-host || fail "stop host: $host_out"
 rev_out=$(bash "$ROOT/docs/tool-install/step-13-revert.sh" || true)
