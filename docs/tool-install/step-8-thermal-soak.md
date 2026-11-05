@@ -21,7 +21,7 @@ Soak max across the 10 second samples: CoreTmp 92, PkgTmp 92, PkgWatt 121.06, Co
 
 `NOTE-throttled`. `NOTE-throttle-sysfs-changed`. `NOTE-no-throttle-journal`. No Celsius or watt limit was set. These notes are the record. They are not a rollback and not a reason to run `/root/step11-revert.sh`.
 
-**[Assumption]** The summary awk takes the maximum of each column over every data row, including the system-summary row. Upstream `turbostat(8)` says a count column on the summary row is the sum across CPUs. `SOAK-MAX-CoreThr 4484` is that maximum. It may be one interval's sum, not 4484 events on one core. `PKG_%` 6.76 is the largest sample of the RAPL package-throttle percent.
+**[Assumption]** The summary awk takes the maximum of each column over every data row, including the system-summary row. Upstream `turbostat(8)` says a count column on the summary row is the sum across CPUs. `SOAK-MAX-CoreThr 4484` is that maximum. It may be one interval's sum, not 4484 events on one core. The same man page describes `PKG_%` as the percent of the interval that RAPL throttling was active on the package, and says that meaning is model specific ([turbostat.8](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/tools/power/x86/turbostat/turbostat.8)). `PKG_%` 6.76 is the largest sample of that column.
 
 Zones were read after `TURBOSTAT-STOPPED`, so they are the end snapshot, not the 92°C sample max. Millidegrees in the summary: `acpitz` 27800, `INT3400 Thermal` 20000, `TCPU` 66050, `TCPU_PCI` 66000, `x86_pkg_temp` 67000. Divided by 1000, that is 27.8°C, 20.0°C, 66.05°C, 66.0°C, and 67.0°C.
 
@@ -713,4 +713,4 @@ Ctrl-C leaves partial files and does not print `STEP8-DONE`. It does not need a 
 
 Applied. The paste printed `STEP8-DONE`. `NOTE-throttled` is a finding, not a failed step and not a cue to change BIOS, fans, or capture tuning. `PKGS-ADDED-NONE`: apt installed nothing. The three `linux-tools` versions and `thermald` `2.5.11-0ubuntu1.1` were already on Johnny; the handoff SBOM records them from this summary. CIS L1 totals are unchanged. Next open items are 9 EDAC, 12 signed UKI, and IRQ affinity later.
 
-Raw logs stay on Johnny under `/home/aj/cis-audit/step8-thermal-soak/`. The rock-box `scp` in the collect section is how a copy already left the box. Do not commit `soak-turbostat.txt`.
+Raw logs stay on Johnny under `/home/aj/cis-audit/step8-thermal-soak/`. Do not commit `soak-turbostat.txt`.

@@ -24,7 +24,7 @@ Zones after `TURBOSTAT-STOPPED` (millidegrees): `acpitz` 27800, `INT3400 Thermal
 
 ## Unchanged
 
-CIS L1 totals stay **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). Next open items are 9 EDAC, 12 signed UKI (option D), and IRQ affinity later. Step 11 was not reverted.
+CIS L1 totals stay **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). Next open items are 9 EDAC, 12 signed UKI (option D), and IRQ affinity later. Capture tuning was compared and unchanged (`TUNING-UNCHANGED`, `TUNING-BEFORE-OK`).
 
 ## Logs
 
