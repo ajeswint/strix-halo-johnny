@@ -1,11 +1,16 @@
 #!/bin/bash
-# Johnny step 13. Pin eno1np0 ice MSI-X IRQs onto /etc/johnny/capture-cores.
+# Johnny step 13. Pin eno1np0 ice queue IRQs onto /etc/johnny/capture-cores.
 # The step 13 paste installs this. Boot re-applies it via
 # johnny-capture-irq.service. Not applied by the commit that adds it.
 # Does not change eno2np1 affinity, eno3, RSS, RPS, XPS, queues, or netplan.
+# Queue names: [ice-]eno1np0-(TxRx|rx|tx)-N use capture[N modulo count]. ice
+# misc/ll_ts/ctrl vectors use the first capture CPU. irdma-* vectors that share
+# the PCI function are skipped (not pinned). Step 13b rev: name match fix.
 # Docs: docs/tool-install/step-13-irq-affinity.md
 
 CORES=/etc/johnny/capture-cores
+# Plain variable, not read from the environment. The self-test overrides it.
+PROC_ROOT=/proc
 CORES_SHA256=16fbd7d1f18d2fedb247d73edc3bc6aa040f5ab99bd3b48c35b79e543d22179b
 KERNEL_WANT=7.0.0-42-generic
 
@@ -88,12 +93,27 @@ assign_cpu() {
     echo STOP-no-cpus
     return 1
   fi
-  if [[ $name =~ ^eno1np0-(TxRx|rx|tx)-([0-9]+)$ ]]; then
-    idx=${BASH_REMATCH[2]}
+  if [[ $name =~ ^(ice-)?eno1np0-(TxRx|rx|tx)-([0-9]+)$ ]]; then
+    idx=${BASH_REMATCH[3]}
     printf '%s\n' "${cpus[$((10#$idx % n))]}"
     return 0
   fi
   printf '%s\n' "${cpus[0]}"
+}
+
+# queue: a capture queue vector. irdma: RDMA vector on the same PCI function
+# (never pinned here). aux: ice misc/ll_ts/ctrl vector. other: anything else.
+classify_irq_name() {
+  local name=$1
+  if [[ $name =~ ^(ice-)?eno1np0-(TxRx|rx|tx)-[0-9]+$ ]]; then
+    echo queue
+  elif [[ $name =~ ^irdma- ]]; then
+    echo irdma
+  elif [[ $name =~ ^ice-[0-9a-fA-F:.]+:(misc|ll_ts|ctrl-TxRx-[0-9]+)$ ]]; then
+    echo aux
+  else
+    echo other
+  fi
 }
 
 irq_name_from_file() {
@@ -393,26 +413,34 @@ collect_eno1_map() {
       printf '%s\n' "$irq"
       return 1
     fi
-    if [ ! -e "/proc/irq/${irq}/smp_affinity_list" ]; then
+    if [ ! -e "${PROC_ROOT}/irq/${irq}/smp_affinity_list" ]; then
       echo "STOP-eno1-unrequested $irq"
       return 1
     fi
-    if ! name=$(irq_name_from_file "$irq" /proc/interrupts); then
+    if ! name=$(irq_name_from_file "$irq" "${PROC_ROOT}/interrupts"); then
       echo "STOP-irq-name $irq"
       return 1
-    fi
-    if [[ ! $name =~ ^eno1np0-(TxRx|rx|tx)-[0-9]+$ ]]; then
-      echo "NOTE-irq-fallback $irq $name"
     fi
     if foreign_irq_name "$name"; then
       echo "STOP-irq-foreign $irq $name"
       return 1
     fi
-    if [[ $name == *eno1np0* ]] || [[ $name == ice-* ]]; then
-      :
-    else
-      echo "NOTE-irq-name $irq $name"
-    fi
+    case "$(classify_irq_name "$name")" in
+      irdma)
+        echo "NOTE-irdma-skip $irq $name"
+        continue
+        ;;
+      queue) ;;
+      aux)
+        echo "NOTE-irq-aux $irq $name"
+        ;;
+      *)
+        echo "NOTE-irq-fallback $irq $name"
+        if [[ $name != *eno1np0* ]] && [[ $name != ice-* ]]; then
+          echo "NOTE-irq-name $irq $name"
+        fi
+        ;;
+    esac
     ENO1_IRQS+=("$irq")
     ENO1_NAMES+=("$name")
   done < <(list_msi eno1np0 | sort -n)
