@@ -26,6 +26,16 @@ if cpu_lists_overlap 0-7 6-10 >/tmp/step11-overlap.out; then
 fi
 grep -qx 6 /tmp/step11-overlap.out || fail "missing overlap 6"
 grep -qx 7 /tmp/step11-overlap.out || fail "missing overlap 7"
+is_shallow_c1 C1_ACPI || fail "C1_ACPI shallow"
+is_shallow_c1 C1 || fail "C1 shallow"
+if is_shallow_c1 C2_ACPI || is_shallow_c1 C3_ACPI || is_shallow_c1 C1E; then
+  fail "deep state called shallow"
+fi
+is_keep_idle POLL || fail "keep POLL"
+is_keep_idle C1_ACPI || fail "keep C1_ACPI"
+if is_keep_idle C2_ACPI || is_keep_idle C3_ACPI; then
+  fail "deep state kept"
+fi
 if pick_capture_cpus 0-2 0 >/tmp/step11-pick.out 2>/tmp/step11-pick.err; then
   fail "short list should stop"
 fi

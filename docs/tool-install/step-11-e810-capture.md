@@ -9,7 +9,7 @@ Ownership for this one paste: Platform owns Johnny's netplan and the helper unde
 1. `eno1np0` (SFP+7 mirror target): promiscuous on, ARP off, link stays up, no addresses. Persisted with a networkd drop-in on netplan's generated unit, not a second `.network` file (a second file would win the whole match and drop the netplan stanza).
 2. `eno2np1` (SFP+8 end is out, switch port disabled): `activation-mode: off` in the existing netplan file. Netplan 1.2 turns that into `ActivationPolicy=always-down`. The script stops if the generated line is anything else.
 3. Native XDP on `ice`: load a prebuilt pass-counter with `bpftool` (already installed, step 7) in `xdpdrv` only, require the attachment mode `driver`, require the counter to rise, then detach and unpin. No generic-XDP fallback.
-4. Capture cores: discover four performance CPUs, set EPP to `performance`, and disable every cpuidle state except `POLL` and `C1`. A systemd oneshot re-applies that on boot. The previous values are saved and the revert script writes them back.
+4. Capture cores: discover four performance CPUs, set EPP to `performance`, and disable every cpuidle state except `POLL` and shallow C1 (`C1` or `C1_ACPI`). A systemd oneshot re-applies that on boot. The previous values are saved and the revert script writes them back.
 5. Prints `journalctl -k | grep -c martian` before and after the XDP window. The count is a note. It does not pass or fail the step.
 
 ## What it does not do
@@ -65,7 +65,7 @@ Four is the step 11 choice: the mirror is four 1G ingress ports into one 10G tar
 On those four CPUs only:
 
 - `energy_performance_preference` is set to `performance`. The governor is printed and not changed. **[Assumption]** `intel_pstate` is the scaling driver (Ubuntu's default when HWP is available). Anything else is `STOP-not-intel-pstate`.
-- Every cpuidle state whose name is not `POLL` and not `C1` is disabled, including `C1E`. **[Assumption]** 285HX `intel_idle` exposes at least one such state. If a chosen CPU has no `C1`, or no deeper state, the script stops.
+- Every cpuidle state that is not `POLL` and not shallow C1 is disabled. Shallow C1 is `C1` or `C1_ACPI`. `C1E`, `C2_ACPI`, and `C3_ACPI` are deep. Johnny's live names (2026-11-05) are `POLL`, `C1_ACPI`, `C2_ACPI`, `C3_ACPI` (ACPI idle, not `intel_idle`'s bare `C1`/`C1E`). If a chosen CPU has no shallow C1, or no deeper state, the script stops.
 - CPU 0's EPP, and the disable bit of its first deep idle state, are compared after the write and must be unchanged.
 
 The previous EPP and disable bits are saved to `/var/lib/johnny/capture-tuning-before.tsv` before the first write. `johnny-capture-tuning.service` re-applies on boot. `systemctl disable --now johnny-capture-tuning.service` runs the revert action. The saved file is kept so a later apply still restores the original values.
@@ -113,7 +113,7 @@ The in-tree default package is what enables the pipeline features, including nat
 |---|---|---|
 | `/etc/netplan/00-installer-config.yaml` | `etc/netplan/00-installer-config.yaml` | `83a6b8bedce740a2559e0d2c6e611337d529f2d505457ea19a6da9819ce0e185` |
 | `/etc/systemd/network/10-netplan-eno1np0.network.d/60-johnny-capture.conf` | same under `etc/` | `78939fd5bbb8b0dc7336661ca748de9d6342260beab32a4f4da843330c9c0b1a` |
-| `/etc/johnny/capture-tuning.sh` | `etc/johnny/capture-tuning.sh` | `ccdc4057005bfd91dc0f72fabb3c0eed68e177dec0f50a62545bc55460ebde16` |
+| `/etc/johnny/capture-tuning.sh` | `etc/johnny/capture-tuning.sh` | `1aa19b9f20dc713aa7556e7ef0bb95a3c377a76b805442f6f36b5874dbb264a6` |
 | `/etc/systemd/system/johnny-capture-tuning.service` | same under `etc/` | `64b3045cf4d9c487265a76c3338253d5b73ad137514ee9868a70389b7b800730` |
 | `/etc/johnny/capture-cores` | not in this commit | discovered on the box |
 | `/var/lib/johnny/capture-tuning-before.tsv` | not mirrored (pre-change values) | written on first apply |
@@ -196,4 +196,4 @@ The first-run yaml backup is not overwritten on a later run (`BACKUP-KEPT`).
 
 ## Relay
 
-Claude Code, review only. Do not edit this draft. The paste AJ would run is the one fenced block in `docs/tool-install/step-11-e810-capture.md`. Script: `docs/tool-install/step-11-e810-capture.sh`. Rollback: `docs/tool-install/step-11-revert.sh`. Johnny was not changed. `eno3` is cmp-guarded before `netplan apply`. No per-iface `disable_ipv6` write. No `rp_filter` write. DDP COMMS is not in the paste. XDP is `xdpdrv` only, then detached. Capture CPUs are the lowest four `cpu_core` IDs after dropping CPU 0's sibling list; EPP `performance`; cpuidle states other than `POLL` and `C1` disabled; governor unchanged. IRQ affinity is not in this paste. Local check that passed here: `bash docs/tool-install/step-11-self-test.sh` and `shellcheck -x` on the four shell files. Please flag anything that should stop AJ running it.
+Claude Code, review only. Do not edit this draft. The paste AJ would run is the one fenced block in `docs/tool-install/step-11-e810-capture.md`. Script: `docs/tool-install/step-11-e810-capture.sh`. Rollback: `docs/tool-install/step-11-revert.sh`. Johnny was not changed. `eno3` is cmp-guarded before `netplan apply`. No per-iface `disable_ipv6` write. No `rp_filter` write. DDP COMMS is not in the paste. XDP is `xdpdrv` only, then detached. Capture CPUs are the lowest four `cpu_core` IDs after dropping CPU 0's sibling list; EPP `performance`; cpuidle states other than `POLL` and shallow C1 (`C1` or `C1_ACPI`) disabled; governor unchanged. IRQ affinity is not in this paste. Local check that passed here: `bash docs/tool-install/step-11-self-test.sh` and `shellcheck -x` on the four shell files. Please flag anything that should stop AJ running it.

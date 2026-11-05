@@ -124,6 +124,22 @@ flags_capture_ok() {
   [ $((f & 1)) -ne 0 ] && [ $((f & 256)) -ne 0 ] && [ $((f & 128)) -ne 0 ]
 }
 
+# Shallow C1: intel_idle "C1" or ACPI "C1_ACPI". POLL stays too.
+# C1E, C2_ACPI, C3_ACPI, and anything else are deep.
+is_shallow_c1() {
+  case "$1" in
+    C1|C1_ACPI) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_keep_idle() {
+  case "$1" in
+    POLL) return 0 ;;
+    *) is_shallow_c1 "$1" ;;
+  esac
+}
+
 eno1_link_ok() {
   local speed=$1 flags=$2 carrier=$3 oper=$4
   flags_admin_up "$flags" || return 1
@@ -518,7 +534,7 @@ main() {
   for state in /sys/devices/system/cpu/cpu0/cpuidle/state*; do
     [ -d "$state" ] || continue
     name=$(tr -d '\n' < "$state/name")
-    if [ "$name" != POLL ] && [ "$name" != C1 ]; then
+    if ! is_keep_idle "$name"; then
       CPU0_IDLE_PATH="$state/disable"
       CPU0_IDLE_DIS=$(tr -d '\n' < "$CPU0_IDLE_PATH")
       break
@@ -543,10 +559,10 @@ main() {
     for state in /sys/devices/system/cpu/cpu"${cpu}"/cpuidle/state*; do
       [ -d "$state" ] || continue
       name=$(tr -d '\n' < "$state/name")
-      if [ "$name" = C1 ]; then
+      if is_shallow_c1 "$name"; then
         have_c1=1
       fi
-      if [ "$name" != POLL ] && [ "$name" != C1 ]; then
+      if ! is_keep_idle "$name"; then
         deep=1
       fi
     done
@@ -1038,6 +1054,22 @@ read_trim() {
   tr -d '\n' < "$1"
 }
 
+# Shallow C1: intel_idle "C1" or ACPI "C1_ACPI". POLL stays too.
+# C1E, C2_ACPI, C3_ACPI, and anything else are deep.
+is_shallow_c1() {
+  case "$1" in
+    C1|C1_ACPI) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_keep_idle() {
+  case "$1" in
+    POLL) return 0 ;;
+    *) is_shallow_c1 "$1" ;;
+  esac
+}
+
 collect_before() {
   local cpu state name dis tmp
   tmp=$(mktemp /var/lib/johnny/before.XXXXXX)
@@ -1047,7 +1079,7 @@ collect_before() {
     for state in /sys/devices/system/cpu/cpu"${cpu}"/cpuidle/state*; do
       [ -d "$state" ] || continue
       name=$(read_trim "$state/name")
-      if [ "$name" = POLL ] || [ "$name" = C1 ]; then
+      if is_keep_idle "$name"; then
         continue
       fi
       dis=$(read_trim "$state/disable")
@@ -1080,7 +1112,7 @@ apply_one() {
   for state in /sys/devices/system/cpu/cpu"${cpu}"/cpuidle/state*; do
     [ -d "$state" ] || continue
     name=$(read_trim "$state/name")
-    if [ "$name" = POLL ] || [ "$name" = C1 ]; then
+    if is_keep_idle "$name"; then
       continue
     fi
     deep=1
@@ -1229,7 +1261,7 @@ verify_tuning() {
     for state in /sys/devices/system/cpu/cpu"${cpu}"/cpuidle/state*; do
       [ -d "$state" ] || continue
       name=$(tr -d '\n' < "$state/name")
-      if [ "$name" = POLL ] || [ "$name" = C1 ]; then
+      if is_keep_idle "$name"; then
         continue
       fi
       if [ "$(tr -d '\n' < "$state/disable")" != 1 ]; then
