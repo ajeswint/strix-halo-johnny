@@ -1,0 +1,24 @@
+# 2026-11-06 UTC (2026-11-06 ~12:25 to ~13:20 America/Chicago): Module 1 slice 1b attach drafted (not applied)
+
+Seat: code-writer (Sonnet, effort high). Branch `claude/module1-slice1b-attach`, from `claude/practical-ritchie-4c6vvf` tip `c3b2faa`. AJ said **go** on slice 1b (2026-11-06 America/Chicago), which confirms the path choice: a permanent native-XDP observer, always `XDP_PASS`. **Draft only: no sudo, no apt, no write on Johnny, nothing applied, not reviewed, no PR, no merge.** Handoff rev 99.
+
+**What this session did.**
+- Wrote an observe-only XDP program (`docs/tool-install/module1_xdp_observe.c`): per-CPU array counters (frames, bytes, ethertype split, VLAN-visible, L4 split, truncated) and a per-Rx-queue count. One helper (`bpf_map_lookup_elem`); the entry point's only `return` is `XDP_PASS`. No payload kept.
+- Built it **off-box** on rock-box (Johnny has no compiler). rock-box had no `clang`, so Ubuntu `clang-22 1:22.1.8-1ubuntu1` was fetched with `apt-get download` into a fresh `/tmp` directory and unpacked with `dpkg-deb -x` (nothing installed, no root). Object `docs/tool-install/module1-xdp-observe.o` sha256 `8be9877f51d0d588285089a108123941e59c5e0aa7802ad80da90a376747e77d`; rebuilt from two checkout paths to the same hash.
+- Wrote the pinned scripts: `module1-slice1b-attach.sh` (sha256 `f9f95ec6bc4311d23dda4b4c35b96bdf92ef03b1c2238bdf945c50bd60a190fb`) and `module1-slice1b-detach.sh` (detach, plus read-only `status`; sha256 `f78ca14ed226a37e23ee239d65ba183e3c8b5a541369326c73fff4b61ea4cc58`). The attach refuses unless the root-owned rollback copy under `/root/m1s1b/` has the pinned hash; after its first change any STOP, error, INT or TERM runs the rollback.
+- Wrote `module1-slice1b-self-test.sh` (rock-box, no root): pins, source and disassembly audit, static allowlists, parser fixtures, host gates, runbook paste shape, 30 end-to-end scenarios against fake `/proc`, `/sys` and command shims. Then broke the scripts and the runbook on purpose in a scratch copy: 11 script mutations and 6 runbook mutations, all caught after one runbook check was strengthened (a wrong hash in one paste had survived while three others stayed right).
+- Wrote the runbook `docs/tool-install/module1-slice1b-attach.md` (Status: drafted, not applied): six pastes labelled `***<ins>Run on Rock Box</ins>***` / `***<ins>Run on Johnny</ins>***`, all typed on rock-box, sudo only on Johnny inside `ssh -t` with `sudo -v` first. Added a cross-link in `module1-slice1-span-xdp.md` ("What comes after"). Handoff rev 99, README Sequence 4.
+
+**Live evidence used (not re-probed).** The slice 1 probe (handoff rev 98): kernel `7.0.0-42-generic`, bpftool v7.7.0, `have_xdp_prog_type yes`, `OK-no-xdp-on-eno1np0`, `PROG-XDP-COUNT 0`, `eno1np0` MTU 1500 PROMISC+NOARP no address 10G, twelve `ice-eno1np0-TxRx-*` IRQs on CPUs 1 to 4, no compiler on Johnny.
+
+**Read-only SSH by this seat (2026-11-06 ~18:4xZ).** One line to `aj@192.168.50.152`: `command -v` for `tcpdump dumpcap python3 ethtool timeout flock sha256sum`, `tcpdump --version`, `ls /sys/fs/bpf` (permission denied for `aj`, as expected), `id`. Result: `tcpdump` 4.99.6 with libpcap 1.10.6, the rest present. No write, no sudo, no apt.
+
+**Web checks (cited in the runbook).** bpftool `prog load` / `pinmaps` (man page), bpftool `net attach` / `xdpdrv` / `overwrite` (man page; the Arch copy, not the Ubuntu page), ice kernel doc (XDP and zero-copy supported; 3 KB limit; nothing on queues at attach), patch threads showing ice has restarted the interface on an XDP program change, the per-CPU array map page, XDP action codes (secondary source).
+
+**Not done, on purpose.** Nothing applied. No boot unit (the attach lasts until detach or reboot; persistence is a later slice, listed under "Not decided"). No AF_XDP, ring buffer, queue-count or MTU change, Suricata config, or apt on Johnny. `docs/agent-team.md` and the probe script (hash `93d62537…fba47`) not touched. No CIS change: **225 PASS, 18 PASS (manual), 31 N/A, 0 FAIL** (274/274). Soft nits N3 to N6 stay parked.
+
+**Unverified (in the runbook).** The kernel verifier has not seen the object (a refusal is a clean `STOP-load` before any attach). Whether a first native attach bounces the link or moves the step 13 pins (measured by the paste, rolled back on any change). The per-CPU map JSON shape (proved on real output before the attach). Thresholds: 80% ratio note, `max(256, 1%)` partition tolerance, 30 s link wait.
+
+**Left on rock-box (outside the repo, for the reviewer):** `/tmp/m1s1b-llvm22-debs/` and `/tmp/m1s1b-llvm22-root/` (the unpacked clang 22.1.8, used by the self-test's optional rebuild and disassembly checks). Delete at will.
+
+**Next open.** The adversarial-reviewer reviews the exact pastes in the runbook; no paste goes to AJ until that and AJ's go.
