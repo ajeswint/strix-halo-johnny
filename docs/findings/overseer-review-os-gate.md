@@ -1,6 +1,6 @@
 # Overseer review package: OS phase gate (README step 3)
 
-Status: **DRAFT readiness package. AJ has not signed.** Written by the code-writer seat (Sonnet). Not an adversarial review: the adversarial-reviewer reads this next. Base tip `b9acdc4` (`claude/practical-ritchie-4c6vvf`, handoff rev 93). Branch `claude/overseer-review-os-gate`. Date 2026-11-06 UTC (2026-11-05 evening America/Chicago). Docs only: no sudo, no apt, no Johnny change, no Module 1 work, no architecture-logic decision.
+Status: **SIGNED: OS gate APPROVED by AJ, 2026-11-05 America/Chicago (§8).** Package written by the code-writer seat (Sonnet) as a DRAFT; §8 was filled from AJ's stated choices in a later docs-only session (branch `claude/overseer-os-gate-approved`). §§1–7 and 9 are the draft as written and are not rewritten; where AJ's choices change a point, §8 governs. Not an adversarial review. Base tip `b9acdc4` (`claude/practical-ritchie-4c6vvf`, handoff rev 93). Branch `claude/overseer-review-os-gate`. Date 2026-11-06 UTC (2026-11-05 evening America/Chicago). Docs only: no sudo, no apt, no Johnny change, no Module 1 work, no architecture-logic decision.
 
 AJ is the Overseer here (`docs/agent-team.md` §1 lists the Overseer as an external reviewer; this package gives AJ one place to sign). The decision lines are at the end and are blank.
 
@@ -164,21 +164,32 @@ AJ choices recorded elsewhere that are **not** register entries (the Overseer ma
 - Step 7: who disabled Suricata; apt lists last refreshed 2026-11-05 06:48Z.
 - Raw logs on Johnny are not backed up to git by design; confirm that is acceptable for the gate.
 
-## 8. AJ decision lines
+## 8. AJ decision (recorded 2026-11-05 America/Chicago)
 
-Blank. The code-writer seat does not fill these.
+Source: AJ's instruction to the code-writer seat, 2026-11-05 (America/Chicago). The seat transcribed the choices; it did not make them. The signature fields below hold AJ's stated decision, not a handwritten signature. **[Assumption]** AJ's instruction in the session is the sign-off; if AJ wants a separate mark, add it here.
 
 ```
-OS phase closed (Overseer approves; Module 1 may start):   [ ]  AJ ____________  date ____________
-Hold (name what is missing):                                [ ]  AJ ____________  date ____________
-Rework (name the items):                                    [ ]  AJ ____________  date ____________
+OS phase closed (Overseer approves; Module 1 may start):   [x] AJ (stated)  date 2026-11-05 America/Chicago
+Hold (name what is missing):                                [ ]
+Rework (name the items):                                    [ ]
 
-Step 13f recorded as applied (AJ ran it 2026-11-06 01:54Z):   [ ] yes  [ ] no
-Thermal 92 C / NOTE-throttled: accept as register entry:      [ ] yes  [ ] no  [ ] later
-First Module 1 slice scope (endpoint vs network):             [ ] defer to architecture pass  [ ] AJ names scope: ____________
-Memory 19-20% idle investigated before Module 1 sizing:       [ ] required first  [ ] not required
-Register text refresh (GRUB password) before close:           [ ] yes  [ ] no
+Step 13f recorded as applied (AJ ran it 2026-11-06 01:54Z):   [x] yes  [ ] no
+Thermal 92 C / NOTE-throttled: accept as register entry:      [x] yes  [ ] no  [ ] later
+First Module 1 slice scope (endpoint vs network):             [ ] defer to architecture pass  [x] AJ names scope: passive SPAN / XDP path
+Memory 19-20% idle investigated before Module 1 sizing:       [ ] required first  [x] not required first (deferred to Module 1 sizing)
+Register text refresh (GRUB password) before close:           [ ] yes  [x] no (refresh when convenient; not a hold)
 ```
+
+What each choice means in the repo:
+
+1. **OS gate: APPROVED.** The OS phase is closed. Module 1 may start **when AJ says go**. AJ has not said go; no Module 1 code is started.
+2. **Step 13f: recorded as applied.** The helper nits are live on Johnny (helper `db58d7c7…`, journal 01:54:05Z; §3 row 13f). The 13f runbook heading and handoff now say applied. The `STEP13B-HELPER-NITS-FIXED` token and any review verdict are still not in the repo.
+3. **92 °C: risk-register entry added** ("Step 8 thermal soak", `docs/compliance/risk-register.md`). The soak is **not** re-run. No temperature limit is set by this decision.
+4. **Module 1 first slice: passive SPAN / XDP path.** Host-side LSM work (BPF-LSM exec, `vfs_write` entropy, CoW rollback) is **deferred to the architecture pass** (agent-team §7.4). This names the first slice only. It does not settle "endpoint vs network" for the whole product, and `docs/agent-team.md` is not edited here (Brain's file).
+5. **Idle-memory investigation: deferred** until Module 1 sizing. The handoff Parked line stays open. The 48-queue part of the hypothesis needs re-reading first (§5: the live `ice` queue count is 12).
+6. **GRUB register text: refresh when convenient.** Not a hold. The PCR 7 entry still says "no GRUB password" while CIS 1.4.1 is PASS (batch 10). A flagged note was added to the register entry; the text itself is not rewritten, because whether `init=` at the menu is still open under that password is untested.
+
+Still deferred, unchanged by this decision: agent-team doc drift (§4, §6, §8 intro); the missing §8 check script; per-step review verdicts for PRs #6–#19; soft nits N1–N5 from PR #20 review; the architecture-logic items (agent-team §7 items 3–7); the register entries for ECC, `rp_filter` and AMT noted in §6 (AJ chose only the thermal one).
 
 ## 9. Sources
 
