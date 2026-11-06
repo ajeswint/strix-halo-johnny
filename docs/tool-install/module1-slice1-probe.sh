@@ -136,9 +136,19 @@ cpulist_expand() {
   done
 }
 
+# 0 if CPU $1 is in cpulist $2, 1 if not or on any malformed input.
+# No pipe into an early-exit reader: under `set -o pipefail` a `grep -q` that
+# exits on the first match SIGPIPEs the writer (rc 141) and turns a correct
+# "yes" into "no". The expansion is captured first, then matched with `case`.
 cpu_in_list() {
-  local cpu=$1 list=$2
-  cpulist_expand "$list" | grep -qx "$cpu"
+  local cpu=$1 list=$2 expanded
+  [[ $cpu =~ ^[0-9]+$ ]] || return 1
+  cpu=$((10#$cpu))
+  expanded=$(cpulist_expand "$list") || return 1
+  case $'\n'"$expanded"$'\n' in
+    *$'\n'"$cpu"$'\n'*) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 flags_well_formed() {
@@ -376,10 +386,11 @@ save() {
   local name=$1
   shift
   local rc=0
+  # ro() exits 97 on a refusal, and its message goes to stderr. Check the
+  # allowlist before the redirect below, or STOP-not-readonly lands in the
+  # saved .err file and the operator sees a silent exit 97.
+  ro_allowed "$@" || ro "$@"
   ro "$@" >"$OUT/$name" 2>"$OUT/$name.err" || rc=$?
-  if [ "$rc" -eq 97 ]; then
-    exit 97
-  fi
   if [ "$rc" -ne 0 ]; then
     note "NOTE-cmd-failed $name rc=$rc"
   fi
@@ -584,9 +595,17 @@ probe_irqs() {
     stop "no-queue-irqs"
     return 0
   fi
-  while read -r n; do
-    note "IRQ-PER-CORE cpu$n=${per_core[$n]}"
-  done < <(printf '%s\n' "${!per_core[@]}" | sort -n)
+  # per_core is empty when every IRQ sits outside the capture cores. Then
+  # `printf '%s\n' "${!per_core[@]}"` would emit one blank line, and an empty
+  # subscript is a fatal `bad array subscript` under set -e. Guard both.
+  if [ "${#per_core[@]}" -gt 0 ]; then
+    while read -r n; do
+      [[ $n =~ ^[0-9]+$ ]] || continue
+      note "IRQ-PER-CORE cpu$n=${per_core[$n]:-0}"
+    done < <(printf '%s\n' "${!per_core[@]}" | sort -n)
+  else
+    note "IRQ-PER-CORE none-inside-capture-cores"
+  fi
   if [ "$bad" -ne 0 ]; then
     stop "irq-baseline-outside-capture-cores count=$bad"
   else

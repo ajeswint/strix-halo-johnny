@@ -101,7 +101,7 @@ bash /home/aj/Projects/strix-halo-johnny/docs/tool-install/module1-slice1-self-t
 
 Expect `STATIC-INVOCATIONS-OK` and `SELF-TEST-OK`. It also runs `module1-slice1-probe.sh user` and `root` on rock-box and requires `STOP-host` and `STOP-not-root` (both fire before any read).
 
-Probe script sha256 (the self-test requires this line to match the file): `41ac519898e83535e0b15a994648fe86647773cc26eac759cc7a7a4d1de0a9ca`
+Probe script sha256 (the self-test requires this line to match the file): `93d6253720dab71f1b7cc63704f844068daa2c54f7ad78922c9751ebf44fba47`
 
 ## Preconditions
 
@@ -116,20 +116,19 @@ One block, from the rock-box checkout. It copies the script, checks its hash on 
 ```bash
 ssh aj@192.168.50.152 'mkdir -p /home/aj/cis-audit'
 scp /home/aj/Projects/strix-halo-johnny/docs/tool-install/module1-slice1-probe.sh aj@192.168.50.152:/home/aj/cis-audit/module1-slice1-probe.sh
-ssh aj@192.168.50.152 'echo "41ac519898e83535e0b15a994648fe86647773cc26eac759cc7a7a4d1de0a9ca  /home/aj/cis-audit/module1-slice1-probe.sh" | sha256sum -c - && bash /home/aj/cis-audit/module1-slice1-probe.sh user'
+ssh aj@192.168.50.152 'echo "93d6253720dab71f1b7cc63704f844068daa2c54f7ad78922c9751ebf44fba47  /home/aj/cis-audit/module1-slice1-probe.sh" | sha256sum -c - && bash /home/aj/cis-audit/module1-slice1-probe.sh user'
 ```
 
 Success ends with `M1S1-PROBE-DONE`. Raw files: `/home/aj/cis-audit/m1s1-probe/` on Johnny (a previous run is moved aside to `m1s1-probe.prev.<UTC time>`). `summary.txt` there repeats every line printed. Raw files stay on Johnny and are not committed.
 
 ## Paste 2 (optional, sudo, bpftool facts)
 
-Do Paste 1 first. This adds what only root can read: which BPF program and map types the running kernel offers, and whether anything is attached to `eno1np0`. It writes only under `/root/m1s1-probe-root/` and attaches nothing. `sudo -v` refreshes rock-box's sudo; the password prompt that matters is Johnny's, at the last line.
+Do Paste 1 first. This adds what only root can read: which BPF program and map types the running kernel offers, and whether anything is attached to `eno1np0`. It writes only under `/root/m1s1-probe-root/` and attaches nothing. Every `sudo` here runs on **Johnny**, inside the last `ssh -t` line, so the one password prompt is Johnny's, up front (`sudo -v`, then the hash check, then the script). Nothing in this block runs `sudo` on rock-box.
 
 ```bash
-sudo -v
 ssh aj@192.168.50.152 'mkdir -p /home/aj/cis-audit'
 scp /home/aj/Projects/strix-halo-johnny/docs/tool-install/module1-slice1-probe.sh aj@192.168.50.152:/home/aj/cis-audit/module1-slice1-probe.sh
-ssh -t aj@192.168.50.152 'echo "41ac519898e83535e0b15a994648fe86647773cc26eac759cc7a7a4d1de0a9ca  /home/aj/cis-audit/module1-slice1-probe.sh" | sha256sum -c - && sudo bash /home/aj/cis-audit/module1-slice1-probe.sh root'
+ssh -t aj@192.168.50.152 'sudo -v && echo "93d6253720dab71f1b7cc63704f844068daa2c54f7ad78922c9751ebf44fba47  /home/aj/cis-audit/module1-slice1-probe.sh" | sha256sum -c - && sudo bash /home/aj/cis-audit/module1-slice1-probe.sh root'
 ```
 
 Success ends with `M1S1-PROBE-ROOT-DONE`. **[Assumption]** the `bpftool -j feature probe kernel` key names (`have_xdp_prog_type`, `have_xskmap_map_type`, and so on) are from memory of bpftool's JSON schema, not a live capture. A wrong name prints `NOTE-feature-key-absent`, never a silent pass, and the raw `feature-probe.json` is kept for the reviewer. Same trust level as step 11: the script runs as root from `/home/aj/cis-audit/` after a hash check; there is no root-owned copy.

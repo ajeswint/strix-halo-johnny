@@ -158,6 +158,17 @@ rc=0
   ro ethtool -i eno1np0
 ) >"$TMP/ro.out" 2>"$TMP/ro.err" || rc=$?
 expect_eq "ro allowed exit code" "$rc" 0
+# N1: a refusal that fires through save() must show STOP-not-readonly on stderr,
+# not only in the saved .err file.
+mkdir -p "$TMP/saveout"
+rc=0
+(
+  PATH=$SHIM:$PATH
+  OUT=$TMP/saveout
+  save refused.txt ip link set eno1np0 down
+) >"$TMP/save.out" 2>"$TMP/save.err" || rc=$?
+expect_eq "save refusal exit code" "$rc" 97
+grep -q 'STOP-not-readonly ip link set eno1np0 down' "$TMP/save.err" || fail "N1: save() hid STOP-not-readonly: $(cat "$TMP/save.err")"
 grep -q 'ethtool -i eno1np0' "$TMP/shim-calls" || fail "ro did not run an allowed command"
 grep -q shim-output "$TMP/ro.out" || fail "ro did not pass output through"
 
@@ -173,6 +184,23 @@ done
 cpu_in_list 3 1,2,3,4 || fail "cpu_in_list hit"
 if cpu_in_list 5 1,2,3,4; then fail "cpu_in_list miss"; fi
 if cpu_in_list 1 bad; then fail "cpu_in_list bad list"; fi
+# B1 regression (reviewer, PR #22 tip b5d71e1). This file runs under
+# `set -o pipefail`. The old `cpulist_expand | grep -qx` returned 1 here every
+# time: grep -q exits on the first match, the writer gets SIGPIPE, rc 141.
+# A long list makes the writer still be printing when grep exits.
+cpu_in_list 0 0-30000 || fail "B1: cpu_in_list 0 0-30000 must succeed under pipefail"
+cpu_in_list 30000 0-30000 || fail "B1: cpu_in_list 30000 0-30000 (last element) must succeed"
+if cpu_in_list 30001 0-30000; then fail "B1: cpu_in_list 30001 0-30000 must fail"; fi
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  cpu_in_list 0 0-30000 || fail "B1: cpu_in_list 0 0-30000 flaked on repeat"
+done
+cpu_in_list 08 7-9 || fail "cpu_in_list leading zero in cpu"
+if cpu_in_list 1 '1;rm'; then fail "cpu_in_list accepted a bad list"; fi
+if cpu_in_list '' 1,2; then fail "cpu_in_list accepted an empty cpu"; fi
+if cpu_in_list 1x 1,2; then fail "cpu_in_list accepted a non-numeric cpu"; fi
+# Substring safety: 1 is not in 10-12, 12 is not in 1-2.
+if cpu_in_list 1 10-12; then fail "cpu_in_list substring match 1 in 10-12"; fi
+if cpu_in_list 12 1-2; then fail "cpu_in_list substring match 12 in 1-2"; fi
 
 # Same live flag values the step 11 self-test uses (0x1183 = UP,PROMISC,NOARP,BROADCAST,MULTICAST).
 flag_set 0x1183 "$FLAG_UP" || fail "flag up"
@@ -627,6 +655,32 @@ printf '9\n' >"$E2E/proc/irq/191/effective_affinity_list"
 stop_case "irq outside cores" '^STOP-irq-baseline-outside-capture-cores count=1$'
 printf '2\n' >"$E2E/proc/irq/191/effective_affinity_list"
 printf '1\n' >"$E2E/proc/irq/190/effective_affinity_list"
+# B2 regression (reviewer, PR #22 tip b5d71e1): every queue IRQ outside the
+# capture cores leaves per_core empty. The old loop hit `bad array subscript`
+# and later sections never printed. Move all 12 IRQs to CPU 9 (cores are 1-4).
+for irq in 189 190 191 192 193 194 195 196 197 198 199 200; do
+  printf '9\n' >"$E2E/proc/irq/$irq/effective_affinity_list"
+done
+stop_case "all irqs outside cores" '^STOP-irq-baseline-outside-capture-cores count=12$'
+has '^IRQ-PER-CORE none-inside-capture-cores$'
+has '^ZC-QUEUES queues=12 cores=4$'
+has '^M1S1-PROBE-STOPS [1-9]'
+hasnt '^M1S1-PROBE-DONE$'
+hasnt '^IRQ-PER-CORE cpu'
+if grep -q 'bad array subscript' "$E2E/err.txt"; then fail "B2: bad array subscript on empty per_core"; fi
+# Later sections still ran after the IRQ section.
+has '^KCONFIG CONFIG_BPF_SYSCALL y$'
+has '^UNIT johnny-capture-irq.service '
+# Restore: the eight IRQs the earlier cases left alone go back to cores 1-4.
+i=0
+for irq in 189 190 191 192 193 194 195 196 197 198 199 200; do
+  printf '%s\n' "$((i % 4 + 1))" >"$E2E/proc/irq/$irq/effective_affinity_list"
+  i=$((i + 1))
+done
+run_probe user E2E_UID=1000
+rc_is "e2e irqs restored rc" 0
+has '^OK-irq-pins total=12$'
+has '^IRQ-PER-CORE cpu1=3$'
 mv "$E2E/capture-cores" "$E2E/capture-cores.good"
 stop_case "no cores file" '^STOP-no-capture-cores$'
 printf '1\nfoo\n' >"$E2E/capture-cores"
@@ -788,8 +842,13 @@ if set(blocks) != {"1", "2"}:
 p1, p2 = blocks["1"], blocks["2"]
 if "sudo" in p1:
     raise SystemExit("Paste 1 must not use sudo")
-if p2.splitlines()[0] != "sudo -v":
-    raise SystemExit("Paste 2 must start with sudo -v")
+# N2 (reviewer): a bare `sudo -v` line runs on rock-box, not Johnny. Every sudo
+# in Paste 2 must sit inside the single `ssh -t` line that runs on Johnny.
+for ln in p2.splitlines():
+    if re.search(r"\bsudo\b", ln) and not ln.startswith("ssh -t aj@192.168.50.152 'sudo -v && "):
+        raise SystemExit(f"Paste 2 has a sudo outside the Johnny ssh -t line: {ln!r}")
+if not any(ln.startswith("ssh -t aj@192.168.50.152 'sudo -v && ") for ln in p2.splitlines()):
+    raise SystemExit("Paste 2 must run sudo -v first inside the Johnny ssh -t command")
 for name, b in blocks.items():
     if re.search(r"<[A-Za-z][^>\n]*>", b):
         raise SystemExit(f"placeholder in Paste {name}")
