@@ -409,7 +409,7 @@ ENO3_STATE=bad
 out=$(wait_boot_ready 2>&1) && fail "eno3 wait should time out"
 printf '%s\n' "$out" | grep -q '^NOTE-wait-eno3 try=0 why=STOP-eno3-addr$' || fail "eno3 wait note: $out"
 if printf '%s\n' "$out" | grep -q 'NOTE-wait-eno1'; then fail "eno1 note while eno1 good"; fi
-# eno3 shows up on the second poll: wait must pass without timing out.
+# eno3 shows up on the third poll (the stub passes on its 3rd call): wait must pass without timing out.
 # eno3_ready runs eno3_ok in a subshell, so count polls in a file.
 ENO3_POLLS_FILE=$(mktemp)
 : > "$ENO3_POLLS_FILE"
@@ -434,6 +434,13 @@ grep -q 'NOTE-tuning-epp' "$H13C" || fail "tuning epp NOTE missing"
 grep -q '^WAIT_BOOT_TRIES=50$' "$H13C" || fail "boot wait tries"
 grep -q '^  wait_boot_ready || true$' "$H13C" || fail "preflight boot wait"
 grep -q 'wait_eno1_link' "$H13C" && fail "old eno1-only wait still present"
+# preflight still runs the boot wait first and the hard eno3_ok check after it (PR #15 nit 1).
+PF_BODY=$(awk '/^preflight\(\) \{/{f=1} f{print} f&&/^}/{exit}' "$H13C")
+PF_WAIT=$(printf '%s\n' "$PF_BODY" | grep -n '^  wait_boot_ready || true$' | head -1 | cut -d: -f1) || true
+PF_HARD=$(printf '%s\n' "$PF_BODY" | grep -n '^  if ! eno3_ok; then$' | head -1 | cut -d: -f1) || true
+[ -n "$PF_WAIT" ] || fail "preflight lacks wait_boot_ready"
+[ -n "$PF_HARD" ] || fail "preflight lacks hard eno3_ok check"
+[ "$PF_WAIT" -lt "$PF_HARD" ] || fail "preflight hard eno3_ok check runs before the wait"
 # The hard eno3 STOPs still exist after the wait (eno3_ok prints them).
 for tok in STOP-eno3-addr STOP-eno3-route STOP-eno3-down; do
   grep -q "echo $tok\$" "$H13C" || fail "hard $tok missing"
