@@ -154,11 +154,13 @@ read_trim() {
   tr -d '[:space:]' 2>/dev/null < "$1" 2>/dev/null || true
 }
 
-# Boot-race waits (step 13c). Plain variables, not read from the environment.
-# The self-test overrides them after sourcing. Tries x step = seconds waited.
+# Boot-race waits (step 13c eno1, step 13d eno3). Plain variables, not read
+# from the environment. The self-test overrides them after sourcing.
+# Tries x step = seconds waited. One shared budget: eno1 and eno3 are polled
+# in the same loop (concurrent, not back to back), so the wait is 100s total.
 SYSFS_NET=/sys/class/net
 WAIT_STEP_SEC=2
-WAIT_ENO1_TRIES=50
+WAIT_BOOT_TRIES=50
 WAIT_NOTE_EVERY=3
 
 read_eno1_state() {
@@ -168,20 +170,41 @@ read_eno1_state() {
   E_OPER=$(read_trim "$SYSFS_NET/eno1np0/operstate")
 }
 
-# Returns 0 once eno1np0 is admin-up at 10G with link and the capture flags.
-# Returns 1 on timeout; the caller's existing STOP-eno1-* checks then report.
-wait_eno1_link() {
-  local i=0
+# Quiet readiness checks for the wait loop (no STOP output).
+eno1_ready() {
+  read_eno1_state
+  eno1_link_ok "$E_SPEED" "$E_FLAGS" "$E_CARRIER" "$E_OPER" && flags_capture_ok "$E_FLAGS"
+}
+
+# eno3_ok prints STOP-eno3-addr / -route / -down; E3_WHY keeps that token.
+eno3_ready() {
+  E3_WHY=$(eno3_ok 2>/dev/null || true)
+  [ -z "$E3_WHY" ]
+}
+
+# Returns 0 once eno1np0 is admin-up at 10G with link and the capture flags
+# AND eno3 has 192.168.50.152/24, the default route and is admin-up.
+# Returns 1 on timeout; preflight's hard STOP-eno1-* / STOP-eno3-* then report.
+wait_boot_ready() {
+  local i=0 r1 r3
   while :; do
-    read_eno1_state
-    if eno1_link_ok "$E_SPEED" "$E_FLAGS" "$E_CARRIER" "$E_OPER" && flags_capture_ok "$E_FLAGS"; then
+    r1=0
+    r3=0
+    eno1_ready || r1=1
+    eno3_ready || r3=1
+    if [ "$r1" -eq 0 ] && [ "$r3" -eq 0 ]; then
       return 0
     fi
-    if [ "$i" -ge "$WAIT_ENO1_TRIES" ]; then
+    if [ "$i" -ge "$WAIT_BOOT_TRIES" ]; then
       return 1
     fi
     if [ $((i % WAIT_NOTE_EVERY)) -eq 0 ]; then
-      echo "NOTE-wait-eno1 try=$i speed=$E_SPEED flags=$E_FLAGS carrier=$E_CARRIER oper=$E_OPER"
+      if [ "$r1" -ne 0 ]; then
+        echo "NOTE-wait-eno1 try=$i speed=$E_SPEED flags=$E_FLAGS carrier=$E_CARRIER oper=$E_OPER"
+      fi
+      if [ "$r3" -ne 0 ]; then
+        echo "NOTE-wait-eno3 try=$i why=${E3_WHY:-unknown}"
+      fi
     fi
     i=$((i + 1))
     sleep "$WAIT_STEP_SEC"
@@ -319,8 +342,9 @@ preflight() {
     return 1
   fi
   echo "PCI eno1np0 $bdf1 eno2np1 $bdf2"
-  # Boot race: eno3 satisfies network-online before eno1np0 is up.
-  wait_eno1_link || true
+  # Boot race: network-online can pass before eno1np0 is up or before eno3's
+  # address and default route are visible to ip. Wait for both, bounded.
+  wait_boot_ready || true
   read_eno1_state
   flags=$E_FLAGS
   speed=$E_SPEED
@@ -351,17 +375,9 @@ preflight() {
     echo STOP-eno2-addr
     return 1
   fi
-  if ! ip -4 -o addr show dev eno3 | grep -q 'inet 192\.168\.50\.152/'; then
-    echo STOP-eno3-addr
-    return 1
-  fi
-  if ! ip -4 route show default | grep -q 'dev eno3'; then
-    echo STOP-eno3-route
-    return 1
-  fi
-  flags=$(read_trim /sys/class/net/eno3/flags)
-  if ! flags_admin_up "$flags"; then
-    echo STOP-eno3-down
+  # Hard STOP-eno3-addr / STOP-eno3-route / STOP-eno3-down after the wait
+  # (eno3_ok prints the token).
+  if ! eno3_ok; then
     return 1
   fi
   link=$(ip -d link show dev eno1np0 2>/dev/null || true)

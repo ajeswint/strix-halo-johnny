@@ -1,6 +1,6 @@
 # Step 13 — IRQ affinity (applied 2026-11-05)
 
-Rev 8, 2026-11-05. **Boot race (13c) is a draft; B1 fixed (tuning is NOTE-only, no wait)**: see "Boot race" below; Johnny is not fixed until AJ's 13c paste and a later reboot. Rev 6, 2026-11-05. **Step 13b is APPLIED** (AJ's paste at tip `bf89820` printed `STEP13B-NAME-MATCH-DONE`; see "Step 13b — applied" below). Post-review nits are in `82962b8` and are for a re-run or the next boot only; Johnny already succeeded on `bf89820`. Rev 5 (step 13b draft added; the rest of this file describes the applied `c765e01` paste). Applied on Johnny. The closeout commit `e0a7c42` is 2026-11-05 20:19:35Z (~14:19 CT), after rev 86's commit `b19ab07` at 20:13:58Z (~14:13 CT). An earlier line on this rev said ~14:18 CT. AJ's paste printed `STEP13-IRQ-DONE`. The paste was tip `c765e01`. **[Inference]** AJ's scp file sizes matched that tip. This repo does not store that size listing. Soft nits in `b19ab07` did not run and do not require a re-run. Do not re-run this step to spread the IRQs. The live pin put every recorded `eno1np0` vector on CPU 1.
+Rev 9, 2026-11-06. **Boot race 2 (13d) is a draft: eno3 address wait added** (see "Boot race 2"); 13c was applied on Johnny but the cold boot still failed with `STOP-eno3-addr`; not fixed until the 13d paste and a later reboot. Rev 8, 2026-11-05. **Boot race (13c) is a draft; B1 fixed (tuning is NOTE-only, no wait)**: see "Boot race" below; Johnny is not fixed until AJ's 13c paste and a later reboot. Rev 6, 2026-11-05. **Step 13b is APPLIED** (AJ's paste at tip `bf89820` printed `STEP13B-NAME-MATCH-DONE`; see "Step 13b — applied" below). Post-review nits are in `82962b8` and are for a re-run or the next boot only; Johnny already succeeded on `bf89820`. Rev 5 (step 13b draft added; the rest of this file describes the applied `c765e01` paste). Applied on Johnny. The closeout commit `e0a7c42` is 2026-11-05 20:19:35Z (~14:19 CT), after rev 86's commit `b19ab07` at 20:13:58Z (~14:13 CT). An earlier line on this rev said ~14:18 CT. AJ's paste printed `STEP13-IRQ-DONE`. The paste was tip `c765e01`. **[Inference]** AJ's scp file sizes matched that tip. This repo does not store that size listing. Soft nits in `b19ab07` did not run and do not require a re-run. Do not re-run this step to spread the IRQs. The live pin put every recorded `eno1np0` vector on CPU 1.
 
 ## After the run
 
@@ -147,8 +147,8 @@ Johnny rebooted 2026-11-05 23:10:49 UTC (~17:10 CT). `johnny-capture-irq.service
 
 | Path on Johnny | Repo mirror | Mode | sha256 |
 |---|---|---|---|
-| `/etc/johnny/irq-affinity.sh` | `etc/johnny/irq-affinity.sh` | 0755 | **repo now (13c draft) `7c475e4a29d711ea5e104a115f0df3d01730fbf3a452eb68cdc3f8a2953fe388`**, not live until the 13c paste. Live now (13b): `29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530`. Old live: `77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e` |
-| `/etc/systemd/system/johnny-capture-irq.service` | `etc/systemd/system/johnny-capture-irq.service` | 0644 | **repo now (13c draft, `TimeoutStartSec=210`) `0220ecdff1cd603726b692fbd41a19c580d98640fd70cd68efcf530afa0e04ea`**; live now `a191cdbb7a2391ba8e8b91b3dd36235b0a344799d948a6db74d27ad21958953a` (cycle fix, `After=` has no `johnny-capture-tuning.service`; see Ordering cycle). Live now `03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a` (13b, has the cycle). Older live: `9df4969fbb8e9000c13d409cc1788846ca9b1acf06275fd7336eb616cd6bb355` |
+| `/etc/johnny/irq-affinity.sh` | `etc/johnny/irq-affinity.sh` | 0755 | **repo now (13d draft) `807f5a5599bc3e6478a6172b3a54eb576c08f0c4609047a69b834ffec8af3804`**, not live until the 13d paste. Live now (13c, applied `STEP13B-ENO1-WAIT-FIXED`): `7c475e4a29d711ea5e104a115f0df3d01730fbf3a452eb68cdc3f8a2953fe388`. Before 13c (13b): `29f0d0d2d7e3f4c1d2a740057bbbabe4328aa23209a38c341e26edbd44ae5530`. Old live: `77b899e350bce43184d14b37e4d72c84eae3a7e0816138b1c41631b6ca32ed4e` |
+| `/etc/systemd/system/johnny-capture-irq.service` | `etc/systemd/system/johnny-capture-irq.service` | 0644 | **repo now (13d draft, `TimeoutStartSec=150`, comment-only change) `6084be53011599d64d7240e4547b53f8dbaa2e2c588d3975f0517a18e6453ed2`**; live now (13c) `0220ecdff1cd603726b692fbd41a19c580d98640fd70cd68efcf530afa0e04ea`; before 13c (cycle fix) `a191cdbb7a2391ba8e8b91b3dd36235b0a344799d948a6db74d27ad21958953a` (cycle fix, `After=` has no `johnny-capture-tuning.service`; see Ordering cycle). Older (13b) `03ce0ceb5f01501fed42488a2cb3697f81bc8d91ef94d4ee5f68df1a8efc2c6a` (13b, has the cycle). Older live: `9df4969fbb8e9000c13d409cc1788846ca9b1acf06275fd7336eb616cd6bb355` |
 | `/home/aj/cis-audit/step-13b-name-match.sh` | `docs/tool-install/step-13b-name-match.sh` | 0755 | repo tip (post-nits, empty-spec fail-safe; header now says do not re-run, `UNIT_NEW_SHA256` is the cycle-fix unit): `901d2e4bbbae2b64bc11f35b533c4911715d0bf12846dd5dc82c07656f846ae0`. Applied on Johnny from `bf89820`: `da03abac57ac277917ef9b82e3805e885ac19f9b8d2922c635f882b0fb85ee2c` (the copy in `/home/aj/cis-audit/` is that one) |
 
 The 13b script cannot store its own hash. The row above is the full-file digest and the self-test compares it. The post-nits change touched only the 13b script and the self-test. The helper and unit hashes are unchanged.
@@ -313,13 +313,62 @@ ssh -t aj@192.168.50.152 'printf "%s  %s\n" 41e3c9f443bbb7df776b88c2b1701bc17d36
 
 Pass lines in order (a `NOTE-tuning-not-active` before `INPUTS-OK` is allowed): `INPUTS-OK`, `PREV-SAVED`, `FILES-INSTALLED`, `AFTER-OK`, `START-OK`, twelve `TXRX n irq … cpu …`, `SPREAD-COUNT cpu1=3 cpu2=3 cpu3=3 cpu4=3`, three `AUX` lines, `IRDMA` lines (not pass/fail), then `STEP13B-ENO1-WAIT-FIXED`. Log: `/root/step13c-<UTC>.log`.
 
-Stops: `STOP-host`, `STOP-not-root`, `STOP-log-exists`, `STOP-hash`, `STOP-helper-missing`, `STOP-helper-hash`, `STOP-live-unit-missing`, `STOP-live-unit-hash`, `STOP-unit-not-enabled`, ``STOP-prev-hash`, `STOP-install-hash`, `STOP-after-still-lists-tuning`, `STOP-timeout-not-150s`, `STOP-start-failed`, `STOP-not-active`, `STOP-txrx-count`, `STOP-txrx-mask`, `STOP-aux-mask`. Hash, `After=`, timeout and start failures put both old files back (`ROLLED-BACK`; masks untouched).
+Stops: `STOP-host`, `STOP-not-root`, `STOP-log-exists`, `STOP-hash`, `STOP-helper-missing`, `STOP-helper-hash`, `STOP-live-unit-missing`, `STOP-live-unit-hash`, `STOP-unit-not-enabled`, `STOP-prev-hash`, `STOP-install-hash`, `STOP-after-still-lists-tuning`, `STOP-timeout-not-150s`, `STOP-start-failed`, `STOP-not-active`, `STOP-txrx-count`, `STOP-txrx-mask`, `STOP-aux-mask`. Hash, `After=`, timeout and start failures put both old files back (`ROLLED-BACK`; masks untouched).
 
 **Johnny is not fixed** until this paste prints `STEP13B-ENO1-WAIT-FIXED` **and** a later reboot shows the oneshot `active` with the spread, without a manual start. After that reboot, read `journalctl -b -u johnny-capture-irq.service` for `NOTE-wait-eno1`, any `NOTE-tuning-…`, and `PIN-OK`. AJ has not been asked to reboot.
 
 #### Rollback (not part of the paste)
 
 On Johnny: `sudo install -m 0755 -o root -g root /var/lib/johnny/step13c-prev/irq-affinity.sh /etc/johnny/irq-affinity.sh && sudo install -m 0644 -o root -g root /var/lib/johnny/step13c-prev/johnny-capture-irq.service /etc/systemd/system/johnny-capture-irq.service && sudo systemctl daemon-reload` restores the cycle-fix unit and 13b helper. Masks stay as they are.
+
+### Boot race 2 (third reboot, 2026-11-06 01:00:55Z): eno3 address not visible yet (step 13d)
+
+**Evidence (AJ reboot proof, journal).** `CYCLE 0`. `johnny-capture-irq.service` exit-code `failed`. `NOTE-wait-eno1 try=0 speed= flags=0x1002 carrier= oper=down`, then about 2s later `STOP-eno3-addr`. No `STOP-eno1-link`, so the eno1 wait returned quickly. IRQ affinity stayed at kernel defaults. After boot, eno3 has `192.168.50.152/24`, default via eno3, eno1np0 up; a manual start works.
+
+**Cause (hypothesis, consistent with the journal; not proven by a trace).** `wait_eno1_link` returned as soon as the capture link was up. At that instant `ip` did not yet show `inet 192.168.50.152/` (or the default route) on eno3. `network-online.target` does not guarantee that specific check, and `preflight` made `STOP-eno3-addr` hard with no wait. **[Assumption]** the DHCP lease / route lands a moment after the capture link; this was not measured.
+
+**Fix.** `wait_eno1_link` is replaced by `wait_boot_ready` (same style, same 50 tries x 2s = 100s). One loop polls both: eno1np0 (admin-up, 10G, carrier or oper up, admin-up+promisc+noarp flags) **and** eno3 (`eno3_ok`: `192.168.50.152/` on eno3, default route `dev eno3`, admin-up). It returns when both are ready. While not ready it prints `NOTE-wait-eno1 try=N …` and/or `NOTE-wait-eno3 try=N why=STOP-eno3-addr|STOP-eno3-route|STOP-eno3-down` every 3rd try. On timeout the hard checks in `preflight` still print `STOP-eno1-link` / `STOP-eno1-flags` and `STOP-eno3-addr` / `STOP-eno3-route` / `STOP-eno3-down`, unchanged in meaning. The eno3 checks in `preflight` now call `eno3_ok` (same tokens, one definition).
+
+**Budget.** Waits share one 100s loop (concurrent, not 100s + 100s). `TimeoutStartSec=150` is unchanged: 100s wait + 50s for the rest of preflight and the pin. Only the comment in the unit changed (so its sha changed). **[Assumption]** cold-boot DHCP on eno3 normally lands well inside 100s.
+
+**Unchanged.** Tuning stays `NOTE-tuning-…` only; no `After=johnny-capture-tuning.service` on the irq unit (that edge is the ordering cycle; no new ordering edge is added, so cycle risk is none); tuning unit untouched; `read_trim` silent. Wait order is eno1 and eno3 together, so no order-dependent early exit.
+
+| Item | sha256 |
+|---|---|
+| `etc/johnny/irq-affinity.sh` (13d) | `807f5a5599bc3e6478a6172b3a54eb576c08f0c4609047a69b834ffec8af3804` |
+| `etc/johnny/irq-affinity.sh` (live now, 13c) | `7c475e4a29d711ea5e104a115f0df3d01730fbf3a452eb68cdc3f8a2953fe388` |
+| `etc/systemd/system/johnny-capture-irq.service` (13d) | `6084be53011599d64d7240e4547b53f8dbaa2e2c588d3975f0517a18e6453ed2` |
+| `etc/systemd/system/johnny-capture-irq.service` (live now, 13c) | `0220ecdff1cd603726b692fbd41a19c580d98640fd70cd68efcf530afa0e04ea` |
+| `docs/tool-install/step-13d-eno3-wait.sh` | `80f4b5f0c6ff6dfc5bebf62acb2c96b7e41cfd886fd415ac0da235103cd84888` |
+
+#### Paste (13d: helper + unit)
+
+On rock-box. One block, same shape as the 13c paste: stops unless the checkout is clean under `docs/tool-install` and `etc`, the files hash to the table, and the self-test passes; then copies to Johnny, hash-checks there, and runs the script under `sudo`. The script itself refuses unless live files are the 13c blobs (or already the 13d blobs). **[Assumption]** `printf` reuses its format per hash/path pair. Not run.
+
+```bash
+cd /home/aj/Projects/strix-halo-johnny && \
+test -z "$(git status --porcelain -- docs/tool-install etc)" && \
+git rev-parse --short HEAD && \
+printf '%s  %s\n' \
+  80f4b5f0c6ff6dfc5bebf62acb2c96b7e41cfd886fd415ac0da235103cd84888 docs/tool-install/step-13d-eno3-wait.sh \
+  807f5a5599bc3e6478a6172b3a54eb576c08f0c4609047a69b834ffec8af3804 etc/johnny/irq-affinity.sh \
+  6084be53011599d64d7240e4547b53f8dbaa2e2c588d3975f0517a18e6453ed2 etc/systemd/system/johnny-capture-irq.service \
+  | sha256sum -c - && \
+bash docs/tool-install/step-13-self-test.sh && \
+ssh aj@192.168.50.152 'mkdir -p /home/aj/cis-audit' && \
+scp docs/tool-install/step-13d-eno3-wait.sh aj@192.168.50.152:/home/aj/cis-audit/step-13d-eno3-wait.sh && \
+scp etc/johnny/irq-affinity.sh aj@192.168.50.152:/home/aj/cis-audit/irq-affinity-eno3.sh && \
+scp etc/systemd/system/johnny-capture-irq.service aj@192.168.50.152:/home/aj/cis-audit/johnny-capture-irq-eno3.service && \
+ssh -t aj@192.168.50.152 'printf "%s  %s\n" 80f4b5f0c6ff6dfc5bebf62acb2c96b7e41cfd886fd415ac0da235103cd84888 /home/aj/cis-audit/step-13d-eno3-wait.sh 807f5a5599bc3e6478a6172b3a54eb576c08f0c4609047a69b834ffec8af3804 /home/aj/cis-audit/irq-affinity-eno3.sh 6084be53011599d64d7240e4547b53f8dbaa2e2c588d3975f0517a18e6453ed2 /home/aj/cis-audit/johnny-capture-irq-eno3.service | sha256sum -c - && sudo -v && sudo bash /home/aj/cis-audit/step-13d-eno3-wait.sh'
+```
+
+Pass lines in order (a `NOTE-tuning-not-active` before `INPUTS-OK` is allowed): `INPUTS-OK`, `PREV-SAVED`, `FILES-INSTALLED`, `AFTER-OK`, `START-OK`, twelve `TXRX n irq … cpu …`, `SPREAD-COUNT cpu1=3 cpu2=3 cpu3=3 cpu4=3`, three `AUX` lines, `IRDMA` lines (not pass/fail), then `STEP13B-ENO3-WAIT-FIXED`. Log: `/root/step13d-<UTC>.log`. Stops are the same as 13c (`STOP-live-unit-hash` / `STOP-helper-hash` mean live is not the 13c blobs).
+
+This paste runs on a live system, which is where 13c also passed; it does not exercise the race. **Johnny is not fixed** until it prints `STEP13B-ENO3-WAIT-FIXED` **and** a later reboot shows the oneshot `active` with the spread, without a manual start. After that reboot read `journalctl -b -u johnny-capture-irq.service` for `NOTE-wait-eno1`, `NOTE-wait-eno3` and `PIN-OK`. AJ has not been asked to reboot.
+
+#### Rollback (13d, not part of the paste)
+
+On Johnny: `sudo install -m 0755 -o root -g root /var/lib/johnny/step13d-prev/irq-affinity.sh /etc/johnny/irq-affinity.sh && sudo install -m 0644 -o root -g root /var/lib/johnny/step13d-prev/johnny-capture-irq.service /etc/systemd/system/johnny-capture-irq.service && sudo systemctl daemon-reload` restores the 13c helper and unit. Masks stay as they are.
 
 ## Machines
 

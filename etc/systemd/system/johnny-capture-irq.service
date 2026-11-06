@@ -9,7 +9,8 @@ ConditionPathExists=/etc/johnny/irq-affinity.sh
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/etc/johnny/irq-affinity.sh apply
-# Helper waits up to 100s for eno1np0 link only (step 13c); tuning is NOTE-only.
+# Helper waits up to 100s total (one shared loop) for eno1np0 link+flags AND
+# eno3 addr/route/up (step 13c, 13d); tuning is NOTE-only. 100s wait + 50s slack.
 TimeoutStartSec=150
 
 [Install]
