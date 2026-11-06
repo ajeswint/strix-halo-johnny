@@ -148,8 +148,44 @@ eno1_link_ok() {
   [ "$carrier" = 1 ] || [ "$oper" = up ]
 }
 
+# Empty output (not an error line) when the file is missing or unreadable.
+# sysfs speed/carrier return EINVAL while the link is down.
 read_trim() {
-  tr -d '[:space:]' < "$1" || true
+  tr -d '[:space:]' 2>/dev/null < "$1" 2>/dev/null || true
+}
+
+# Boot-race waits (step 13c). Plain variables, not read from the environment.
+# The self-test overrides them after sourcing. Tries x step = seconds waited.
+SYSFS_NET=/sys/class/net
+WAIT_STEP_SEC=2
+WAIT_ENO1_TRIES=50
+WAIT_NOTE_EVERY=3
+
+read_eno1_state() {
+  E_FLAGS=$(read_trim "$SYSFS_NET/eno1np0/flags")
+  E_SPEED=$(read_trim "$SYSFS_NET/eno1np0/speed")
+  E_CARRIER=$(read_trim "$SYSFS_NET/eno1np0/carrier")
+  E_OPER=$(read_trim "$SYSFS_NET/eno1np0/operstate")
+}
+
+# Returns 0 once eno1np0 is admin-up at 10G with link and the capture flags.
+# Returns 1 on timeout; the caller's existing STOP-eno1-* checks then report.
+wait_eno1_link() {
+  local i=0
+  while :; do
+    read_eno1_state
+    if eno1_link_ok "$E_SPEED" "$E_FLAGS" "$E_CARRIER" "$E_OPER" && flags_capture_ok "$E_FLAGS"; then
+      return 0
+    fi
+    if [ "$i" -ge "$WAIT_ENO1_TRIES" ]; then
+      return 1
+    fi
+    if [ $((i % WAIT_NOTE_EVERY)) -eq 0 ]; then
+      echo "NOTE-wait-eno1 try=$i speed=$E_SPEED flags=$E_FLAGS carrier=$E_CARRIER oper=$E_OPER"
+    fi
+    i=$((i + 1))
+    sleep "$WAIT_STEP_SEC"
+  done
 }
 
 cpu_online() {
@@ -283,10 +319,13 @@ preflight() {
     return 1
   fi
   echo "PCI eno1np0 $bdf1 eno2np1 $bdf2"
-  flags=$(read_trim /sys/class/net/eno1np0/flags)
-  speed=$(read_trim /sys/class/net/eno1np0/speed)
-  carrier=$(read_trim /sys/class/net/eno1np0/carrier || true)
-  oper=$(read_trim /sys/class/net/eno1np0/operstate || true)
+  # Boot race: eno3 satisfies network-online before eno1np0 is up.
+  wait_eno1_link || true
+  read_eno1_state
+  flags=$E_FLAGS
+  speed=$E_SPEED
+  carrier=$E_CARRIER
+  oper=$E_OPER
   if ! eno1_link_ok "$speed" "$flags" "$carrier" "$oper"; then
     echo "STOP-eno1-link speed=$speed flags=$flags carrier=$carrier oper=$oper"
     return 1
@@ -334,20 +373,22 @@ preflight() {
     echo STOP-no-rx-queue
     return 1
   fi
-  if [ "$(systemctl is-active johnny-capture-tuning.service 2>/dev/null || true)" != active ]; then
-    echo STOP-tuning
-    return 1
+  # Tuning is advisory here (step 13c): the irq oneshot must exit before
+  # tuning (After=multi-user.target) can go active, so never wait or stop on it.
+  # IRQ pins do not depend on the tuning oneshot having finished.
+  local tst ten epp
+  tst=$(systemctl is-active johnny-capture-tuning.service 2>/dev/null || true)
+  ten=$(systemctl is-enabled johnny-capture-tuning.service 2>/dev/null || true)
+  if [ "$tst" != active ]; then
+    echo "NOTE-tuning-not-active ${tst:-unknown}"
   fi
-  if [ "$(systemctl is-enabled johnny-capture-tuning.service 2>/dev/null || true)" != enabled ]; then
-    echo STOP-tuning
-    return 1
+  if [ "$ten" != enabled ]; then
+    echo "NOTE-tuning-not-enabled ${ten:-unknown}"
   fi
-  local epp
   for cpu in "${CAPTURE_CPUS[@]}"; do
     epp=$(read_trim "/sys/devices/system/cpu/cpu${cpu}/cpufreq/energy_performance_preference")
     if [ "$epp" != performance ]; then
-      echo "STOP-tuning-epp $cpu ${epp:-missing}"
-      return 1
+      echo "NOTE-tuning-epp $cpu ${epp:-missing}"
     fi
   done
   echo "CAPTURE-CPUS ${CAPTURE_CPUS[*]}"
