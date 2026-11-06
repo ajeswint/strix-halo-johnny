@@ -373,9 +373,9 @@ got=$(sha256sum "$CYC" | awk '{print $1}')
 grep -q "$got" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook cycle-fix hash"
 grep -q "$UNIT_CYCLE" "$ROOT/docs/tool-install/step-13-irq-affinity.md" || fail "runbook cycle-fix unit hash"
 
-# Step 13c: boot-race waits. Stub systemctl and sysfs; no sleeping.
+# Step 13c/13d: boot-race waits. Stub sysfs and ip; no sleeping.
 WAIT_STEP_SEC=0
-WAIT_ENO1_TRIES=2
+WAIT_BOOT_TRIES=2
 WAIT_NOTE_EVERY=1
 SYSFS_NET=$(mktemp -d)
 mkdir -p "$SYSFS_NET/eno1np0"
@@ -386,8 +386,16 @@ printf 'down\n' > "$SYSFS_NET/eno1np0/operstate"
 errs=$(read_trim "$SYSFS_NET/eno1np0/speed" 2>&1 >/dev/null)
 [ -z "$errs" ] || fail "read_trim spams on bad sysfs: $errs"
 [ -z "$(read_trim "$SYSFS_NET/eno1np0/nope")" ] || fail "read_trim missing file"
-out=$(wait_eno1_link 2>&1) && fail "eno1 wait should time out"
+# eno3 stub: eno3_ok is overridden so the test needs no ip(8). ENO3_STATE=bad|good.
+ENO3_STATE=good
+eno3_ok() {
+  if [ "$ENO3_STATE" = good ]; then return 0; fi
+  echo STOP-eno3-addr
+  return 1
+}
+out=$(wait_boot_ready 2>&1) && fail "eno1 wait should time out"
 printf '%s\n' "$out" | grep -q '^NOTE-wait-eno1 try=0 speed= flags=0x1002 carrier= oper=down$' || fail "eno1 wait note: $out"
+if printf '%s\n' "$out" | grep -q 'NOTE-wait-eno3'; then fail "eno3 note while eno3 good"; fi
 if printf '%s\n' "$out" | grep -q 'Invalid input'; then fail "eno1 wait spam"; fi
 # Link comes up: admin-up, noarp, promisc, 10G, carrier.
 rmdir "$SYSFS_NET/eno1np0/speed"
@@ -395,7 +403,25 @@ printf '10000\n' > "$SYSFS_NET/eno1np0/speed"
 printf '0x1583\n' > "$SYSFS_NET/eno1np0/flags"
 printf '1\n' > "$SYSFS_NET/eno1np0/carrier"
 printf 'up\n' > "$SYSFS_NET/eno1np0/operstate"
-wait_eno1_link >/dev/null || fail "eno1 wait should pass"
+wait_boot_ready >/dev/null || fail "boot wait should pass (eno1 up, eno3 good)"
+# 13d: the live failure. eno1 up, eno3 address not visible yet: must wait and time out, not pass.
+ENO3_STATE=bad
+out=$(wait_boot_ready 2>&1) && fail "eno3 wait should time out"
+printf '%s\n' "$out" | grep -q '^NOTE-wait-eno3 try=0 why=STOP-eno3-addr$' || fail "eno3 wait note: $out"
+if printf '%s\n' "$out" | grep -q 'NOTE-wait-eno1'; then fail "eno1 note while eno1 good"; fi
+# eno3 shows up on the second poll: wait must pass without timing out.
+# eno3_ready runs eno3_ok in a subshell, so count polls in a file.
+ENO3_POLLS_FILE=$(mktemp)
+: > "$ENO3_POLLS_FILE"
+eno3_ok() {
+  echo x >> "$ENO3_POLLS_FILE"
+  if [ "$(wc -l < "$ENO3_POLLS_FILE")" -ge 3 ]; then return 0; fi
+  echo STOP-eno3-addr
+  return 1
+}
+WAIT_BOOT_TRIES=5
+wait_boot_ready >/dev/null || fail "boot wait should pass once eno3 appears"
+rm -f "$ENO3_POLLS_FILE"
 rm -rf "$SYSFS_NET"
 # Tuning is never waited on (B1: waiting inside the irq oneshot deadlocks at boot).
 H13C="$ROOT/etc/johnny/irq-affinity.sh"
@@ -404,24 +430,35 @@ if grep -q 'STOP-tuning' "$H13C"; then fail "STOP-tuning still in helper"; fi
 grep -q 'NOTE-tuning-not-active' "$H13C" || fail "tuning NOTE missing"
 grep -q 'NOTE-tuning-not-enabled' "$H13C" || fail "tuning enabled NOTE missing"
 grep -q 'NOTE-tuning-epp' "$H13C" || fail "tuning epp NOTE missing"
-# eno1 wait is bounded and preflight calls it. 2s x 50 = 100s; unit timeout 150 covers it.
-grep -q '^WAIT_ENO1_TRIES=50$' "$ROOT/etc/johnny/irq-affinity.sh" || fail "eno1 tries"
-grep -q '^  wait_eno1_link || true$' "$ROOT/etc/johnny/irq-affinity.sh" || fail "preflight eno1 wait"
+# Boot wait is bounded and preflight calls it. 2s x 50 = 100s; unit timeout 150 covers it.
+grep -q '^WAIT_BOOT_TRIES=50$' "$H13C" || fail "boot wait tries"
+grep -q '^  wait_boot_ready || true$' "$H13C" || fail "preflight boot wait"
+grep -q 'wait_eno1_link' "$H13C" && fail "old eno1-only wait still present"
+# The hard eno3 STOPs still exist after the wait (eno3_ok prints them).
+for tok in STOP-eno3-addr STOP-eno3-route STOP-eno3-down; do
+  grep -q "echo $tok\$" "$H13C" || fail "hard $tok missing"
+done
 grep -q '^TimeoutStartSec=150$' "$IRQU" || fail "irq unit TimeoutStartSec"
 if grep -E '^(After|Requires|Wants|BindsTo)=.*johnny-capture-tuning' "$IRQU"; then fail "irq unit orders on tuning"; fi
+MD="$ROOT/docs/tool-install/step-13-irq-affinity.md"
+# 13c script stays as the record of what Johnny already ran (its own hashes).
 S13C="$ROOT/docs/tool-install/step-13c-eno1-wait.sh"
 bash -n "$S13C" || fail "13c syntax"
 grep -q 'STEP13B-ENO1-WAIT-FIXED' "$S13C" || fail "13c done token"
-MD="$ROOT/docs/tool-install/step-13-irq-affinity.md"
-got=$(sha256sum "$ROOT/etc/johnny/irq-affinity.sh" | awk '{print $1}')
-grep -q "^HELPER_NEW_SHA256=$got\$" "$S13C" || fail "13c helper hash"
-grep -q "^HELPER_OLD_SHA256=$HELPER_13B\$" "$S13C" || fail "13c old helper hash"
-grep -q "$got" "$MD" || fail "runbook 13c helper hash"
+S13D="$ROOT/docs/tool-install/step-13d-eno3-wait.sh"
+bash -n "$S13D" || fail "13d syntax"
+grep -q 'STEP13B-ENO3-WAIT-FIXED' "$S13D" || fail "13d done token"
+HELPER_13C=7c475e4a29d711ea5e104a115f0df3d01730fbf3a452eb68cdc3f8a2953fe388
+UNIT_13C=0220ecdff1cd603726b692fbd41a19c580d98640fd70cd68efcf530afa0e04ea
+got=$(sha256sum "$H13C" | awk '{print $1}')
+grep -q "^HELPER_NEW_SHA256=$got\$" "$S13D" || fail "13d helper hash"
+grep -q "^HELPER_OLD_SHA256=$HELPER_13C\$" "$S13D" || fail "13d old helper hash"
+grep -q "$got" "$MD" || fail "runbook 13d helper hash"
 got=$(sha256sum "$IRQU" | awk '{print $1}')
-grep -q "^UNIT_NEW_SHA256=$got\$" "$S13C" || fail "13c unit hash"
-grep -q "^UNIT_OLD_SHA256=$UNIT_CYCLE\$" "$S13C" || fail "13c old unit hash"
-grep -q "$got" "$MD" || fail "runbook 13c unit hash"
-got=$(sha256sum "$S13C" | awk '{print $1}')
-grep -q "$got" "$MD" || fail "runbook 13c script hash"
+grep -q "^UNIT_NEW_SHA256=$got\$" "$S13D" || fail "13d unit hash"
+grep -q "^UNIT_OLD_SHA256=$UNIT_13C\$" "$S13D" || fail "13d old unit hash"
+grep -q "$got" "$MD" || fail "runbook 13d unit hash"
+got=$(sha256sum "$S13D" | awk '{print $1}')
+grep -q "$got" "$MD" || fail "runbook 13d script hash"
 
 echo SELF-TEST-OK
