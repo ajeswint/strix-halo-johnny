@@ -320,6 +320,7 @@ printf '%s\n' "$rev_out" | grep -qx STOP-not-root || fail "revert root: $rev_out
 for f in \
   docs/tool-install/step-13-irq-affinity.sh \
   docs/tool-install/step-13-revert.sh \
+  docs/tool-install/step-13f-helper-nits.sh \
   etc/johnny/irq-affinity.sh \
   etc/johnny/irqbalance-policy.sh
 do
@@ -456,16 +457,49 @@ S13D="$ROOT/docs/tool-install/step-13d-eno3-wait.sh"
 bash -n "$S13D" || fail "13d syntax"
 grep -q 'STEP13B-ENO3-WAIT-FIXED' "$S13D" || fail "13d done token"
 HELPER_13C=7c475e4a29d711ea5e104a115f0df3d01730fbf3a452eb68cdc3f8a2953fe388
+HELPER_13D=807f5a5599bc3e6478a6172b3a54eb576c08f0c4609047a69b834ffec8af3804
 UNIT_13C=0220ecdff1cd603726b692fbd41a19c580d98640fd70cd68efcf530afa0e04ea
-got=$(sha256sum "$H13C" | awk '{print $1}')
-grep -q "^HELPER_NEW_SHA256=$got\$" "$S13D" || fail "13d helper hash"
+# 13d script stays as the record of what Johnny ran: its helper is the 13d blob.
+grep -q "^HELPER_NEW_SHA256=$HELPER_13D\$" "$S13D" || fail "13d helper hash"
 grep -q "^HELPER_OLD_SHA256=$HELPER_13C\$" "$S13D" || fail "13d old helper hash"
-grep -q "$got" "$MD" || fail "runbook 13d helper hash"
+grep -q "$HELPER_13D" "$MD" || fail "runbook 13d helper hash"
+# Step 13f: the repo helper is the 13f blob.
+S13F="$ROOT/docs/tool-install/step-13f-helper-nits.sh"
+bash -n "$S13F" || fail "13f syntax"
+grep -q 'STEP13B-HELPER-NITS-FIXED' "$S13F" || fail "13f done token"
+got=$(sha256sum "$H13C" | awk '{print $1}')
+[ "$got" != "$HELPER_13D" ] || fail "helper still the 13d blob (13f not applied to the repo copy)"
+grep -q "^HELPER_NEW_SHA256=$got\$" "$S13F" || fail "13f helper hash"
+grep -q "^HELPER_OLD_SHA256=$HELPER_13D\$" "$S13F" || fail "13f old helper hash"
+grep -q "$got" "$MD" || fail "runbook 13f helper hash"
 got=$(sha256sum "$IRQU" | awk '{print $1}')
 grep -q "^UNIT_NEW_SHA256=$got\$" "$S13D" || fail "13d unit hash"
 grep -q "^UNIT_OLD_SHA256=$UNIT_13C\$" "$S13D" || fail "13d old unit hash"
 grep -q "$got" "$MD" || fail "runbook 13d unit hash"
+grep -q "^UNIT_SHA256=$got\$" "$S13F" || fail "13f unit hash (unit must be unchanged)"
 got=$(sha256sum "$S13D" | awk '{print $1}')
 grep -q "$got" "$MD" || fail "runbook 13d script hash"
+got=$(sha256sum "$S13F" | awk '{print $1}')
+grep -q "$got" "$MD" || fail "runbook 13f script hash"
+# 13f behavior: no stderr from affinity_is_cpu with PIPE ignored (main() ignores it).
+# The old process-substitution form wrote "printf: write error: Broken pipe" here.
+errs=$( (trap '' PIPE; affinity_is_cpu 0-23 1) 2>&1 ) || true
+[ -z "$errs" ] || fail "affinity_is_cpu spams on a wide mismatch: $errs"
+errs=$( (trap '' PIPE; affinity_is_cpu 1-4 1) 2>&1 ) || true
+[ -z "$errs" ] || fail "affinity_is_cpu spams on a range mismatch: $errs"
+affinity_is_cpu 0-23 1 && fail "wide range matched cpu 1"
+affinity_is_cpu 1-4 1 && fail "range matched cpu 1"
+affinity_is_cpu 4 4 || fail "single cpu 4"
+grep -q 'done < <(expand_affinity' "$H13C" && fail "affinity_is_cpu still reads a process substitution"
+# 13f lint nits stay fixed.
+grep -q 'local link xdp' "$H13C" && fail "unused xdp local is back"
+grep -qE 'local i irq cpu snap ' "$H13C" && fail "unused snap local is back"
+grep -q "tr -d '\[:space:\]' 2>/dev/null <" "$H13C" && fail "SC2261 read_trim form is back"
+if command -v shellcheck >/dev/null 2>&1; then
+  shellcheck -S warning "$H13C" || fail "shellcheck warnings in helper"
+  shellcheck -S warning "$S13F" || fail "shellcheck warnings in 13f script"
+else
+  echo "NOTE-shellcheck-missing (lint checks skipped)"
+fi
 
 echo SELF-TEST-OK

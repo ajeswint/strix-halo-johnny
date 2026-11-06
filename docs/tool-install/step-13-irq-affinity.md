@@ -1,6 +1,6 @@
 # Step 13 — IRQ affinity (applied 2026-11-05)
 
-Rev 10, 2026-11-06. **Boot race 2 (13d) is APPLIED and cold-reboot proven** (`STEP13B-ENO3-WAIT-FIXED`, then boot 2026-11-06 01:20:40Z: oneshot `active`, spread 3/3/3/3, `PIN-OK`, no manual start; see "Boot race 2" Result). Doc-only nits from PRs #14 and #15 are closed in this revision; the helper, unit and 13d script are unchanged. Rev 9, 2026-11-06. Boot race 2 (13d) was drafted: eno3 address wait added; 13c had been applied but the cold boot still failed with `STOP-eno3-addr`. Rev 8, 2026-11-05. **Boot race (13c) is a draft; B1 fixed (tuning is NOTE-only, no wait)**: see "Boot race" below; Johnny is not fixed until AJ's 13c paste and a later reboot. Rev 6, 2026-11-05. **Step 13b is APPLIED** (AJ's paste at tip `bf89820` printed `STEP13B-NAME-MATCH-DONE`; see "Step 13b — applied" below). Post-review nits are in `82962b8` and are for a re-run or the next boot only; Johnny already succeeded on `bf89820`. Rev 5 (step 13b draft added; the rest of this file describes the applied `c765e01` paste). Applied on Johnny. The closeout commit `e0a7c42` is 2026-11-05 20:19:35Z (~14:19 CT), after rev 86's commit `b19ab07` at 20:13:58Z (~14:13 CT). An earlier line on this rev said ~14:18 CT. AJ's paste printed `STEP13-IRQ-DONE`. The paste was tip `c765e01`. **[Inference]** AJ's scp file sizes matched that tip. This repo does not store that size listing. Soft nits in `b19ab07` did not run and do not require a re-run. Do not re-run this step to spread the IRQs. The live pin put every recorded `eno1np0` vector on CPU 1.
+Rev 11, 2026-11-06. **Step 13f (helper lint + `Broken pipe` fix) is a draft, not applied, not reviewed:** see "Step 13f" below; live is still the 13d helper. Rev 10, 2026-11-06. **Boot race 2 (13d) is APPLIED and cold-reboot proven** (`STEP13B-ENO3-WAIT-FIXED`, then boot 2026-11-06 01:20:40Z: oneshot `active`, spread 3/3/3/3, `PIN-OK`, no manual start; see "Boot race 2" Result). Doc-only nits from PRs #14 and #15 are closed in this revision; the helper, unit and 13d script are unchanged. Rev 9, 2026-11-06. Boot race 2 (13d) was drafted: eno3 address wait added; 13c had been applied but the cold boot still failed with `STOP-eno3-addr`. Rev 8, 2026-11-05. **Boot race (13c) is a draft; B1 fixed (tuning is NOTE-only, no wait)**: see "Boot race" below; Johnny is not fixed until AJ's 13c paste and a later reboot. Rev 6, 2026-11-05. **Step 13b is APPLIED** (AJ's paste at tip `bf89820` printed `STEP13B-NAME-MATCH-DONE`; see "Step 13b — applied" below). Post-review nits are in `82962b8` and are for a re-run or the next boot only; Johnny already succeeded on `bf89820`. Rev 5 (step 13b draft added; the rest of this file describes the applied `c765e01` paste). Applied on Johnny. The closeout commit `e0a7c42` is 2026-11-05 20:19:35Z (~14:19 CT), after rev 86's commit `b19ab07` at 20:13:58Z (~14:13 CT). An earlier line on this rev said ~14:18 CT. AJ's paste printed `STEP13-IRQ-DONE`. The paste was tip `c765e01`. **[Inference]** AJ's scp file sizes matched that tip. This repo does not store that size listing. Soft nits in `b19ab07` did not run and do not require a re-run. Do not re-run this step to spread the IRQs. The live pin put every recorded `eno1np0` vector on CPU 1.
 
 ## After the run
 
@@ -391,6 +391,61 @@ On Johnny: `sudo install -m 0755 -o root -g root /var/lib/johnny/step13d-prev/ir
 - **A `STOP-` after a good start does not roll back.** In the 13c and 13d scripts the checkpoints after `START-OK` (`STOP-not-active`, `STOP-txrx-*`, `STOP-aux-mask`) are state checks, not file defects; the new files stay installed. Hash, `After=`, timeout and start failures do roll back (`ROLLED-BACK`).
 - **Pins now run before tuning's EPP and idle settings at boot** (tuning is `After=multi-user.target`). That is why the boot journal shows `NOTE-tuning-not-active inactive` and `NOTE-tuning-epp … balance_performance`; it is expected and not a failure.
 - **Self-test covers the preflight order.** The self-test now asserts `preflight` calls `wait_boot_ready` before the hard `eno3_ok` check (PR #15 nit 1).
+
+### Step 13f — helper lint and journal noise (draft, not applied, not reviewed)
+
+Branch `claude/step13f-helper-nits`, PR into `claude/practical-ritchie-4c6vvf`. Closes the three items the 13d closeout left open because they change the pinned helper hash. Token `STEP13B-HELPER-NITS-FIXED`. Helper only: the unit is unchanged (`6084be53…`), the 13d script is unchanged, no reboot, no apt/GRUB/netplan, no RPS/XPS/RSS, irdma untouched. The eno1 + eno3 waits, tuning as NOTE-only and the no-`After=tuning` rule are untouched; the boot-race logic was not reopened.
+
+**What changed in the helper (three edits plus a header comment).**
+
+1. **SC2261** in `read_trim`: `tr -d '[:space:]' 2>/dev/null < "$1" 2>/dev/null || true` became `{ tr -d '[:space:]' < "$1"; } 2>/dev/null || true`. Same behavior (a missing file, EINVAL read or directory still prints nothing and returns success); one stderr redirect instead of two competing ones. Self-test already checks the silent cases.
+2. **Unused locals:** `xdp` removed from `preflight`, `snap` removed from `pin_apply`. Neither was ever assigned.
+3. **Broken pipe** (journal: `/etc/johnny/irq-affinity.sh: line 33: printf: write error: Broken pipe`, 11 lines per boot). Line 33 is `expand_affinity`'s `printf`. `affinity_is_cpu` read it through `done < <(expand_affinity "$list")` and `return 1` on the first CPU that did not match. For a mask like `0-23` that closed the pipe with 23 numbers still to write, and `main()` has `trap '' HUP PIPE`, so the writer got EPIPE instead of dying quietly. **[Inference]** It fired for each IRQ whose current mask was wider than its target (pin step), which fits the 11 lines per boot; the journal does not name the caller. Fix: capture the output first (`out=$(expand_affinity "$list" || true)`), then loop over a here-string. Result values are identical for every input (the loop sees the same lines in the same order); only the abandoned pipe is gone. Reproduced locally: the old helper prints two `Broken pipe` lines for `affinity_is_cpu 0-23 1` with PIPE ignored; the new one prints none.
+
+**[Assumption]** The 11 lines all came from this one pipe. The other early-closing readers (`ip … | grep -q`) read a single short buffered write and were not seen in the journal; they were left alone to keep the diff to the three items. `shellcheck -S style` still reports SC2004 (`seen[$line]`, style only; the `$` is harmless and removing it was not asked for).
+
+**Pin behavior is unchanged.** On a live system the pins already match, so the restart in the script writes no masks. The first boot after this paste is the real test that the journal is clean: expect zero `Broken pipe` lines for `johnny-capture-irq.service`.
+
+**What the 13f script does.** Hash-gated like 13d, but the helper only. Checkpoint 1: source helper hash, live helper is the 13d blob (or already the 13f blob), **live unit is the 13d blob unchanged**, unit enabled. 2: keep the 13d helper once in `/var/lib/johnny/step13f-prev/`, install the new helper, hash-check. 3: probe the installed helper with PIPE ignored: `affinity_is_cpu` for `0-23`/1, `1-2`/1, `2`/2 and `x`/1 must return 1, 1, 0, 1 with zero stderr bytes (`PROBE-OK`; the old helper fails the first one). 4: restart the oneshot once; `active`; the journal since the restart must show `PIN-OK` and no `Broken pipe` (`JOURNAL-SINCE-RESTART pin-ok=1 broken-pipe=0`). 5: same by-name pin checks as 13d (twelve `TXRX`, `SPREAD-COUNT cpu1=3 cpu2=3 cpu3=3 cpu4=3`, three `AUX`, `IRDMA` lines not pass/fail). Ends `STEP13B-HELPER-NITS-FIXED`. Log `/root/step13f-<UTC>.log`. Hash, probe and start failures roll back the helper (`ROLLED-BACK`); a later state check does not.
+
+**Limit of the probe.** On a live system the restart cannot show the old noise (pins already match, so no wide-mask comparison runs), so `broken-pipe=0` in step 4 is a weak check; the probe in step 3 and the self-test carry the real proof. The cold boot after the paste is the production check.
+
+| Item | sha256 |
+|---|---|
+| `etc/johnny/irq-affinity.sh` (13f, repo copy) | `db58d7c72b5a58cbd0c2533caa819d397e4c205242e30e5defb0eae0f4ab59e4` |
+| `etc/johnny/irq-affinity.sh` (13d, live now) | `807f5a5599bc3e6478a6172b3a54eb576c08f0c4609047a69b834ffec8af3804` |
+| `etc/systemd/system/johnny-capture-irq.service` (unchanged, live now) | `6084be53011599d64d7240e4547b53f8dbaa2e2c588d3975f0517a18e6453ed2` |
+| `docs/tool-install/step-13f-helper-nits.sh` | `f61d874e58aedc02815661996f0b305814bf798c5443baa5ea1602fa5a5ce100` |
+| `docs/tool-install/step-13-self-test.sh` (this revision) | `6d9c6f233e6c28056921111e29abffdfe0f6542da515896d27252f5a2d108506` |
+
+#### Paste (13f: helper only)
+
+Not reviewed, not run. Review it before AJ pastes it. On rock-box. One block: stops unless the checkout is clean under `docs/tool-install` and `etc`, the files (including the self-test) hash to the table, and the self-test passes; then copies the helper and script to Johnny, hash-checks there, and runs the script under `sudo`. `sudo` runs on Johnny inside `ssh -t` (same shape as 13c and 13d).
+
+```bash
+cd /home/aj/Projects/strix-halo-johnny && \
+test -z "$(git status --porcelain -- docs/tool-install etc)" && \
+git rev-parse --short HEAD && \
+printf '%s  %s\n' \
+  f61d874e58aedc02815661996f0b305814bf798c5443baa5ea1602fa5a5ce100 docs/tool-install/step-13f-helper-nits.sh \
+  6d9c6f233e6c28056921111e29abffdfe0f6542da515896d27252f5a2d108506 docs/tool-install/step-13-self-test.sh \
+  db58d7c72b5a58cbd0c2533caa819d397e4c205242e30e5defb0eae0f4ab59e4 etc/johnny/irq-affinity.sh \
+  6084be53011599d64d7240e4547b53f8dbaa2e2c588d3975f0517a18e6453ed2 etc/systemd/system/johnny-capture-irq.service \
+  | sha256sum -c - && \
+bash docs/tool-install/step-13-self-test.sh && \
+ssh aj@192.168.50.152 'mkdir -p /home/aj/cis-audit' && \
+scp docs/tool-install/step-13f-helper-nits.sh aj@192.168.50.152:/home/aj/cis-audit/step-13f-helper-nits.sh && \
+scp etc/johnny/irq-affinity.sh aj@192.168.50.152:/home/aj/cis-audit/irq-affinity-nits.sh && \
+ssh -t aj@192.168.50.152 'printf "%s  %s\n" f61d874e58aedc02815661996f0b305814bf798c5443baa5ea1602fa5a5ce100 /home/aj/cis-audit/step-13f-helper-nits.sh db58d7c72b5a58cbd0c2533caa819d397e4c205242e30e5defb0eae0f4ab59e4 /home/aj/cis-audit/irq-affinity-nits.sh | sha256sum -c - && sudo -v && sudo bash /home/aj/cis-audit/step-13f-helper-nits.sh'
+```
+
+Pass lines in order (a `NOTE-tuning-not-active` before `INPUTS-OK` is allowed): `INPUTS-OK`, `PREV-SAVED`, `FILE-INSTALLED`, `PROBE-OK`, `START-OK`, `JOURNAL-SINCE-RESTART pin-ok=1 broken-pipe=0`, twelve `TXRX n irq … cpu …`, `SPREAD-COUNT cpu1=3 cpu2=3 cpu3=3 cpu4=3`, three `AUX` lines, `IRDMA` lines, then `STEP13B-HELPER-NITS-FIXED`. Stops: `STOP-hash` (helper source), `STOP-helper-hash` (live helper is neither 13d nor 13f), `STOP-live-unit-hash` (unit is not the 13d blob), `STOP-probe-*`, `STOP-no-pin-ok-in-journal`, `STOP-broken-pipe-in-journal`, `STOP-txrx-*`, `STOP-aux-mask`.
+
+**Check after the next cold boot (not part of the paste).** `journalctl -b -u johnny-capture-irq.service --no-pager | grep -c 'Broken pipe'` should print `0`, and the unit should be `active` with the 3/3/3/3 spread as in the 13d Result.
+
+#### Rollback (13f, not part of the paste)
+
+On Johnny: `sudo install -m 0755 -o root -g root /var/lib/johnny/step13f-prev/irq-affinity.sh /etc/johnny/irq-affinity.sh` restores the 13d helper (`807f5a55…`). No `daemon-reload` is needed: the unit file is unchanged. Masks stay as they are.
 
 ## Machines
 
