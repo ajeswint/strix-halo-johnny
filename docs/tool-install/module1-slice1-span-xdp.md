@@ -230,6 +230,8 @@ The only files written are the copy at `/home/aj/cis-audit/module1-slice1-probe.
 
 ## What comes after (sketch only: not drafted, not reviewed, not applied)
 
+**Update (2026-11-06, after AJ said go on 1b):** slice 1b is now **drafted, not applied, not reviewed** in its own file: [`module1-slice1b-attach.md`](module1-slice1b-attach.md) (permanent native-XDP observer, always `XDP_PASS`, off-box build, attach, verify, detach). Where the sketch below differs from that file, the 1b file wins. Its step 3 (boot persistence) is **not** drafted. This file's probe pastes are unchanged.
+
 **Next open item: AJ confirms the path choice** (the Decision section above is a draft recommendation, not his decision). Then the attach paste **1b** is drafted in its own PR. It would attach a permanent native-XDP observer. The probe is applied; its answers include that Johnny has **no compiler** (clang, llc, gcc, make, pahole all `TOOL-ABSENT`; the handoff says the step 11 object was built off-box), so 1b needs an off-box build or a separately reviewed apt install. Nothing is attached today. A sketch of 1b, as it stood in rev 1. None of this is approved:
 
 1. Preconditions re-checked (everything above, `OK` or `NOTE`).
