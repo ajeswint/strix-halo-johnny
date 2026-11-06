@@ -6,6 +6,8 @@
 # Queue names: [ice-]eno1np0-(TxRx|rx|tx)-N use capture[N modulo count]. ice
 # misc/ll_ts/ctrl vectors use the first capture CPU. irdma-* vectors that share
 # the PCI function are skipped (not pinned). Step 13b rev: name match fix.
+# Step 13f rev: shellcheck clean (SC2261, unused locals); affinity_is_cpu no
+# longer closes a pipe early (no journal "Broken pipe"). Pin logic unchanged.
 # Docs: docs/tool-install/step-13-irq-affinity.md
 
 CORES=/etc/johnny/capture-cores
@@ -43,7 +45,11 @@ expand_affinity() {
 }
 
 affinity_is_cpu() {
-  local list=$1 cpu=$2 c count=0
+  local list=$1 cpu=$2 c count=0 out
+  # Capture first, then loop. A process substitution that this loop abandons on
+  # the first mismatch left expand_affinity writing into a closed pipe (the
+  # boot journal's "printf: write error: Broken pipe", PIPE is ignored in main).
+  out=$(expand_affinity "$list" || true)
   while read -r c; do
     [ -n "$c" ] || continue
     if [ "$c" = STOP-cpulist ]; then
@@ -53,7 +59,7 @@ affinity_is_cpu() {
       return 1
     fi
     count=$((count + 1))
-  done < <(expand_affinity "$list")
+  done <<<"$out"
   [ "$count" -eq 1 ]
 }
 
@@ -151,7 +157,7 @@ eno1_link_ok() {
 # Empty output (not an error line) when the file is missing or unreadable.
 # sysfs speed/carrier return EINVAL while the link is down.
 read_trim() {
-  tr -d '[:space:]' 2>/dev/null < "$1" 2>/dev/null || true
+  { tr -d '[:space:]' < "$1"; } 2>/dev/null || true
 }
 
 # Boot-race waits (step 13c eno1, step 13d eno3). Plain variables, not read
@@ -286,7 +292,7 @@ load_capture_cpus() {
 
 preflight() {
   local host kern nic driver flags speed carrier oper bdf1 bdf2
-  local link xdp
+  local link
   host=$(hostname -s 2>/dev/null || hostname)
   if [ "$host" != johnny ]; then
     echo STOP-host
@@ -690,7 +696,7 @@ map_needs_write() {
 }
 
 pin_apply() {
-  local i irq cpu snap qbefore qafter
+  local i irq cpu qbefore qafter
   local tmp
   if ! collect_eno1_map; then
     return 1
