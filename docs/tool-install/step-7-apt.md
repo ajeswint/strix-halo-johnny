@@ -67,7 +67,7 @@ Versions:
 
 | Package | Version |
 |---|---|
-| `bind9-dnsutils` | 1:9.20.24-1ubuntu0.4 |
+| `bind9-dnsutils` | 1:9.20.24-1ubuntu0.4 (install-time; now `.0.5`, see Re-verified) |
 | `bpfcc-tools` | 0.35.0+ds-1ubuntu2 |
 | `bpftool` | 7.7.0+7.0.0-42.42 |
 | `bpftrace` | 0.25.0-1ubuntu1 |
@@ -84,3 +84,19 @@ Versions:
 | `tcpreplay` | 4.5.2-1build1 |
 | `tshark` | 4.6.4-1 |
 | `wireshark-common` | 4.6.4-1 |
+
+## Re-verified (2026-11-06 ~02:03Z, read-only SSH as `aj`; token `STEP7-VERIFY-DONE`)
+
+No sudo, apt, or config change. Commands: `dpkg-query -W` on the 17 packages above, `id -nG aj`, `getent group wireshark`, `getcap` and a `security.capability` xattr read on `/usr/bin/dumpcap`, `systemctl show` for `suricata` and `iperf3`, `apt-mark showhold`, `apt list --upgradable`, and `/var/log/dpkg.log*` / `unattended-upgrades.log`.
+
+| Check | Result |
+|---|---|
+| Versions vs table above | 16 of 17 identical. **Drift:** `bind9-dnsutils` is `1:9.20.24-1ubuntu0.5` (upgraded `2026-11-05 06:48:18` UTC with `bind9-host` and `bind9-libs`; same run also upgraded `libmspack0t64` and `libpcre2-8-0`; `unattended-upgrades.log` names the run). All 17 are `ii` |
+| `aj` in `wireshark` | yes, `wireshark:x:108:aj`; the live session shows the group |
+| `dumpcap` | `cap_net_admin,cap_net_raw=eip`, mode `-rwxr-xr--` `root:wireshark`; owned by `wireshark-common`. The `+` in `ls -l` is the capability xattr (the only xattr; no ACL). `getfacl` is not installed, so this was read with `os.getxattr` |
+| `suricata` | `UnitFileState=disabled`, `ActiveState=inactive`, `SubState=dead`, `Result=success`. Not enabled by this check |
+| `iperf3` | `UnitFileState=disabled`, `ActiveState=inactive` |
+| Holds | `secureboot-db`, `shim-signed` (unchanged) |
+| Pending upgrades for these packages | none listed. **[Assumption]** from the cached apt lists; `apt update` was not run |
+
+`tshark -D`, `suricata --build-info`, and `nmap --version` from the Verify block above were not re-run. Package versions and `dumpcap` caps are the evidence.
