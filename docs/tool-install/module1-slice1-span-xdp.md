@@ -1,10 +1,57 @@
-# Module 1, slice 1 — passive SPAN / XDP path on `eno1np0` (draft, not applied)
+# Module 1, slice 1 — passive SPAN / XDP path on `eno1np0` (probe applied; no attach)
 
-Rev 1, 2026-11-06 06:20Z (2026-11-06 00:20 America/Chicago). **Draft. Nothing here has run on Johnny.** Written by the code-writer seat (Sonnet). The adversarial-reviewer reviews the exact paste before AJ runs it. Docs, one script, one self-test. No sudo was used and Johnny was not contacted.
+Rev 2, 2026-11-06 ~16:05Z (~10:05 America/Chicago). **The read-only probe (Paste 1 and Paste 2) has been applied on Johnny. Nothing is attached: no XDP program, no AF_XDP socket, no config change. Module 1 is still unattached, and no attach paste (1b) is drafted.** Rev 1 (2026-11-06 06:20Z, 00:20 America/Chicago) was the draft. Written by the code-writer seat (Sonnet). Whether the adversarial-reviewer re-reviewed the exact pastes after the B1/B2 fix is **not recorded in the repo** (handoff rev 97 said not re-reviewed); both pastes are read-only. Docs, one script, one self-test. The probe script is unchanged since rev 1's fix round (sha256 below).
 
 AJ said **go** on Module 1 (2026-11-05 evening America/Chicago). The OS gate is APPROVED (handoff rev 95, `docs/findings/overseer-review-os-gate.md` §8). This file is the first Module 1 artifact.
 
-**In plain English.** The mirror port already delivers copies of LAN traffic to `eno1np0`. Step 11 proved Johnny can run a tiny program inside the NIC driver for a few seconds. Slice 1 turns that into a permanent, passive "watcher" that counts and describes packets without keeping them. Before any permanent attach, this file does one safe thing first: **ask the machine what it can do** (read-only, no changes). The answers decide the next paste.
+**In plain English.** The mirror port already delivers copies of LAN traffic to `eno1np0`. Step 11 proved Johnny can run a tiny program inside the NIC driver for a few seconds. Slice 1 turns that into a permanent, passive "watcher" that counts and describes packets without keeping them. Before any permanent attach, this file did one safe thing first: **ask the machine what it can do** (read-only, no changes). That has now been done and the answers are below. The next open item is AJ confirming the path choice; the attach paste (1b) is drafted only after that.
+
+## Applied on Johnny (probe, read-only), 2026-11-06
+
+AJ ran both pastes from **rock-box** (`aj-rock-box`), over SSH to Johnny, on 2026-11-06 about 09:57 to 10:00 CT (America/Chicago, CST, UTC-6). Paste 2 has to be rock-box to Johnny: its one password prompt is Johnny's `sudo -v` inside the `ssh -t` line, and nothing runs `sudo` on rock-box. Both pastes were the blocks below (**[Assumption]** as in the repo at tip `9a10212`; each block checks the script hash before running it, and Johnny's copy matches, see below). Source of the lines below: AJ's pasted terminal output (relayed in the closeout brief). Lines marked "(read-only SSH)" are from the code-writer seat reading Johnny's `/home/aj/cis-audit/m1s1-probe/summary.txt` with `grep` at 2026-11-06 ~16:01Z (no write, no sudo). That file repeats the lines Paste 1 printed (runbook design); **[Assumption]** it is unedited since the run, its mtime is 15:57:23Z.
+
+| Paste | Mode | Token | `DATE-UTC` | Result |
+|---|---|---|---|---|
+| 1 | `user` (as `aj`, no sudo) | **`M1S1-PROBE-DONE`** | `2026-11-06T15:57:17Z` (09:57 CT) | No `STOP-` lines |
+| 2 | `root` (`bpftool` only, sudo on Johnny) | **`M1S1-PROBE-ROOT-DONE`** | `2026-11-06T15:59:11Z` (09:59 CT) | No `STOP-` lines |
+
+Johnny's copy of the script at `/home/aj/cis-audit/module1-slice1-probe.sh` has sha256 `93d6253720dab71f1b7cc63704f844068daa2c54f7ad78922c9751ebf44fba47` (read-only SSH, 16:01Z; mtime 15:59:06Z, which is Paste 2's `scp` over Paste 1's copy). It equals the repo file. I did not read `/root/m1s1-probe-root/` (root only); the Paste 2 lines below are AJ's.
+
+### What Paste 1 found
+
+| Area | Recorded line(s) | What it says |
+|---|---|---|
+| Host, kernel | `HOST johnny`, `KERNEL 7.0.0-42-generic` | Unchanged since step 11 and step 13 |
+| Link | `LINK eno1np0 flags=0x1183 mtu=1500 speed=10000 carrier=1 oper=up`; `OK-mtu-1500`; `OK-no-address`; `OK-no-xdp-attached` | Up, 10G, MTU 1500 (**measured**; the MTU assumption is retired), no address. `0x1183` is UP, BROADCAST, NOARP, PROMISC, MULTICAST. `ip -d link` shows no XDP program on it. |
+| Driver, DDP | `DRIVER ice`; DDP "ICE OS Default" `1.3.43.0`; `OK-ddp-loaded` | Not in safe mode this boot. (read-only SSH) the kernel log lines are `The DDP package was successfully loaded` on `0000:01:00.0` and `DDP package already present` on `0000:01:00.1`, boot of 2026-11-06 01:55Z. No COMMS package. |
+| Offloads | `NOTE-rxvlan-on` | VLAN tags may be stripped before XDP sees the frame (**[Assumption]**, `ice` behaviour not read from source; unchanged). A finding, not a stop. |
+| SPAN traffic | `OK-span-traffic`, `RX-RATE-5S pps=568 mbit=1` | The mirror is alive. One 5-second sample, light load. |
+| Martians | `MARTIAN-COUNT 3478` | Same all-boots `journalctl -k` count as step 11 per the runbook table (2475, then 2477 on 2026-11-05 ~08:26 CT). Up by about 1000 since. Note only; this probe does not say what rate or why. |
+| Capture cores, IRQ pins | `CAPTURE-CORES 1,2,3,4`; twelve `ice-eno1np0-TxRx-*` IRQs effective on CPUs 1 to 4; `OK-irq-pins total=12` | Step 13 pins hold (boot at 2026-11-06 01:55Z, after step 13f). This is the baseline for the 1b before/after check. |
+| Queues | (read-only SSH) `QUEUES-COMBINED max=24 cur=12`; `ZC-QUEUES queues=12 cores=4`; `NOTE-zc-one-xsk-per-queue` | Twelve queues on four cores. AF_XDP binds one socket to one queue id, so AF_XDP is twelve sockets or a queue-count change (the step 13 pins would likely not survive that, **[Inference]**, unchanged). |
+| Kernel config | `KCONFIG` `BPF_SYSCALL`, `XDP_SOCKETS`, `ICE`, `BTF` ok | `XDP_SOCKETS` is enabled; AF_XDP is not ruled out at config level. Zero-copy on Johnny is still untested. |
+| Lockdown | `LOCKDOWN integrity` | Unchanged, not weakened. |
+| BPF environment | (read-only SSH) `BTF-VMLINUX present`; `BPFFS` bpf, mode=700; `kernel.unprivileged_bpf_disabled 2`; `net.core.bpf_jit_enable 1`; `NOTE-sysctl-unreadable net.core.bpf_jit_harden` (as `aj`) | bpffs is mounted with mode 700, so pinning there is root only. The JIT is on. |
+| Memory inputs | (read-only SSH) `ULIMIT-L-AJ 8192` (KB); `HUGEPAGES total=0`; `MEM-AVAILABLE-MB 24564` | Inputs for any UMEM sizing. Whether UMEM is charged to memlock or the memory cgroup on this kernel is **still unverified**. |
+| Units | `UNIT suricata disabled/inactive`; `johnny-capture-irq` and `johnny-capture-tuning` enabled/active | Suricata still off; the two capture units are enabled and active. (read-only SSH) `irqbalance` is `not-found`/`inactive`. |
+| Toolchain | `BPFTOOL bpftool v7.7.0` at `/usr/sbin/bpftool`; `PKG-ABSENT` and `APT-CANDIDATE` recorded | **No build tools on Johnny.** (read-only SSH) `TOOL-ABSENT`: `clang`, `llc`, `gcc`, `make`, `pahole`, `xdp-loader`, `xdpdump`, `xdp-bench`. Installed: `libbpf1` 1:1.6.3-1ubuntu1, `libxdp1` 1.6.2-1ubuntu1. `PKG-ABSENT`: `libbpf-dev`, `libxdp-dev`, `xdp-tools`, `clang`, `llvm`, `gcc`, `libelf-dev` (and `make` is not installed). `APT-CANDIDATE` (cached lists, not refreshed: `NOTE-apt-lists-not-refreshed`): `clang` and `llvm` 1:21.1.6-71, `gcc` 4:15.2.0-5ubuntu1, `make` 4.4.1-3, `libelf-dev` 0.194-4, `libbpf-dev` 1:1.6.3-1ubuntu1, `libxdp-dev` and `xdp-tools` 1.6.2-1ubuntu1. |
+
+The brief called the toolchain "mostly absent"; the read-only SSH lines show every compiler and loader tool probed is absent and `bpftool` is the one tool present. I did not read the `FEATURE`, `RING`, `RSS-HASH`, `RX-RULES`, `PRIV`, `STAT` or `FIRMWARE` lines; they are in `summary.txt` on Johnny and in AJ's terminal output.
+
+### What Paste 2 found (AJ's relay)
+
+- `have_xdp_prog_type yes`; `have_xskmap_map_type yes`.
+- Helpers: `bpf_redirect_map` yes, `bpf_xdp_adjust_head` yes, and others (the full `BPF-XDP-HELPER` list was not transcribed into the closeout brief; it is in AJ's terminal output).
+- `OK-no-xdp-on-eno1np0` (`bpftool net show`) and `PROG-XDP-COUNT 0` (`bpftool prog show`: no XDP-type program is loaded anywhere). Nothing attached, nothing loaded.
+- The key-name assumption is **partly retired**: the keys for the XDP program type, `XSKMAP` and the helpers named above resolved on the live kernel. AJ reported no STOP lines; whether any `NOTE-feature-key-absent` line printed for other keys is not in the brief.
+
+### What this probe did not settle
+
+- Whether a first native XDP attach on `ice` moves the step 13 IRQ pins. A read-only probe cannot test it. It stays the 1b before/after check.
+- UMEM memory accounting (memlock vs cgroup) on this kernel.
+- AF_XDP zero-copy on this NIC, kernel and MTU (not attempted, by design).
+- Where the XDP object is built: Johnny has no compiler (step 11's object was built off-box, handoff). Building off-box, or a separate reviewed apt install on Johnny, is a 1b input. **Not decided here.**
+- The path choice itself (below). It is a draft recommendation; **AJ's confirmation is the next open item.** This file does not claim the probe results confirm the choice; they are inputs for AJ.
 
 ## Scope (AJ, `docs/findings/overseer-review-os-gate.md` §8)
 
@@ -111,6 +158,8 @@ Probe script sha256 (the self-test requires this line to match the file): `93d62
 
 ## Paste 1 (as `aj`, no sudo)
 
+**Applied 2026-11-06 ~09:57 CT, printed `M1S1-PROBE-DONE`.** Kept for the record; re-running is read-only and is not needed for this closeout.
+
 One block, from the rock-box checkout. It copies the script, checks its hash on Johnny, and runs it as `aj`. About 10 seconds (includes a 5-second sample).
 
 ```bash
@@ -122,6 +171,8 @@ ssh aj@192.168.50.152 'echo "93d6253720dab71f1b7cc63704f844068daa2c54f7ad78922c9
 Success ends with `M1S1-PROBE-DONE`. Raw files: `/home/aj/cis-audit/m1s1-probe/` on Johnny (a previous run is moved aside to `m1s1-probe.prev.<UTC time>`). `summary.txt` there repeats every line printed. Raw files stay on Johnny and are not committed.
 
 ## Paste 2 (optional, sudo, bpftool facts)
+
+**Applied 2026-11-06 ~09:59 CT from rock-box to Johnny, printed `M1S1-PROBE-ROOT-DONE`.** Kept for the record. It must be run from the rock-box checkout, not on Johnny: the block `scp`s the script from the rock-box path.
 
 Do Paste 1 first. This adds what only root can read: which BPF program and map types the running kernel offers, and whether anything is attached to `eno1np0`. It writes only under `/root/m1s1-probe-root/` and attaches nothing. Every `sudo` here runs on **Johnny**, inside the last `ssh -t` line, so the one password prompt is Johnny's, up front (`sudo -v`, then the hash check, then the script). Nothing in this block runs `sudo` on rock-box.
 
@@ -179,7 +230,7 @@ The only files written are the copy at `/home/aj/cis-audit/module1-slice1-probe.
 
 ## What comes after (sketch only: not drafted, not reviewed, not applied)
 
-The next paste, **1b**, would attach a permanent native-XDP observer. It needs the probe's answers first, and a build host with clang (Johnny has none recorded; the handoff says the step 11 object was built off-box). A sketch, to show what the probe is for. None of this is approved:
+**Next open item: AJ confirms the path choice** (the Decision section above is a draft recommendation, not his decision). Then the attach paste **1b** is drafted in its own PR. It would attach a permanent native-XDP observer. The probe is applied; its answers include that Johnny has **no compiler** (clang, llc, gcc, make, pahole all `TOOL-ABSENT`; the handoff says the step 11 object was built off-box), so 1b needs an off-box build or a separately reviewed apt install. Nothing is attached today. A sketch of 1b, as it stood in rev 1. None of this is approved:
 
 1. Preconditions re-checked (everything above, `OK` or `NOTE`).
 2. Snapshot IRQ affinity for the twelve queues. Attach with `bpftool net attach xdpdrv` only. Re-snapshot. A changed mask is a stop; recovery is `/etc/johnny/irq-affinity.sh apply` (what `johnny-capture-irq.service` runs). Detach on any failure.
@@ -189,16 +240,16 @@ The next paste, **1b**, would attach a permanent native-XDP observer. It needs t
 
 Open questions for AJ or the architecture pass, not answered here: what the observer records (counters only, or header-only records via a ring buffer); whether flows need both directions on one queue (symmetric RSS); netlink attach versus a pinned `bpf_link` for the lifecycle; and when AF_XDP, and which consumer, enters.
 
-## Assumptions (all marked above, collected)
+## Assumptions (collected; status after the 2026-11-06 apply)
 
-- MTU is still 1500; the probe measures it.
+- ~~MTU is still 1500~~ **Retired:** measured `mtu=1500`, `OK-mtu-1500`.
 - Unicast not addressed to Johnny is dropped before `rp_filter` (carried from step 11).
 - `ice` behaviour with LRO and VLAN offload as it affects XDP: not read from source.
 - A first XDP attach may disturb the IRQ pins: unverified; tested in 1b.
 - UMEM accounting (memlock vs cgroup) on this kernel: unverified.
-- bpftool JSON key names: from memory, not a live capture. Fixtures in the self-test are the same: illustrative, not live.
-- `ethtool -S`, `-x`, `-n`, `--show-priv-flags` and `ss -f xdp` work as `aj`; the probe prints `NOTE-cmd-failed` or `NOTE-ss-xdp-unavailable` if not.
-- Apt candidates come from cached lists that this probe does not refresh (rev 93: lists about a day old at that check).
+- bpftool JSON key names: **partly retired.** The keys for the XDP program type, `XSKMAP` and the helpers named in the Paste 2 result resolved live. The rest are unconfirmed from the brief. Fixtures in the self-test are still illustrative, not live captures.
+- `ethtool -S`, `-x`, `-n`, `--show-priv-flags` and `ss -f xdp` work as `aj`: **no `NOTE-cmd-failed` or `NOTE-ss-xdp-unavailable` line appears among the `NOTE-` lines in Johnny's `summary.txt`** (read-only SSH grep of `^NOTE-`, 2026-11-06 ~16:01Z). Not retired for the unread `FEATURE`/`RING`/`RSS-HASH`/`RX-RULES`/`PRIV` lines' content, only for failure.
+- Apt candidates come from cached lists that this probe does not refresh (rev 93: lists about a day old at that check). The probe printed `NOTE-apt-lists-not-refreshed`; the candidate versions above may be stale.
 - The Ubuntu `stonking` man pages cited for bpftool are not the `resolute` pages.
 
 ## Sources
