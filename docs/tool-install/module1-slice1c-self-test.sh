@@ -417,12 +417,25 @@ for idx, (lab, body) in enumerate(blocks, 1):
         for ln in body.split("\n"):
             if "ssh -t" in ln and "sudo" in ln and not re.search(r"'sudo -v &&", ln):
                 die(f"ssh -t sudo line must start with 'sudo -v &&: {ln}")
+    if re.search(r"module1-slice1c-boot\.sh[ \t]+(?:status|verify|start|stop)\b[^&\n;]*\|", body) or re.search(r"\bstatus[ \t]*\|", body):
+        die(f"block #{idx} pipes status/boot.sh into another command (masks exit code without pipefail)")
+    if "M1S1C-COLD-BOOT-VERIFY-DONE" in body:
+        if "sudo bash /root/m1s1b/module1-slice1c-boot.sh verify &&" not in body:
+            die(f"block #{idx} missing unpiped verify && before M1S1C-COLD-BOOT-VERIFY-DONE")
+        if "sudo bash /root/m1s1b/module1-slice1c-boot.sh status &&" not in body:
+            die(f"block #{idx} missing unpiped status && before M1S1C-COLD-BOOT-VERIFY-DONE")
     for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
         name = path.rsplit("/", 1)[-1]
         if name in want and want[name] != h:
             die(f"wrong hash for {name} in block #{idx}: {h}")
 
+bad_sample = "sudo bash /root/m1s1b/module1-slice1c-boot.sh status | grep -E '^M1S1C-' &&\necho M1S1C-COLD-BOOT-VERIFY-DONE"
+if not (re.search(r"module1-slice1c-boot\.sh[ \t]+(?:status|verify|start|stop)\b[^&\n;]*\|", bad_sample) and "sudo bash /root/m1s1b/module1-slice1c-boot.sh status &&" not in bad_sample):
+    die("self-check failed to reject piped status before M1S1C-COLD-BOOT-VERIFY-DONE")
+
 joined = "\n".join(b for _, b in blocks)
+if "M1S1C-COLD-BOOT-VERIFY-DONE" not in joined:
+    die("missing M1S1C-COLD-BOOT-VERIFY-DONE in paste blocks")
 for name, h in want.items():
     if joined.count(h) < 2:
         die(f"hash for {name} must appear in >=2 paste blocks")

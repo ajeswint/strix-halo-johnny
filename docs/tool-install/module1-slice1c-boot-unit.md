@@ -107,6 +107,7 @@ echo M1S1C-ENABLE-THIS-BOOT-DONE'
 What to expect on this boot:
 - If slice 1b is still attached (`prog_id=472`), `journalctl -b -u johnny-capture-xdp.service` shows `ALREADY-ATTACHED xdpdrv prog_id=472` and `M1S1C-START-DONE`. If unattached, it runs the full attach and shows `STATE attached by boot helper (xdpdrv prog_id=N)` and `M1S1C-START-DONE`.
 - `verify` runs a 5 s `tcpdump` + `ethtool -S eno1np0` window and prints `OK-unit johnny-capture-xdp.service enabled=enabled active=active`, `VERIFY-WINDOW ...`, `PASS-RATIO ...`, `ETHTOOL-DROP-DELTA ...` (or `ETHTOOL-DROP-DELTAS none (checked=N)`), `OK-xdp-pass-tcpdump-sees-traffic`, twelve `IRQ-VERIFY` lines on CPUs `1..4`, `STAT` / `STAT-RXQ` / `PART`, **`M1S1C-VERIFY-DONE`**, and **`M1S1C-ENABLE-THIS-BOOT-DONE`**.
+- Because `systemctl enable --now` enables the unit before starting it, if `start` or `verify` fails (`M1S1C-ENABLE-THIS-BOOT-DONE` not printed), run the Rollback block below to disable and remove the unit before rebooting.
 
 ### Paste 5 — Cold reboot to prove unattended boot persistence (separate paste per AGENTS.md)
 
@@ -118,7 +119,7 @@ Have AMT KVM ready and the LUKS recovery passphrase at hand in case TPM unlock n
 ssh -t aj@192.168.50.152 'sudo -v && echo M1S1C-REBOOT-ISSUED && sudo systemctl reboot'
 ```
 
-Wait ~60–90 s for Johnny to reboot and complete the boot oneshots, then run Paste 6.
+Wait ~60–90 s for Johnny to reboot and complete the boot oneshots, then run Paste 6 (if Paste 6 runs while `johnny-capture-irq.service` or `johnny-capture-xdp.service` is still finishing its boot readiness wait and stops at `STOP-unit-not-active`, wait another 30–60 s and re-run Paste 6).
 
 ### Paste 6 — Post-reboot verify (unattended boot attach + `ethtool -S` drop deltas + cycle check)
 
@@ -128,18 +129,18 @@ Wait ~60–90 s for Johnny to reboot and complete the boot oneshots, then run Pa
 ssh -t aj@192.168.50.152 'sudo -v &&
 uptime &&
 systemctl is-system-running || true &&
-sudo journalctl -b -p warning..emerg --no-pager | grep -Ei "ordering cycle|johnny-capture" || echo OK-no-ordering-cycle-warnings &&
+sudo journalctl -b -p warning..emerg --no-pager | grep -Ei "ordering cycle" || echo OK-no-ordering-cycle-warnings &&
 sudo journalctl -b -u johnny-capture-irq.service -u johnny-capture-xdp.service -u johnny-capture-tuning.service --no-pager &&
 sudo bash /root/m1s1b/module1-slice1c-boot.sh verify &&
 sleep 10 &&
-sudo bash /root/m1s1b/module1-slice1c-boot.sh status | grep -E "^(UNIT |XDP-ATTACH|PROG-XDP-COUNT|IRQ-BASELINE|IRQ-CAPTURE|STAT pkts|STAT bytes|M1S1B-|M1S1C-)" &&
+sudo bash /root/m1s1b/module1-slice1c-boot.sh status &&
 echo M1S1C-COLD-BOOT-VERIFY-DONE'
 ```
 
 What to look for after cold reboot:
 - `OK-no-ordering-cycle-warnings` (no rev 89/90 systemd ordering cycle).
-- `journalctl -b` shows `johnny-capture-irq.service` finished before `johnny-capture-xdp.service` started, and `johnny-capture-xdp.service` logged `M1S1B-ATTACH-DONE`, `STATE attached by boot helper (xdpdrv prog_id=N)`, and `M1S1C-START-DONE` with no manual start.
-- `verify` ends **`M1S1C-VERIFY-DONE`**, and the `status` read 10 s later ends **`M1S1C-STATUS-DONE`** with advancing `STAT pkts` / `STAT bytes`, followed by **`M1S1C-COLD-BOOT-VERIFY-DONE`**.
+- `journalctl -b` shows `johnny-capture-irq.service` finished before `johnny-capture-xdp.service` started, and `johnny-capture-xdp.service` logged `M1S1B-ATTACH-DONE` (the unchanged pinned `module1-slice1b-attach.sh` still prints its slice 1b `attached for this boot only` note right before `M1S1B-ATTACH-DONE`), followed by `STATE attached by boot helper (xdpdrv prog_id=N)` and `M1S1C-START-DONE` with no manual start.
+- `verify` ends **`M1S1C-VERIFY-DONE`**, and the unpiped `status` read 10 s later prints the full status transcript ending **`M1S1C-STATUS-DONE`** with advancing `STAT pkts` / `STAT bytes`, gated on `status` exiting `0` before **`M1S1C-COLD-BOOT-VERIFY-DONE`**.
 
 ## Rollback / disable (not part of the paste sequence above)
 
