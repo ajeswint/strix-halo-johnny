@@ -34,7 +34,7 @@ Each fix changes a pinned script or paste and needs its own draft, review, and h
 
 ## Purpose and scope
 
-Slice 1b (`docs/tool-install/module1-slice1b-attach.md`, rev 2) attached the passive, observe-only native-XDP counter program (`j_xdp_observe`, `XDP_PASS` only) on `eno1np0` (`xdpdrv`, `prog_id=472`) for the current boot only. A reboot detaches it and clears `/sys/fs/bpf/johnny_m1s1b/`.
+Slice 1b (`docs/tool-install/module1-slice1b-attach.md`, rev 2) attached the passive, observe-only native-XDP counter program (`j_xdp_observe`, `XDP_PASS` only) on `eno1np0` (`xdpdrv`, `prog_id=472`) for that boot only. Without this unit, a reboot cleared the attach and `/sys/fs/bpf/johnny_m1s1b/`. With the unit enabled, a reboot runs `johnny-capture-xdp.service`, which attaches the observer again.
 
 Slice 1c adds **boot persistence** for that exact pinned observer without altering the slice 1b BPF object, attach script, or detach script:
 
@@ -149,7 +149,7 @@ Have AMT KVM ready and the LUKS recovery passphrase at hand in case TPM unlock n
 ssh -t aj@192.168.50.152 'sudo -v && echo M1S1C-REBOOT-ISSUED && sudo systemctl reboot'
 ```
 
-Wait ~60–90 s for Johnny to reboot and complete the boot oneshots, then run Paste 6 (if Paste 6 runs while `johnny-capture-irq.service` or `johnny-capture-xdp.service` is still finishing its boot readiness wait and stops at `STOP-unit-not-active`, wait another 30–60 s and re-run Paste 6).
+Wait ~60–90 s for Johnny to reboot and complete the boot oneshots, then run Paste 6 (if Paste 6 runs while `johnny-capture-irq.service` or `johnny-capture-xdp.service` is still finishing its boot work, it can stop at `STOP-locked` (the unit's `start` still holds the helper lock; this is what the applied first try hit on 2026-11-08) or `STOP-unit-not-active`; wait another 30–60 s and re-run Paste 6. Paste 6 does not yet wait for `active` itself; that is parked follow-up 4).
 
 ### Paste 6 — Post-reboot verify (unattended boot attach + `ethtool -S` drop deltas + cycle check)
 

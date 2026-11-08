@@ -1,4 +1,4 @@
-# 2026-11-08 UTC (2026-11-07 ~20:26 to ~20:45 America/Chicago): Module 1 slice 1c boot persistence unit applied on Johnny
+# 2026-11-08 UTC (2026-11-07 ~20:26 to ~20:33 America/Chicago): Module 1 slice 1c boot persistence unit applied on Johnny
 
 Seat: code-writer (Claude Code). Branch `claude/module1-slice1c-closeout`, from `origin/claude/practical-ritchie-4c6vvf` tip `781ca6f` (PR #26 merged there). Docs-only closeout. **No SSH, no sudo, no write on Johnny in this closeout.** No `.sh`, `.service`, or `.o` file or sha256 pin changed.
 
@@ -12,6 +12,6 @@ Seat: code-writer (Claude Code). Branch `claude/module1-slice1c-closeout`, from 
 
 **State.** Slice 1b's `prog_id=472` (this-boot only) is gone; `prog_id=75` is the boot-attached observer.
 
-**Docs changed.** `docs/tool-install/module1-slice1c-boot-unit.md` (rev 2, applied + evidence + follow-ups); `docs/tool-install/module1-slice1b-attach.md` (rev 3 note; boot-only drift fixed); `docs/tool-install/module1-slice1-span-xdp.md` (banner/status); `README.md`; `docs/os-handoff.md` (rev 102); this note and its CSV.
+**Docs changed.** `docs/tool-install/module1-slice1c-boot-unit.md` (rev 2, applied + evidence + follow-ups); `docs/tool-install/module1-slice1b-attach.md` (rev 3 note; current-tense boot-only / reboot-clears sentences in the status, plain-English, apply-record, scope, STOP-rollback-failed, manual-detach and id-assumption text rewritten to point at the slice 1c unit and Rollback block; the unchanged script's printed reboot sentence is quoted as stale); `docs/tool-install/module1-slice1-span-xdp.md` (banner/status); `README.md`; `docs/os-handoff.md` (rev 102); this note and its CSV.
 
 **Parked follow-ups (no code change).** `wait_boot_ready || true` fall-through; Paste 6 cycle `grep` does not gate the done token; rollback token prints even if the unit was never active; Paste 6 should wait for the unit to be `active` before `verify` (the `STOP-locked` race).
