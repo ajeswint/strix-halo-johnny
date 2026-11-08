@@ -20,7 +20,7 @@ SELF=$TI/module1-slice1c-self-test.sh
 WANT_OBJ_SHA=8be9877f51d0d588285089a108123941e59c5e0aa7802ad80da90a376747e77d
 WANT_ATTACH_SHA=f9f95ec6bc4311d23dda4b4c35b96bdf92ef03b1c2238bdf945c50bd60a190fb
 WANT_DETACH_SHA=f78ca14ed226a37e23ee239d65ba183e3c8b5a541369326c73fff4b61ea4cc58
-WANT_BOOT_SHA=f05e7ac425ed78837ab57880f483ed42eeea431c5037da09248e11eea6a580bc
+WANT_BOOT_SHA=a501dbb7c49a611dd230f7c4fa09d6c1a7f8923f7302459180a197625ccc8c06
 WANT_UNIT_SHA=2510bc97f3604a1466177b22205e34c60c1cbc0b028d83bc0c0583c14dc1f0e0
 WANT_HELPER_SHA=db58d7c72b5a58cbd0c2533caa819d397e4c205242e30e5defb0eae0f4ab59e4
 WANT_CORES_SHA=16fbd7d1f18d2fedb247d73edc3bc6aa040f5ab99bd3b48c35b79e543d22179b
@@ -245,6 +245,12 @@ EOF
         run_attach() { echo "SHOULD-NOT-RUN"; return 1; }
         do_start
         ;;
+      start-wait-timeout)
+        printf '9000\n' > "$SYSFS_NET/$IFACE/mtu"
+        run_detach() { echo "SHOULD-NOT-RUN"; fake_status_unattached; }
+        run_attach() { echo "SHOULD-NOT-RUN"; return 1; }
+        do_start
+        ;;
       start-foreign)
         run_detach() { fake_status_attached 500 250000 "driver id=999" "0 ids=none" 1; }
         do_start
@@ -328,6 +334,13 @@ has "start-already state" "$out" "ALREADY-ATTACHED xdpdrv prog_id=472"
 has "start-already token" "$out" "M1S1C-START-DONE"
 lacks "start-already no attach" "$out" "SHOULD-NOT-RUN"
 
+out=$(run_subshell_e2e start-wait-timeout 2>&1 && exit 1 || true)
+has "start-wait-timeout stop" "$out" "STOP-boot-wait-timeout tries=2 step=0s"
+has "start-wait-timeout nothing-changed" "$out" "NOTHING-CHANGED"
+has "start-wait-timeout stops token" "$out" "M1S1C-START-STOPS"
+lacks "start-wait-timeout no status/attach" "$out" "SHOULD-NOT-RUN"
+lacks "start-wait-timeout no done" "$out" "M1S1C-START-DONE"
+
 out=$(run_subshell_e2e start-foreign 2>&1 && exit 1 || true)
 has "start-foreign stop" "$out" "STOP-xdp-foreign-attached"
 has "start-foreign nothing-changed" "$out" "NOTHING-CHANGED"
@@ -350,7 +363,7 @@ has "verify-ok token" "$out" "M1S1C-VERIFY-DONE"
 out=$(run_subshell_e2e status-ok)
 has "status-ok unit line" "$out" "UNIT johnny-capture-xdp.service enabled=enabled active=active"
 has "status-ok token" "$out" "M1S1C-STATUS-DONE"
-echo "E2E-OK scenarios=7"
+echo "E2E-OK scenarios=8"
 
 # 7. Runbook paste and hash audit
 [ -f "$DOC" ] || fail "missing runbook $DOC"
@@ -424,6 +437,24 @@ for idx, (lab, body) in enumerate(blocks, 1):
             die(f"block #{idx} missing unpiped verify && before M1S1C-COLD-BOOT-VERIFY-DONE")
         if "sudo bash /root/m1s1b/module1-slice1c-boot.sh status &&" not in body:
             die(f"block #{idx} missing unpiped status && before M1S1C-COLD-BOOT-VERIFY-DONE")
+        if "then echo STOP-ordering-cycle-warning; false;" not in body or '"ordering cycle" ||' in body:
+            die(f"block #{idx} ordering-cycle grep does not gate M1S1C-COLD-BOOT-VERIFY-DONE")
+        wpos = body.find("is-active johnny-capture-xdp.service")
+        if wpos < 0 or "seq 0 5 120" not in body or 'STOP-unit-not-active-after-wait' not in body:
+            die(f"block #{idx} missing bounded wait for unit active")
+        if wpos > body.find("module1-slice1c-boot.sh verify"):
+            die(f"block #{idx} waits for unit active after verify")
+    if "M1S1C-ROLLBACK-DONE" in body:
+        for need in ('grep -qx "XDP-ATTACH none"', "active=inactive$", "echo STOP-rollback-not-clean; false",
+                     "{ sudo systemctl reset-failed johnny-capture-xdp.service 2>/dev/null || true; } &&"):
+            if need not in body:
+                die(f"block #{idx} rollback token not gated: missing [{need}]")
+    if "M1S1C-NITS-REINSTALL-DONE" in body:
+        if body.count(boot) < 3:
+            die(f"block #{idx} reinstall must check boot hash locally, on copy, and after install")
+        for bad in ("systemctl restart", "systemctl start", "systemctl stop", "systemctl enable", "systemctl disable"):
+            if bad in body:
+                die(f"block #{idx} reinstall must not {bad}")
     for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
         name = path.rsplit("/", 1)[-1]
         if name in want and want[name] != h:
