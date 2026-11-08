@@ -22,7 +22,8 @@
 # are m2_* because the library's own do_status would replace ours when sourced.
 #
 # Never: XDP_DROP/TX/REDIRECT (the object only returns XDP_PASS), generic/skb
-# attach, `overwrite`, detaching a program that is not j_xdp_records, map
+# attach, `overwrite`, detaching any program but the one pinned at $PIN_DIR/prog (a
+# same-name program is not ours), removing pins while ours is attached, map
 # writes, sysctl/NIC/queue/IRQ changes, or anything persistent across a reboot
 # (a reboot is a rollback: bpffs pins go away, slice 1c re-attaches at boot).
 # Any failure after load/swap changed something runs `rollback` and ends
@@ -49,7 +50,7 @@ C1_BOOT_SHA256=a501dbb7c49a611dd230f7c4fa09d6c1a7f8923f7302459180a197625ccc8c06
 C1_UNIT_FILE=/etc/systemd/system/johnny-capture-xdp.service
 C1_UNIT_SHA256=2510bc97f3604a1466177b22205e34c60c1cbc0b028d83bc0c0583c14dc1f0e0
 C1_UNIT=johnny-capture-xdp.service
-OBJ_SHA256=451247d8409396f35bf4454bfa8b44f2bc73b2197f97bb7c41818a9709f780e2
+OBJ_SHA256=a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481
 READER=/usr/local/libexec/johnny/johnny-m1s2-reader.py
 READER_SHA256=32dc159f01b42a4b7cf3906c6fd0d12535b85cf1a36262f30d6211e44cce38e2
 R_UNIT_FILE=/etc/systemd/system/johnny-m1s2-reader.service
@@ -69,6 +70,7 @@ DONE=0
 CLEANUP_ON_FAIL=0
 ACTION=
 REC_ID=
+REC_PIN_ID=
 OBS_ID=
 
 obj_path() { printf '%s/module1-xdp-records.o' "$STATE_DIR"; }
@@ -148,8 +150,26 @@ unit_active() {
 
 # ---------------------------------------------------------------- state
 
+# Id of the program pinned at $PIN_DIR/prog, or empty when there is no pin.
+# Only this id is ours: a loaded program that merely shares REC_NAME is not.
+pinned_rec_id() {
+  local js
+  [ -e "$PIN_DIR/prog" ] || return 0
+  js=$(bpftool -j prog show pinned "$PIN_DIR/prog" 2>/dev/null) || return 1
+  python3 -I -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except ValueError:
+    sys.exit(2)
+if not isinstance(d, dict) or d.get("name") != sys.argv[1] or type(d.get("id")) is not int:
+    sys.exit(2)
+print(d["id"])' "$REC_NAME" <<<"$js"
+}
+
 # Sets XDP_LINES ("mode id" per attachment), REC_IDS / OBS_IDS (comma lists of
-# loaded program ids by name, "none"), XDP_TOTAL (loaded XDP programs).
+# loaded program ids by name, "none"), XDP_TOTAL (loaded XDP programs),
+# REC_PIN_ID (id behind our prog pin, empty if unpinned).
 scan() {
   local js pr po
   XDP_LINES=$(net_attach_lines) || die net-show-failed
@@ -159,6 +179,7 @@ scan() {
   XDP_TOTAL=$(kv "$pr" total)
   REC_IDS=$(kv "$pr" ids)
   OBS_IDS=$(kv "$po" ids)
+  REC_PIN_ID=$(pinned_rec_id) || die pinned-prog-show-failed
 }
 
 # attach_state: "none", "records ID", "observer ID", or "other MODE ID"/"multi".
@@ -171,7 +192,7 @@ attach_state() {
   id=${XDP_LINES#* }
   if [ "$mode" != driver ]; then
     echo "other $mode $id"
-  elif [[ ",$REC_IDS," == *",$id,"* ]]; then
+  elif [ -n "$REC_PIN_ID" ] && [ "$id" = "$REC_PIN_ID" ]; then
     echo "records $id"
   elif [[ ",$OBS_IDS," == *",$id,"* ]]; then
     echo "observer $id"
@@ -356,7 +377,7 @@ detach_records() {
     [ -n "$line" ] || continue
     mode=${line%% *}
     id=${line#* }
-    if [[ ",$REC_IDS," == *",$id,"* ]]; then
+    if [ -n "$REC_PIN_ID" ] && [ "$id" = "$REC_PIN_ID" ]; then
       case "$mode" in
         driver) kw=xdpdrv ;;
         generic) kw=xdpgeneric ;;
@@ -369,6 +390,8 @@ detach_records() {
       fi
     elif [[ ",$OBS_IDS," == *",$id,"* ]]; then
       echo "KEEP-observer mode=$mode id=$id"
+    elif [[ ",$REC_IDS," == *",$id,"* ]]; then
+      stop "xdp-records-unpinned mode=$mode id=$id (named $REC_NAME but not our pin ${REC_PIN_ID:-none}; not detached)"
     else
       stop "xdp-foreign mode=$mode id=$id (not $REC_NAME; not detached)"
     fi
@@ -427,14 +450,21 @@ rollback_core() {
   detach_records
   scan
   case "$(attach_state)" in
-    "records "*) stop "records-still-attached" ;;
+    "records "*)
+      # Keep the pins: they are the only proof of which id is ours, so a later
+      # rollback can still detach it.
+      stop "records-still-attached id=$REC_PIN_ID"
+      echo "KEEP-PINS $PIN_DIR (our program is still attached; rerun rollback)"
+      ;;
+    *)
+      remove_our_pins
+      if wait_records_gone; then
+        echo "OK-no-$REC_NAME-loaded"
+      else
+        stop "prog-linger $REC_NAME ids=$REC_IDS"
+      fi
+      ;;
   esac
-  remove_our_pins
-  if wait_records_gone; then
-    echo "OK-no-$REC_NAME-loaded"
-  else
-    stop "prog-linger $REC_NAME ids=$REC_IDS"
-  fi
   if [ "$(unit_active "$C1_UNIT")" != active ]; then
     if systemctl start "$C1_UNIT"; then
       echo C1-STARTED
@@ -523,6 +553,7 @@ m2_load() {
   scan
   [[ $REC_IDS =~ ^[0-9]+$ ]] || die "load-not-visible ids=$REC_IDS"
   REC_ID=$REC_IDS
+  [ "$REC_ID" = "$REC_PIN_ID" ] || die "load-pin-mismatch ids=$REC_IDS pinned=${REC_PIN_ID:-none}"
   [ "$(pins_list)" = "$PIN_NAMES" ] || die "pins-after-load: $(pins_list)"
   st=$(attach_state)
   [ "$st" = "observer $OBS_ID" ] || die "observer-changed-by-load: $st"
@@ -557,6 +588,7 @@ m2_swap() {
   check_observer || die "observer-not-attached: $(attach_state) c1=$(unit_active "$C1_UNIT")"
   [[ $REC_IDS =~ ^[0-9]+$ ]] || die "records-not-loaded ids=$REC_IDS (run load first)"
   REC_ID=$REC_IDS
+  [ "$REC_ID" = "$REC_PIN_ID" ] || die "records-not-pinned ids=$REC_IDS pinned=${REC_PIN_ID:-none}"
   [ "$XDP_TOTAL" = 2 ] || die "xdp-progs-loaded $XDP_TOTAL (want 2: observer + records)"
   [ "$(pins_list)" = "$PIN_NAMES" ] || die "pins: $(pins_list)"
   load_cores || die "cores $CORES_ERR"
@@ -589,7 +621,15 @@ m2_read() {
   check_records_attached pre-read
   reader_start
   echo "READER-STARTED invocation=$R_INV"
-  reader_wait_inactive || die reader-overran
+  if ! reader_wait_inactive; then
+    # Do not leave a runaway reader to RuntimeMaxSec: stop it now.
+    if systemctl stop "$R_UNIT"; then
+      echo READER-STOPPED
+    else
+      echo STOP-reader-stop-failed
+    fi
+    die reader-overran
+  fi
   out=$(reader_journal "$R_INV") || { printf '%s\n' "$out"; die reader-no-end; }
   printf '%s\n' "$out"
   reader_result_ok || die reader-result

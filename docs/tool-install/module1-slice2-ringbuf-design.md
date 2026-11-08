@@ -28,7 +28,8 @@ AJ chose this slice from the three options in handoff rev 104 § Next steps: hea
   | 5 | `bpf_ktime_get_ns` | record timestamp, rate-limit clock |
   | 131 | `bpf_ringbuf_reserve` | record slot |
   | 132 | `bpf_ringbuf_submit` | publish record |
-  | 133 | `bpf_ringbuf_discard` | defensive; only if a reserved record turns out unusable |
+
+  Phase C: `bpf_ringbuf_discard` (133) is **not** used. The record is built on the stack and copied whole into the slot, so nothing can turn out unusable after reserve. The self-test allowlist is exactly {1, 5, 131, 132}.
 
   No `bpf_ringbuf_output` (it copies; reserve/submit writes in place). No `bpf_get_prandom_u32`: sampling is deterministic (§4) so tests can reproduce it. No redirect, adjust, tail-call or probe helpers. **[Assumption]** helper ids and `BPF_MAP_TYPE_RINGBUF = 27` follow upstream `include/uapi/linux/bpf.h` (<https://github.com/torvalds/linux/blob/master/include/uapi/linux/bpf.h>). The slice 1 probe already confirmed that the running kernel offers the ring buffer map type (`module1-slice1-span-xdp.md`, root-mode `bpftool -j feature probe kernel` row). The Phase B load-only step re-checks it on 7.0.0-42.
 - **Timestamp choice:** `bpf_ktime_get_ns` (CLOCK_MONOTONIC, stops during suspend; Johnny does not suspend). The reader converts it to wall time once per run from a paired `clock_gettime(MONOTONIC)` / `REALTIME` sample and writes that offset into the file header. It does not convert per record. `bpf_ktime_get_boot_ns` (125) is the alternative if suspend ever matters. **[Assumption]** the NIC hardware RX timestamp (`bpf_xdp_metadata_rx_timestamp` kfunc) is **not** used: it needs device-bound programs and `ice` support we have not verified.
@@ -57,7 +58,7 @@ L4 fields:
 |---|---|---|---|
 | 64 | 1 | `l4_proto` | IPv4 protocol / IPv6 next-header (not walked past ext headers) |
 | 65 | 1 | `ttl_hlim` | |
-| 66 | 2 | `l3_len` | IPv4 total length / IPv6 payload length + 40 |
+| 66 | 2 | `l3_len` | IPv4 `tot_len` / IPv6 `payload_len` + 40, saturated at 65535 (a `payload_len` above 65495 reads as 65535). A declared value, not a copy length or a read bound |
 | 68 | 2 | `sport` | TCP/UDP only, else 0; ICMP: `type<<8 \| code` |
 | 70 | 2 | `dport` | TCP/UDP only, else 0 |
 | 72 | 1 | `tcp_flags` | byte 13 of the TCP header, else 0 |
@@ -67,7 +68,7 @@ L4 fields:
 
 The ring adds an 8-byte header per record, so each record costs 88 bytes in the ring. **Not recorded:** payload, IP options, TCP options, window, seq/ack, checksums, IP ID, DSCP/ECN, and any byte of a non-first IPv4 fragment beyond L3 (`sport`/`dport` stay 0 and `flags` bit2 is set).
 
-Parsing bounds: every read checks `data_end` before the load. A short frame still emits a record with what it parsed and sets the truncated bit, and the slice 1b `K_TRUNC` counter still counts it. IPv4 IHL < 5 sets truncated-L3 and skips L4.
+Parsing bounds: every read checks `data_end` before the load. L4 reads must also fit inside the declared IP length (IPv4 `tot_len` - IHL*4, IPv6 `payload_len`); bytes after the declared end (Ethernet padding, trailing junk) are never read even when they are before `data_end` (review nit 1, 2026-11-08). A short frame still emits a record with what it parsed and sets the truncated bit, and the slice 1b `K_TRUNC` counter still counts it. IPv4 IHL < 5 or `tot_len` < IHL*4 sets truncated-L3 and skips L4. An L4 header cut short by `data_end` or by the declared length sets truncated-L4 and leaves the L4 fields 0.
 
 ## 4. Sampling and rate limits
 
@@ -86,7 +87,7 @@ Both knobs live in a `BPF_MAP_TYPE_ARRAY` config map `m2_cfg` (one slot, pinned,
 | `C_RATE_LIMITED` | skipped by the token bucket |
 | `C_RB_FULL` | `bpf_ringbuf_reserve` returned NULL (ring full: the reader is slow or stopped) |
 | `C_EMITTED` | submitted |
-| `C_DISCARDED` | reserved then discarded (expected 0) |
+| `C_DISCARDED` | reserved slot, never incremented (no discard call); always 0, kept so the slot layout is stable |
 
 Invariant the tests and `verify` check: `C_SEEN = C_SAMPLED_OUT + C_RATE_LIMITED + C_RB_FULL + C_EMITTED + C_DISCARDED` (exact per CPU at quiescence; within a small tolerance when read live). The reader counts `records_read` and per-CPU `seq_lo` gaps. `C_EMITTED − records_read` over a window is reader-side loss. Its slice 1b counterparts (`tcpdump` kernel drops, NIC `rx_dropped`) stay in `verify`.
 
@@ -100,10 +101,10 @@ Invariant the tests and `verify` check: `C_SEEN = C_SAMPLED_OUT + C_RATE_LIMITED
 
 Only one XDP program can hold the netlink slot on `eno1np0`. Slice 1b deliberately has no `overwrite`. So the records program **replaces** the observer for the trial. Slice 1c stays installed:
 
-1. **Load-only (Phase B, Paste A):** `bpftool prog loadall` into `/sys/fs/bpf/johnny/m1s2/` with **no attach**. It proves the verifier accepts the program on 7.0.0-42 and prints `LOADED prog_id=… map_ids=…`. Rollback: `rm -r` the pin dir. The observer stays attached the whole time.
+1. **Load-only (Phase B, Paste A):** `bpftool prog load … /sys/fs/bpf/johnny_m1s2/prog pinmaps /sys/fs/bpf/johnny_m1s2` (Phase C: one program, `prog load`, not `loadall`) with **no attach**. It proves the verifier accepts the program on 7.0.0-42 and prints `LOADED prog_id=…`. Rollback: unlink the seven named pins and `rmdir` (no `rm -r`). The observer stays attached the whole time.
 2. **Swap (separate paste, AJ go):** `systemctl stop johnny-capture-xdp.service`, the proven slice 1c `stop` path, which detaches only `j_xdp_observe`. Then `bpftool net attach xdpdrv pinned …/prog dev eno1np0` (native; refuses if the slot is occupied), with the same link, IRQ-pin and partition checks as slice 1b. The unit is left **enabled, inactive**. Capture has a gap of a few seconds; that is acceptable for a passive SPAN trial.
 3. **Reader run (separate paste):** bounded run (§8), then `verify` (counters invariant, `l3_diff=0 l4_diff=0`, IRQ pins unchanged, `ETHTOOL-DROP-DELTAS`).
-4. **Back to slice 1c (rollback, and also the default end of the trial):** detach `j_xdp_records` only if the attached id matches our pinned prog (same `detach_ours` rule as 1b; never detach a foreign id). Then `rm -r /sys/fs/bpf/johnny/m1s2/`, then `systemctl start johnny-capture-xdp.service` (its fail-closed `start` re-attaches the observer). End token: `OK-xdp-mode driver id=…` with the program name `j_xdp_observe`.
+4. **Back to slice 1c (rollback, and also the default end of the trial):** detach only if the attached id is the id behind our `prog` pin (`bpftool prog show pinned`; a same-name program without our pin is `STOP-xdp-records-unpinned`, not detached; never detach a foreign id). If ours is still attached after the detach step, the pins are **kept** (`KEEP-PINS`) so a later rollback can still prove ownership. Otherwise unlink the seven named pins and `rmdir /sys/fs/bpf/johnny_m1s2/`, then `systemctl start johnny-capture-xdp.service` (its fail-closed `start` re-attaches the observer). End token: `OK-xdp-mode driver id=…` with the program name `j_xdp_observe`.
 5. **A reboot is also a rollback.** The records attach is not persistent, so at boot slice 1c re-attaches the observer. The `bpffs` pins are gone after reboot too.
 
 **Explicit replacement** of slice 1c as the boot-time program (new unit or new helper mode, disabling `johnny-capture-xdp.service`) is **out of scope for slice 2**. It is a later slice (2b) that AJ must choose by name. Until then slice 2 does not edit the slice 1c unit, the slice 1c helper, `/root/m1s1b/*`, or `etc/systemd/system/johnny-capture-xdp.service`.
@@ -127,8 +128,8 @@ Only one XDP program can hold the netlink slot on `eno1np0`. Slice 1b deliberate
 **Phase B build pins (2026-11-08, rock-box, Ubuntu clang 22.1.8 (1ubuntu1)).** The object rebuilt byte for byte from the repo root and from a second checkout path; `bpftool gen skeleton` parsed it. The runbook copies these; a later change to any file needs a new pin and a new review.
 
 ```
-451247d8409396f35bf4454bfa8b44f2bc73b2197f97bb7c41818a9709f780e2  docs/tool-install/module1-xdp-records.o
-ac446e262ad151223784e8a17f41f70e198b25b8511bab73dfd4076f4286f760  docs/tool-install/module1_xdp_records.c
+a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  docs/tool-install/module1-xdp-records.o
+fa46115160c1aadc61fc4eb8027e9fa114347e90f4c67a28c4e664681e79053f  docs/tool-install/module1_xdp_records.c
 32dc159f01b42a4b7cf3906c6fd0d12535b85cf1a36262f30d6211e44cce38e2  docs/tool-install/johnny-m1s2-reader.py
 e43fc1e35ea7e88310bb32e24b9640abe495a2e7a3d3466dea50dfd6abb54d85  etc/systemd/system/johnny-m1s2-reader.service
 ```
@@ -136,17 +137,17 @@ e43fc1e35ea7e88310bb32e24b9640abe495a2e7a3d3466dea50dfd6abb54d85  etc/systemd/sy
 **Phase C final pins (2026-11-08)** supersede the unit pin above (capability fix) and add the helper and tests. The runbook § Final sha256 pins is the copy AJ's pastes use.
 
 ```
-451247d8409396f35bf4454bfa8b44f2bc73b2197f97bb7c41818a9709f780e2  docs/tool-install/module1-xdp-records.o
+a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  docs/tool-install/module1-xdp-records.o
 32dc159f01b42a4b7cf3906c6fd0d12535b85cf1a36262f30d6211e44cce38e2  docs/tool-install/johnny-m1s2-reader.py
 267c9bd63292adfd1c157b7476acd9872c535f406a77c50b5b46d8af799eba52  etc/systemd/system/johnny-m1s2-reader.service
-889cb3dbd32cce129fff6cc0d679bca29aab777a5f613d17611e3a9904eb1c83  docs/tool-install/module1-slice2-records.sh
-ac446e262ad151223784e8a17f41f70e198b25b8511bab73dfd4076f4286f760  docs/tool-install/module1_xdp_records.c
-f80fb7eea3ceac2e5bf22bb39a561c6e97969df6fc326d7a4a5786f773764f56  docs/tool-install/module1-slice2-host-test.c
+044a0868bf2f118a91e836909f09b5c2dc1a29700bd6114f05864daee0264d95  docs/tool-install/module1-slice2-records.sh
+fa46115160c1aadc61fc4eb8027e9fa114347e90f4c67a28c4e664681e79053f  docs/tool-install/module1_xdp_records.c
+54851655f6635fe2a7072aee8d8efb7f4982248bd98a0fbddb39c4f0f1998211  docs/tool-install/module1-slice2-host-test.c
 3ebfc1970fe66b4b78bbabd0af1aa485a42a60fb65e7c6259ee7e145a304f63a  docs/tool-install/module1-slice2-reader-test.py
 ```
 
 **rock-box self-test `module1-slice2-self-test.sh` → `SELF-TEST-OK`** (no Johnny, no sudo):
-- Source and disassembly: exactly one `return XDP_PASS`; every `r0` constant before `exit` is 2; only helpers {1, 5, 131, 132, 133}; no forbidden words outside comments (`XDP_DROP`, `XDP_TX`, `REDIRECT`, `ABORTED`, `adjust`, `tail_call`, `probe_read`, `ringbuf_output`, `prandom`).
+- Source and disassembly: exactly one `return XDP_PASS`; every `r0` constant before `exit` is 2; only helpers {1, 5, 131, 132}; no forbidden words outside comments (`XDP_DROP`, `XDP_TX`, `REDIRECT`, `ABORTED`, `adjust`, `tail_call`, `probe_read`, `ringbuf_output`, `prandom`).
 - Slice 1b enum and name table unchanged (`ENUM-ORDER-OK`); the `m2_ctl` slot order matches the script name table.
 - **Layout:** `module1-slice2-host-test.c` is built with host clang. It includes the same struct header and asserts `sizeof == 80` and every `offsetof`, and it prints the Python `struct` format, which must equal the reader's. It also runs the parse logic on crafted frames (short Ethernet, 2 VLAN, IPv4 IHL < 5, IPv4 fragment, IPv6 with ext header, TCP, UDP, ICMP, ARP) and checks the record fields. **[Assumption]** the parse is factored so the same C compiles for both BPF and host.
 - **Object parse:** `bpftool gen object` / `btf dump` on the `.o`: map types and sizes (ringbuf 4 MiB, page-aligned power of 2), section `xdp`, license GPL.

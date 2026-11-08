@@ -26,12 +26,12 @@ CORES=$ROOT/etc/johnny/capture-cores
 DOC=$TI/module1-slice2-ringbuf.md
 SELF=$TI/module1-slice2-self-test.sh
 
-WANT_OBJ_SHA=451247d8409396f35bf4454bfa8b44f2bc73b2197f97bb7c41818a9709f780e2
-WANT_SRC_SHA=ac446e262ad151223784e8a17f41f70e198b25b8511bab73dfd4076f4286f760
+WANT_OBJ_SHA=a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481
+WANT_SRC_SHA=fa46115160c1aadc61fc4eb8027e9fa114347e90f4c67a28c4e664681e79053f
 WANT_READER_SHA=32dc159f01b42a4b7cf3906c6fd0d12535b85cf1a36262f30d6211e44cce38e2
 WANT_UNIT_SHA=267c9bd63292adfd1c157b7476acd9872c535f406a77c50b5b46d8af799eba52
-WANT_REC_SHA=889cb3dbd32cce129fff6cc0d679bca29aab777a5f613d17611e3a9904eb1c83
-WANT_HOST_TEST_SHA=f80fb7eea3ceac2e5bf22bb39a561c6e97969df6fc326d7a4a5786f773764f56
+WANT_REC_SHA=044a0868bf2f118a91e836909f09b5c2dc1a29700bd6114f05864daee0264d95
+WANT_HOST_TEST_SHA=54851655f6635fe2a7072aee8d8efb7f4982248bd98a0fbddb39c4f0f1998211
 WANT_READER_TEST_SHA=3ebfc1970fe66b4b78bbabd0af1aa485a42a60fb65e7c6259ee7e145a304f63a
 WANT_LIB_SHA=f78ca14ed226a37e23ee239d65ba183e3c8b5a541369326c73fff4b61ea4cc58
 WANT_C1_BOOT_SHA=a501dbb7c49a611dd230f7c4fa09d6c1a7f8923f7302459180a197625ccc8c06
@@ -149,8 +149,8 @@ has "BPF ELF" "$dis" "file format elf64-bpf"
 calls=$(grep -oE '(^|[[:space:]])call 0x[0-9a-f]+$' <<<"$dis" | awk '{print $2}' | sort -u | tr '\n' ' ' | sed 's/ $//')
 for c in $calls; do
   case "$c" in
-    0x1 | 0x5 | 0x83 | 0x84 | 0x85) ;;
-    *) fail "helper $c outside the allowlist {1, 5, 131, 132, 133}" ;;
+    0x1 | 0x5 | 0x83 | 0x84) ;;
+    *) fail "helper $c outside the allowlist {1, 5, 131, 132}" ;;
   esac
 done
 lacks "no bpf-to-bpf calls" "$dis" "call -"
@@ -321,11 +321,16 @@ p = []
 if sys.argv[1] == "1": p.append({"id": 500, "type": "xdp", "name": "j_xdp_observe"})
 if sys.argv[2] == "1": p.append({"id": 900, "type": "xdp", "name": "j_xdp_records"})
 if sys.argv[3] == "1": p.append({"id": 777, "type": "xdp", "name": "evil"})
+if sys.argv[4] == "1": p.append({"id": 901, "type": "xdp", "name": "j_xdp_records"})
 p.append({"id": 3, "type": "cgroup_skb", "name": "x"})
 print(json.dumps(p))' \
             "$(grep -q '^driver 500$' "$W_/attached" && echo 1 || echo 0)" \
             "$(rec_loaded && echo 1 || echo 0)" \
-            "$(grep -q ' 777$' "$W_/attached" && echo 1 || echo 0)"
+            "$(grep -q ' 777$' "$W_/attached" && echo 1 || echo 0)" \
+            "$(grep -q ' 901$' "$W_/attached" && echo 1 || echo 0)"
+          ;;
+        "-j prog show pinned $PIN_DIR/prog")
+          echo '{"id": 900, "type": "xdp", "name": "j_xdp_records"}'
           ;;
         "prog load "*)
           [ -e "$W_/verifier-refuses" ] && { echo "libbpf: verifier says no" >&2; return 255; }
@@ -336,7 +341,9 @@ print(json.dumps(p))' \
           [ -e "$W_/foreign-grabs-slot" ] && { echo "generic 777" >"$W_/attached"; return 255; }
           echo "driver 900" >"$W_/attached"
           ;;
-        "net detach xdpdrv dev "*) : >"$W_/attached" ;;
+        "net detach xdpdrv dev "*)
+          [ -e "$W_/detach-fails" ] && { echo "Error: detach refused" >&2; return 255; }
+          : >"$W_/attached" ;;
         "net detach xdpgeneric dev "*) : >"$W_/attached" ;;
         *) echo "FAKE-BPFTOOL-UNEXPECTED $*" >&2; return 99 ;;
       esac
@@ -344,6 +351,7 @@ print(json.dumps(p))' \
     unit_active() {
       case "$1" in
         "$C1_UNIT") cat "$W_/c1" ;;
+        "$R_UNIT") if [ -e "$W_/reader-hangs" ] && [ -e "$W_/reader-started" ] && [ ! -e "$W_/reader-stopped" ]; then echo active; else echo inactive; fi ;;
         *) echo inactive ;;
       esac
     }
@@ -355,7 +363,9 @@ print(json.dumps(p))' \
           [ -e "$W_/c1-missing" ] && return 5
           [ -s "$W_/attached" ] && { echo failed >"$W_/c1"; return 1; }
           echo "driver 500" >"$W_/attached"; echo active >"$W_/c1" ;;
-        "reset-failed "* | "start $R_UNIT" | "stop $R_UNIT") ;;
+        "stop $R_UNIT") : >"$W_/reader-stopped" ;;
+        "start $R_UNIT") : >"$W_/reader-started" ;;
+        "reset-failed "*) ;;
         "show -p")
           case "$3" in
             InvocationID) echo 0123456789abcdef0123456789abcdef ;;
@@ -460,6 +470,25 @@ has noop "$E2E_OUT" PINS-ABSENT; lacks noop "$E2E_OUT" DETACHED; attached_is rol
 e2e rollback-foreign rollback 'echo "driver 777" >"$W_/attached"; echo inactive >"$W_/c1"'
 e2e_stops rollback-foreign; has rbf "$E2E_OUT" "STOP-xdp-foreign mode=driver id=777"; has rbf "$E2E_OUT" M1S2-ROLLBACK-STOPS
 attached_is rollback-foreign "driver 777"
+
+# Detach fails: our pins stay so the next rollback can still prove and detach id 900.
+e2e rollback-detach-fails rollback "$pre_swapped"'; touch "$W_/detach-fails"'
+e2e_stops rollback-detach-fails; has rbd "$E2E_OUT" "STOP-detach-failed mode=driver id=900"
+has rbd "$E2E_OUT" "STOP-records-still-attached id=900"; has rbd "$E2E_OUT" KEEP-PINS; lacks rbd "$E2E_OUT" PINS-REMOVED
+attached_is rollback-detach-fails "driver 900"; [ -e "$E2E_W/pins/prog" ] || fail "E2E detach-fails removed pins"
+
+# A same-name program that is not behind our pin is not ours: not detached.
+e2e rollback-same-name rollback 'echo "driver 901" >"$W_/attached"; echo inactive >"$W_/c1"'
+e2e_stops rollback-same-name; has rbn "$E2E_OUT" "STOP-xdp-records-unpinned mode=driver id=901"
+lacks rbn "$E2E_OUT" DETACHED; attached_is rollback-same-name "driver 901"
+
+e2e status-same-name status 'echo "driver 901" >"$W_/attached"; echo inactive >"$W_/c1"'
+has stn "$E2E_OUT" "ATTACH other driver 901"; n=$((n + 1))
+
+# Reader still active after the wait: the helper stops it before failing.
+e2e read-overran read "$pre_swapped"'; touch "$W_/reader-hangs"'
+e2e_stops read-overran; has ovr "$E2E_OUT" READER-STOPPED; has ovr "$E2E_OUT" STOP-reader-overran
+[ -e "$E2E_W/reader-stopped" ] || fail "E2E read-overran did not stop the reader"
 
 e2e rollback-c1-missing rollback "$pre_swapped"'; touch "$W_/c1-missing"'
 e2e_stops rollback-c1-missing; has rbc "$E2E_OUT" STOP-c1-start-failed; has rbc "$E2E_OUT" M1S2-ROLLBACK-STOPS

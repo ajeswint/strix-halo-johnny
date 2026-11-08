@@ -19,7 +19,10 @@
  * whose length depends on the frame. The farthest any read goes is: the
  * Ethernet header, up to two VLAN tags, the fixed 20-byte IPv4 / 40-byte IPv6
  * header, and at the L4 offset at most 14 bytes (TCP: ports and the flags
- * byte 13; UDP: ports; ICMP/ICMPv6: type and code). IPv4 options, IPv6
+ * byte 13; UDP: ports; ICMP/ICMPv6: type and code). The L4 read must also
+ * fit inside the IP packet's declared length (IPv4 tot_len - IHL*4, IPv6
+ * payload_len), not only inside data_end: bytes after the declared end are
+ * Ethernet padding or trailing junk and are never read. IPv4 options, IPv6
  * extension headers, ICMP bodies (which embed an original datagram), and any
  * byte past the L4 fields above are never read. A non-first IPv4 fragment has
  * no L4 header, so its L4 fields stay zero (reading them would read payload).
@@ -118,8 +121,8 @@ enum {
 #define ST_CPU RXQ_MAX
 
 /* m2_rec.flags */
-#define F_TRUNC_L3 0x01 /* Ethernet / VLAN / fixed IP header cut short, or IP version / IHL invalid */
-#define F_TRUNC_L4 0x02 /* L4 header expected but cut short */
+#define F_TRUNC_L3 0x01 /* Ethernet / VLAN / fixed IP header cut short, IP version / IHL invalid, or IPv4 tot_len < IHL*4 */
+#define F_TRUNC_L4 0x02 /* L4 header expected but cut short by data_end or by the declared IP length */
 #define F_FRAG 0x04 /* IPv4 fragment (MF set or offset != 0) */
 #define F_IP6_EXT 0x08 /* IPv6 next header is an extension header; not walked, no L4 */
 #define F_VLAN 0x10 /* at least one VLAN tag */
@@ -141,7 +144,7 @@ struct m2_rec {
 	__u8 dst_ip[16]; /* 48 */
 	__u8 l4_proto; /* 64 IPv4 protocol / IPv6 next header (not walked) */
 	__u8 ttl_hlim; /* 65 */
-	__u16 l3_len; /* 66 IPv4 total length / IPv6 payload length + 40 (capped) */
+	__u16 l3_len; /* 66 IPv4 tot_len / IPv6 payload_len + 40, saturated at 0xffff (payload_len > 65495) */
 	__u16 sport; /* 68 TCP/UDP source port; ICMP/ICMPv6: type << 8 | code */
 	__u16 dport; /* 70 TCP/UDP destination port */
 	__u8 tcp_flags; /* 72 TCP header byte 13 */
@@ -329,14 +332,16 @@ static __always_inline void copy16(__u8 *dst, const __u8 *src)
 
 /*
  * L4 fields at p. Called only when an L4 header is there (not a non-first
- * fragment, not an extension header). Reads at most 14 bytes from p.
+ * fragment, not an extension header). Reads at most 14 bytes from p, and only
+ * when they fit both before data_end and inside avail, the bytes the IP header
+ * declares from p onward. A short declared length is F_TRUNC_L4, not a read.
  */
-static __always_inline void parse_l4(struct m2_rec *r, void *p, void *data_end)
+static __always_inline void parse_l4(struct m2_rec *r, void *p, void *data_end, __u32 avail)
 {
 	__u8 *b = p;
 
 	if (r->l4_proto == 6) {
-		if ((void *)(b + 14) > data_end) {
+		if (avail < 14 || (void *)(b + 14) > data_end) {
 			r->flags |= F_TRUNC_L4;
 			return;
 		}
@@ -344,7 +349,7 @@ static __always_inline void parse_l4(struct m2_rec *r, void *p, void *data_end)
 		r->dport = (__u16)((b[2] << 8) | b[3]);
 		r->tcp_flags = b[13];
 	} else if (r->l4_proto == 17) {
-		if ((void *)(b + 4) > data_end) {
+		if (avail < 4 || (void *)(b + 4) > data_end) {
 			r->flags |= F_TRUNC_L4;
 			return;
 		}
@@ -353,7 +358,7 @@ static __always_inline void parse_l4(struct m2_rec *r, void *p, void *data_end)
 	} else if (r->l4_proto == 1 || r->l4_proto == 58) {
 		/* ICMP in IPv4, ICMPv6 in IPv6 (the caller only gets 58 from IPv6
 		 * and 1 from IPv4 in practice; either way only type and code). */
-		if ((void *)(b + 2) > data_end) {
+		if (avail < 2 || (void *)(b + 2) > data_end) {
 			r->flags |= F_TRUNC_L4;
 			return;
 		}
@@ -364,7 +369,7 @@ static __always_inline void parse_l4(struct m2_rec *r, void *p, void *data_end)
 static __always_inline void parse_ip4(struct m2_rec *r, void *p, void *data_end)
 {
 	struct ip4_hdr *ip = p;
-	__u32 ihl;
+	__u32 ihl, tot;
 	__u16 fo;
 
 	if ((void *)(ip + 1) > data_end) {
@@ -376,13 +381,16 @@ static __always_inline void parse_ip4(struct m2_rec *r, void *p, void *data_end)
 	bump(K_IPV4, 1);
 	bump_l4(ip->protocol);
 
-	r->l3_len = BE16(ip->tot_len);
+	tot = BE16(ip->tot_len);
+	r->l3_len = (__u16)tot;
 	r->ttl_hlim = ip->ttl;
 	r->l4_proto = ip->protocol;
 	copy4(r->src_ip, ip->saddr);
 	copy4(r->dst_ip, ip->daddr);
 	ihl = ip->ver_ihl & 0x0f;
-	if ((ip->ver_ihl >> 4) != 4 || ihl < 5) {
+	if ((ip->ver_ihl >> 4) != 4 || ihl < 5 || tot < ihl * 4) {
+		/* Bad version, IHL < 5, or a declared total shorter than the header:
+		 * no L4 offset can be trusted, so no L4 read. */
 		r->flags |= F_TRUNC_L3;
 		return;
 	}
@@ -392,13 +400,13 @@ static __always_inline void parse_ip4(struct m2_rec *r, void *p, void *data_end)
 	if (fo & 0x1fff) /* non-first fragment: no L4 header */
 		return;
 	/* ihl is 5..15, so the L4 offset is 20..60 bytes: options are skipped, not read. */
-	parse_l4(r, (__u8 *)p + ihl * 4, data_end);
+	parse_l4(r, (__u8 *)p + ihl * 4, data_end, tot - ihl * 4);
 }
 
 static __always_inline void parse_ip6(struct m2_rec *r, void *p, void *data_end)
 {
 	struct ip6_hdr *ip6 = p;
-	__u32 len;
+	__u32 plen, len;
 	__u8 nh;
 
 	if ((void *)(ip6 + 1) > data_end) {
@@ -409,7 +417,10 @@ static __always_inline void parse_ip6(struct m2_rec *r, void *p, void *data_end)
 	bump(K_IPV6, 1);
 	bump_l4(ip6->nexthdr);
 
-	len = (__u32)BE16(ip6->payload_len) + 40;
+	plen = BE16(ip6->payload_len);
+	/* Declared size is 40..65575; the u16 field saturates at 0xffff, so any
+	 * payload_len > 65495 reads back as 65535. The L4 bound uses plen. */
+	len = plen + 40;
 	r->l3_len = len > 0xffff ? 0xffff : (__u16)len;
 	r->ttl_hlim = ip6->hop_limit;
 	nh = ip6->nexthdr;
@@ -427,7 +438,7 @@ static __always_inline void parse_ip6(struct m2_rec *r, void *p, void *data_end)
 		r->flags |= F_IP6_EXT;
 		return;
 	}
-	parse_l4(r, ip6 + 1, data_end);
+	parse_l4(r, ip6 + 1, data_end, plen);
 }
 
 /*

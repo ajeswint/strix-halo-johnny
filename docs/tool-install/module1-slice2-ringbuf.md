@@ -23,23 +23,24 @@ Design: `docs/tool-install/module1-slice2-ringbuf-design.md` (the "design"). Thi
 2. **Pin dir is `/sys/fs/bpf/johnny_m1s2`** (one level; design §6 said `/sys/fs/bpf/johnny/m1s2/`). One `mkdir` that fails if it exists, and nothing else under `/sys/fs/bpf` is created or touched.
 3. **`RestrictAddressFamilies=none`** (design said `AF_UNIX`). The reader opens no socket at all; journal output goes to the stdout stream systemd hands it.
 4. Pins: `prog m1_rxq m1_stats m2_cfg m2_ctl m2_rb m2_state`. Only `m2_rb` is writable inside the reader sandbox (consumer page).
+5. **Review nits (2026-11-08, PR #30 review).** L4 reads are bounded by the declared IP length as well as `data_end` (IPv4 `tot_len` < IHL*4 is truncated-L3; an L4 header past the declared end is truncated-L4); IPv6 `l3_len` saturation at 65535 is documented; rollback ownership is the id behind our `prog` pin, and pins are kept when ours is still attached; `read` stops an overran reader; `bpf_ringbuf_discard` (133) dropped from the design and the allowlist.
 
 ## Final sha256 pins (Phase C)
 
 Deployables (copied to Johnny):
 
 ```
-451247d8409396f35bf4454bfa8b44f2bc73b2197f97bb7c41818a9709f780e2  docs/tool-install/module1-xdp-records.o
+a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  docs/tool-install/module1-xdp-records.o
 32dc159f01b42a4b7cf3906c6fd0d12535b85cf1a36262f30d6211e44cce38e2  docs/tool-install/johnny-m1s2-reader.py
 267c9bd63292adfd1c157b7476acd9872c535f406a77c50b5b46d8af799eba52  etc/systemd/system/johnny-m1s2-reader.service
-889cb3dbd32cce129fff6cc0d679bca29aab777a5f613d17611e3a9904eb1c83  docs/tool-install/module1-slice2-records.sh
+044a0868bf2f118a91e836909f09b5c2dc1a29700bd6114f05864daee0264d95  docs/tool-install/module1-slice2-records.sh
 ```
 
 Sources and tests (rock-box only):
 
 ```
-ac446e262ad151223784e8a17f41f70e198b25b8511bab73dfd4076f4286f760  docs/tool-install/module1_xdp_records.c
-f80fb7eea3ceac2e5bf22bb39a561c6e97969df6fc326d7a4a5786f773764f56  docs/tool-install/module1-slice2-host-test.c
+fa46115160c1aadc61fc4eb8027e9fa114347e90f4c67a28c4e664681e79053f  docs/tool-install/module1_xdp_records.c
+54851655f6635fe2a7072aee8d8efb7f4982248bd98a0fbddb39c4f0f1998211  docs/tool-install/module1-slice2-host-test.c
 3ebfc1970fe66b4b78bbabd0af1aa485a42a60fb65e7c6259ee7e145a304f63a  docs/tool-install/module1-slice2-reader-test.py
 ```
 
@@ -71,17 +72,17 @@ No paste in this runbook is typed on Johnny. Every paste is labeled `***<u>Run o
 
 ```bash
 cd /home/aj/Projects/strix-halo-johnny-slice2 &&
-echo "451247d8409396f35bf4454bfa8b44f2bc73b2197f97bb7c41818a9709f780e2  docs/tool-install/module1-xdp-records.o
+echo "a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  docs/tool-install/module1-xdp-records.o
 32dc159f01b42a4b7cf3906c6fd0d12535b85cf1a36262f30d6211e44cce38e2  docs/tool-install/johnny-m1s2-reader.py
 267c9bd63292adfd1c157b7476acd9872c535f406a77c50b5b46d8af799eba52  etc/systemd/system/johnny-m1s2-reader.service
-889cb3dbd32cce129fff6cc0d679bca29aab777a5f613d17611e3a9904eb1c83  docs/tool-install/module1-slice2-records.sh
-ac446e262ad151223784e8a17f41f70e198b25b8511bab73dfd4076f4286f760  docs/tool-install/module1_xdp_records.c
-f80fb7eea3ceac2e5bf22bb39a561c6e97969df6fc326d7a4a5786f773764f56  docs/tool-install/module1-slice2-host-test.c
+044a0868bf2f118a91e836909f09b5c2dc1a29700bd6114f05864daee0264d95  docs/tool-install/module1-slice2-records.sh
+fa46115160c1aadc61fc4eb8027e9fa114347e90f4c67a28c4e664681e79053f  docs/tool-install/module1_xdp_records.c
+54851655f6635fe2a7072aee8d8efb7f4982248bd98a0fbddb39c4f0f1998211  docs/tool-install/module1-slice2-host-test.c
 3ebfc1970fe66b4b78bbabd0af1aa485a42a60fb65e7c6259ee7e145a304f63a  docs/tool-install/module1-slice2-reader-test.py" | sha256sum -c - &&
 bash docs/tool-install/module1-slice2-self-test.sh
 ```
 
-Expect seven `OK` lines, `PINS-OK`, `SHELLCHECK-OK`, `ENUM-ORDER-OK`, `OK-rebuild-reproducible`, `OBJECT-DISASM-OK`, `OBJECT-LIBBPF-PARSE-OK`, `HOST-TEST-OK cases=36`, `READER-TEST-OK cases=22`, `READER-STATIC-OK`, `UNIT-STATIC-OK`, `HELPER-STATIC-OK`, `E2E-OK scenarios=19`, `RUNBOOK-OK blocks=12`, and **`SELF-TEST-OK`**.
+Expect seven `OK` lines, `PINS-OK`, `SHELLCHECK-OK`, `ENUM-ORDER-OK`, `OK-rebuild-reproducible`, `OBJECT-DISASM-OK`, `OBJECT-LIBBPF-PARSE-OK`, `HOST-TEST-OK cases=44`, `READER-TEST-OK cases=22`, `READER-STATIC-OK`, `UNIT-STATIC-OK`, `HELPER-STATIC-OK`, `E2E-OK scenarios=23`, `RUNBOOK-OK blocks=12`, and **`SELF-TEST-OK`**.
 
 ### Paste 2: Copy the four deployables to Johnny (no sudo)
 
@@ -90,10 +91,10 @@ Expect seven `OK` lines, `PINS-OK`, `SHELLCHECK-OK`, `ENUM-ORDER-OK`, `OK-rebuil
 ```bash
 ssh aj@192.168.50.152 'mkdir -p -m 0700 /home/aj/cis-audit/m1s2' &&
 scp /home/aj/Projects/strix-halo-johnny-slice2/docs/tool-install/module1-xdp-records.o /home/aj/Projects/strix-halo-johnny-slice2/docs/tool-install/johnny-m1s2-reader.py /home/aj/Projects/strix-halo-johnny-slice2/etc/systemd/system/johnny-m1s2-reader.service /home/aj/Projects/strix-halo-johnny-slice2/docs/tool-install/module1-slice2-records.sh aj@192.168.50.152:/home/aj/cis-audit/m1s2/ &&
-ssh aj@192.168.50.152 'cd /home/aj/cis-audit/m1s2 && echo "451247d8409396f35bf4454bfa8b44f2bc73b2197f97bb7c41818a9709f780e2  module1-xdp-records.o
+ssh aj@192.168.50.152 'cd /home/aj/cis-audit/m1s2 && echo "a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  module1-xdp-records.o
 32dc159f01b42a4b7cf3906c6fd0d12535b85cf1a36262f30d6211e44cce38e2  johnny-m1s2-reader.py
 267c9bd63292adfd1c157b7476acd9872c535f406a77c50b5b46d8af799eba52  johnny-m1s2-reader.service
-889cb3dbd32cce129fff6cc0d679bca29aab777a5f613d17611e3a9904eb1c83  module1-slice2-records.sh" | sha256sum -c - && echo M1S2-COPY-DONE'
+044a0868bf2f118a91e836909f09b5c2dc1a29700bd6114f05864daee0264d95  module1-slice2-records.sh" | sha256sum -c - && echo M1S2-COPY-DONE'
 ```
 
 Expect four `OK` lines and **`M1S2-COPY-DONE`**.
@@ -105,7 +106,7 @@ Expect four `OK` lines and **`M1S2-COPY-DONE`**.
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
 cd /home/aj/cis-audit/m1s2 &&
-echo "889cb3dbd32cce129fff6cc0d679bca29aab777a5f613d17611e3a9904eb1c83  module1-slice2-records.sh" | sha256sum -c - &&
+echo "044a0868bf2f118a91e836909f09b5c2dc1a29700bd6114f05864daee0264d95  module1-slice2-records.sh" | sha256sum -c - &&
 sudo bash /home/aj/cis-audit/m1s2/module1-slice2-records.sh probe'
 ```
 
@@ -118,10 +119,10 @@ Expect `OK-lib-hash`, `OK-c1-helper-hash`, `OK-c1-unit-hash`, `C1-UNIT enabled=e
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
 cd /home/aj/cis-audit/m1s2 &&
-echo "451247d8409396f35bf4454bfa8b44f2bc73b2197f97bb7c41818a9709f780e2  module1-xdp-records.o
+echo "a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  module1-xdp-records.o
 32dc159f01b42a4b7cf3906c6fd0d12535b85cf1a36262f30d6211e44cce38e2  johnny-m1s2-reader.py
 267c9bd63292adfd1c157b7476acd9872c535f406a77c50b5b46d8af799eba52  johnny-m1s2-reader.service
-889cb3dbd32cce129fff6cc0d679bca29aab777a5f613d17611e3a9904eb1c83  module1-slice2-records.sh" | sha256sum -c - &&
+044a0868bf2f118a91e836909f09b5c2dc1a29700bd6114f05864daee0264d95  module1-slice2-records.sh" | sha256sum -c - &&
 sudo test ! -e /root/m1s2 &&
 sudo test ! -e /etc/systemd/system/johnny-m1s2-reader.service &&
 sudo install -d -m 0700 -o root -g root /root/m1s2 &&
@@ -130,8 +131,8 @@ sudo install -m 0600 -o root -g root module1-xdp-records.o /root/m1s2/module1-xd
 sudo mkdir -p -m 0755 /usr/local/libexec/johnny &&
 sudo install -m 0644 -o root -g root johnny-m1s2-reader.py /usr/local/libexec/johnny/johnny-m1s2-reader.py &&
 sudo install -m 0644 -o root -g root johnny-m1s2-reader.service /etc/systemd/system/johnny-m1s2-reader.service &&
-echo "889cb3dbd32cce129fff6cc0d679bca29aab777a5f613d17611e3a9904eb1c83  /root/m1s2/module1-slice2-records.sh
-451247d8409396f35bf4454bfa8b44f2bc73b2197f97bb7c41818a9709f780e2  /root/m1s2/module1-xdp-records.o
+echo "044a0868bf2f118a91e836909f09b5c2dc1a29700bd6114f05864daee0264d95  /root/m1s2/module1-slice2-records.sh
+a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  /root/m1s2/module1-xdp-records.o
 32dc159f01b42a4b7cf3906c6fd0d12535b85cf1a36262f30d6211e44cce38e2  /usr/local/libexec/johnny/johnny-m1s2-reader.py
 267c9bd63292adfd1c157b7476acd9872c535f406a77c50b5b46d8af799eba52  /etc/systemd/system/johnny-m1s2-reader.service" | sudo sha256sum -c - &&
 sudo systemctl daemon-reload &&
@@ -148,8 +149,8 @@ Expect four `OK` lines twice, `ATTACH observer …`, `C1-UNIT enabled=enabled ac
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "889cb3dbd32cce129fff6cc0d679bca29aab777a5f613d17611e3a9904eb1c83  /root/m1s2/module1-slice2-records.sh
-451247d8409396f35bf4454bfa8b44f2bc73b2197f97bb7c41818a9709f780e2  /root/m1s2/module1-xdp-records.o
+echo "044a0868bf2f118a91e836909f09b5c2dc1a29700bd6114f05864daee0264d95  /root/m1s2/module1-slice2-records.sh
+a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  /root/m1s2/module1-xdp-records.o
 32dc159f01b42a4b7cf3906c6fd0d12535b85cf1a36262f30d6211e44cce38e2  /usr/local/libexec/johnny/johnny-m1s2-reader.py
 267c9bd63292adfd1c157b7476acd9872c535f406a77c50b5b46d8af799eba52  /etc/systemd/system/johnny-m1s2-reader.service" | sudo sha256sum -c - &&
 sudo bash /root/m1s2/module1-slice2-records.sh load'
@@ -163,8 +164,8 @@ Expect `OK-observer driver id=…`, `CFG ver=0 …`, `LOADED prog_id=… (verifi
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "889cb3dbd32cce129fff6cc0d679bca29aab777a5f613d17611e3a9904eb1c83  /root/m1s2/module1-slice2-records.sh
-451247d8409396f35bf4454bfa8b44f2bc73b2197f97bb7c41818a9709f780e2  /root/m1s2/module1-xdp-records.o
+echo "044a0868bf2f118a91e836909f09b5c2dc1a29700bd6114f05864daee0264d95  /root/m1s2/module1-slice2-records.sh
+a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  /root/m1s2/module1-xdp-records.o
 32dc159f01b42a4b7cf3906c6fd0d12535b85cf1a36262f30d6211e44cce38e2  /usr/local/libexec/johnny/johnny-m1s2-reader.py
 267c9bd63292adfd1c157b7476acd9872c535f406a77c50b5b46d8af799eba52  /etc/systemd/system/johnny-m1s2-reader.service" | sudo sha256sum -c - &&
 sudo bash /root/m1s2/module1-slice2-records.sh swap'
@@ -178,14 +179,14 @@ Expect `OK-irq-baseline …`, `SWAP-BEGIN observer=… records=…`, `OK-c1-stop
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "889cb3dbd32cce129fff6cc0d679bca29aab777a5f613d17611e3a9904eb1c83  /root/m1s2/module1-slice2-records.sh
-451247d8409396f35bf4454bfa8b44f2bc73b2197f97bb7c41818a9709f780e2  /root/m1s2/module1-xdp-records.o
+echo "044a0868bf2f118a91e836909f09b5c2dc1a29700bd6114f05864daee0264d95  /root/m1s2/module1-slice2-records.sh
+a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  /root/m1s2/module1-xdp-records.o
 32dc159f01b42a4b7cf3906c6fd0d12535b85cf1a36262f30d6211e44cce38e2  /usr/local/libexec/johnny/johnny-m1s2-reader.py
 267c9bd63292adfd1c157b7476acd9872c535f406a77c50b5b46d8af799eba52  /etc/systemd/system/johnny-m1s2-reader.service" | sudo sha256sum -c - &&
 sudo bash /root/m1s2/module1-slice2-records.sh read'
 ```
 
-Takes about 60 s. Expect `READER-STARTED invocation=…`, `M1S2-READER-END reason=max-seconds records=… bytes=…` (or `reason=max-records` / `max-bytes`), `READER-RESULT success`, `RUN-FILE /var/lib/johnny/m1s2/run-….bin mode=600 0:0 dir=700 0:0`, the summary (counts, per-queue totals, top 5 talkers), and **`M1S2-READ-DONE`**. The records program stays attached; a STOP here changes nothing (run Paste 9 or Rollback R1 next).
+Takes about 60 s. Expect `READER-STARTED invocation=…`, `M1S2-READER-END reason=max-seconds records=… bytes=…` (or `reason=max-records` / `max-bytes`), `READER-RESULT success`, `RUN-FILE /var/lib/johnny/m1s2/run-….bin mode=600 0:0 dir=700 0:0`, the summary (counts, per-queue totals, top 5 talkers), and **`M1S2-READ-DONE`**. The records program stays attached; a STOP here changes nothing (run Paste 9 or Rollback R1 next), except `STOP-reader-overran`: the helper first stops the still-running reader unit (`READER-STOPPED`) rather than leaving it to `RuntimeMaxSec`.
 
 ### Paste 8: Verify (read-only)
 
@@ -193,8 +194,8 @@ Takes about 60 s. Expect `READER-STARTED invocation=…`, `M1S2-READER-END reaso
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "889cb3dbd32cce129fff6cc0d679bca29aab777a5f613d17611e3a9904eb1c83  /root/m1s2/module1-slice2-records.sh
-451247d8409396f35bf4454bfa8b44f2bc73b2197f97bb7c41818a9709f780e2  /root/m1s2/module1-xdp-records.o
+echo "044a0868bf2f118a91e836909f09b5c2dc1a29700bd6114f05864daee0264d95  /root/m1s2/module1-slice2-records.sh
+a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  /root/m1s2/module1-xdp-records.o
 32dc159f01b42a4b7cf3906c6fd0d12535b85cf1a36262f30d6211e44cce38e2  /usr/local/libexec/johnny/johnny-m1s2-reader.py
 267c9bd63292adfd1c157b7476acd9872c535f406a77c50b5b46d8af799eba52  /etc/systemd/system/johnny-m1s2-reader.service" | sudo sha256sum -c - &&
 sudo bash /root/m1s2/module1-slice2-records.sh verify'
@@ -208,8 +209,8 @@ Expect, at both `verify-start` and `verify-end`: `OK-xdp-mode driver id=… j_xd
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "889cb3dbd32cce129fff6cc0d679bca29aab777a5f613d17611e3a9904eb1c83  /root/m1s2/module1-slice2-records.sh
-451247d8409396f35bf4454bfa8b44f2bc73b2197f97bb7c41818a9709f780e2  /root/m1s2/module1-xdp-records.o
+echo "044a0868bf2f118a91e836909f09b5c2dc1a29700bd6114f05864daee0264d95  /root/m1s2/module1-slice2-records.sh
+a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  /root/m1s2/module1-xdp-records.o
 32dc159f01b42a4b7cf3906c6fd0d12535b85cf1a36262f30d6211e44cce38e2  /usr/local/libexec/johnny/johnny-m1s2-reader.py
 267c9bd63292adfd1c157b7476acd9872c535f406a77c50b5b46d8af799eba52  /etc/systemd/system/johnny-m1s2-reader.service
 a501dbb7c49a611dd230f7c4fa09d6c1a7f8923f7302459180a197625ccc8c06  /root/m1s1b/module1-slice1c-boot.sh" | sudo sha256sum -c - &&
@@ -230,11 +231,11 @@ These blocks are run only when AJ chooses. A reboot is also a full return to sli
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "889cb3dbd32cce129fff6cc0d679bca29aab777a5f613d17611e3a9904eb1c83  /root/m1s2/module1-slice2-records.sh" | sudo sha256sum -c - &&
+echo "044a0868bf2f118a91e836909f09b5c2dc1a29700bd6114f05864daee0264d95  /root/m1s2/module1-slice2-records.sh" | sudo sha256sum -c - &&
 sudo bash /root/m1s2/module1-slice2-records.sh rollback'
 ```
 
-Ends **`M1S2-ROLLBACK-DONE`**. With nothing of ours loaded it prints `KEEP-observer …`, `PINS-ABSENT`, `C1-ALREADY-ACTIVE` and changes nothing. A foreign XDP id is never detached (`STOP-xdp-foreign`, then `M1S2-ROLLBACK-STOPS`).
+Ends **`M1S2-ROLLBACK-DONE`**. With nothing of ours loaded it prints `KEEP-observer …`, `PINS-ABSENT`, `C1-ALREADY-ACTIVE` and changes nothing. A foreign XDP id is never detached (`STOP-xdp-foreign`, then `M1S2-ROLLBACK-STOPS`). Ownership is the id behind `/sys/fs/bpf/johnny_m1s2/prog`, not the name: a `j_xdp_records` without our pin is `STOP-xdp-records-unpinned` and is not detached. If our program is still attached after the detach step, the pins stay (`KEEP-PINS`) so R1 can be rerun.
 
 ### R2: Uninstall the slice 2 files (runs R1 first)
 
@@ -242,7 +243,7 @@ Ends **`M1S2-ROLLBACK-DONE`**. With nothing of ours loaded it prints `KEEP-obser
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "889cb3dbd32cce129fff6cc0d679bca29aab777a5f613d17611e3a9904eb1c83  /root/m1s2/module1-slice2-records.sh" | sudo sha256sum -c - &&
+echo "044a0868bf2f118a91e836909f09b5c2dc1a29700bd6114f05864daee0264d95  /root/m1s2/module1-slice2-records.sh" | sudo sha256sum -c - &&
 sudo bash /root/m1s2/module1-slice2-records.sh rollback &&
 sudo rm -f /etc/systemd/system/johnny-m1s2-reader.service /usr/local/libexec/johnny/johnny-m1s2-reader.py /root/m1s2/module1-slice2-records.sh /root/m1s2/module1-xdp-records.o /root/m1s2/irq-baseline.txt &&
 sudo rmdir /root/m1s2 &&
@@ -286,6 +287,10 @@ Lists each deleted `run-….bin`, then **`M1S2-RUNFILES-DELETED`**. Skip this bl
 | `STOP-ctl-accounting-*`, `STOP-irq-pins-moved-*` | Counter invariant or IRQ pin changed | `verify`: nothing; `swap`: back to slice 1c |
 | `STOP-reader-result`, `STOP-reader-end-reason` | Reader failed or ended without a cap | Records still attached; run Paste 9 |
 | `STOP-xdp-foreign` | An XDP id that is not ours and not the observer | Never detached; AJ decides |
+| `STOP-xdp-records-unpinned` | A program named `j_xdp_records` is attached but is not the id behind our `prog` pin | Never detached; AJ decides |
+| `STOP-detach-failed`, `STOP-records-still-attached` (+ `KEEP-PINS`) | Our pinned program could not be detached | Pins kept so ownership is still provable; rerun R1 |
+| `STOP-reader-overran` (+ `READER-STOPPED`) | The reader unit was still active after the wait | Reader stopped by the helper; records still attached; run Paste 9 |
+| `STOP-load-pin-mismatch`, `STOP-records-not-pinned` | The loaded `j_xdp_records` id is not the one behind our pin | `load`: rolled back; `swap`: nothing |
 | `STOP-locked` | Another slice 2 helper run holds `/run/johnny-m1s2.lock` | Nothing |
 
 ## Tokens AJ sends back

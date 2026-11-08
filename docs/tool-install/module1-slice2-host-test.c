@@ -545,6 +545,91 @@ static void test_parse(void)
 	      "vlan deep");
 	no_payload("vlan-deep", &f, 0);
 
+	/*
+	 * Declared IP length shorter than the frame. Every byte after the declared
+	 * end is sentinel and unread: no L4 field may come from it even though it
+	 * sits before data_end.
+	 */
+	/* IPv4 tot_len 20 (header only), TCP-looking bytes after it. */
+	o = eth(&f, 0, 0x0800);
+	o = ip4(&f, o, 5, 6, 0, 20);
+	fill_payload(&f, o, o + 60);
+	r = one(&f, 0);
+	CHECK((r.flags & F_TRUNC_L4) && !(r.flags & F_TRUNC_L3) && r.sport == 0 && r.dport == 0 &&
+		      r.tcp_flags == 0 && r.l3_len == 20 && f_stats[0][K_TCP] == 1,
+	      "ip4 tot_len=20 tcp");
+	no_payload("ip4-totlen-hdr-only", &f, 0);
+
+	/* IPv4 tot_len 10 < IHL*4: invalid length, no L4. */
+	o = eth(&f, 0, 0x0800);
+	o = ip4(&f, o, 5, 17, 0, 10);
+	fill_payload(&f, o, o + 40);
+	r = one(&f, 0);
+	CHECK((r.flags & F_TRUNC_L3) && r.sport == 0 && r.dport == 0 && r.l3_len == 10 &&
+		      f_stats[0][K_IPV4] == 1,
+	      "ip4 tot_len<20");
+	no_payload("ip4-totlen<hdr", &f, 0);
+
+	/* IHL 7 with tot_len 26 < 28: invalid length, options and L4 unread. */
+	o = eth(&f, 0, 0x0800);
+	o = ip4(&f, o, 7, 17, 0, 26);
+	fill_payload(&f, o, o + 40);
+	r = one(&f, 0);
+	CHECK((r.flags & F_TRUNC_L3) && r.sport == 0 && r.dport == 0, "ip4 ihl7 tot_len<28");
+	no_payload("ip4-ihl7-totlen<hdr", &f, 0);
+
+	/* IPv4 UDP declaring 2 L4 bytes: truncated-L4, no ports. */
+	o = eth(&f, 0, 0x0800);
+	o = ip4(&f, o, 5, 17, 0, 22);
+	fill_payload(&f, o, o + 40);
+	r = one(&f, 0);
+	CHECK((r.flags & F_TRUNC_L4) && r.sport == 0 && r.dport == 0, "udp4 tot_len=22");
+	no_payload("udp4-totlen-short", &f, 0);
+
+	/* ICMP declaring 1 L4 byte: truncated-L4, no type/code. */
+	o = eth(&f, 0, 0x0800);
+	o = ip4(&f, o, 5, 1, 0, 21);
+	fill_payload(&f, o, o + 40);
+	r = one(&f, 0);
+	CHECK((r.flags & F_TRUNC_L4) && r.sport == 0, "icmp4 tot_len=21");
+	no_payload("icmp4-totlen-short", &f, 0);
+
+	/* Honest minimum UDP with Ethernet padding: ports read, padding unread. */
+	o = eth(&f, 0, 0x0800);
+	o = ip4(&f, o, 5, 17, 0, 28);
+	put16(f.b + o, 123), put16(f.b + o + 2, 123);
+	noread(&f, o + 4, o + 8);
+	fill_payload(&f, o + 8, o + 26);
+	r = one(&f, 0);
+	CHECK(r.flags == 0 && r.sport == 123 && r.dport == 123 && r.l3_len == 28, "udp4 eth pad");
+	no_payload("udp4-eth-pad", &f, 0);
+
+	/* IPv6 payload_len 0, next header TCP, TCP-looking bytes after: truncated-L4. */
+	o = eth(&f, 0, 0x86dd);
+	o = ip6(&f, o, 6, 0);
+	fill_payload(&f, o, o + 60);
+	r = one(&f, 0);
+	CHECK((r.flags & F_TRUNC_L4) && r.sport == 0 && r.dport == 0 && r.tcp_flags == 0 &&
+		      r.l3_len == 40,
+	      "ip6 plen=0 tcp");
+	no_payload("ip6-plen0", &f, 0);
+
+	/* IPv6 UDP declaring 3 L4 bytes: truncated-L4. */
+	o = eth(&f, 0, 0x86dd);
+	o = ip6(&f, o, 17, 3);
+	fill_payload(&f, o, o + 40);
+	r = one(&f, 0);
+	CHECK((r.flags & F_TRUNC_L4) && r.sport == 0 && r.dport == 0, "ip6 plen=3 udp");
+	no_payload("ip6-plen-short", &f, 0);
+
+	/* IPv6 payload_len 65535: l3_len saturates at 0xffff (declared 65575). */
+	o = eth(&f, 0, 0x86dd);
+	o = ip6(&f, o, 17, 0xffff);
+	put16(f.b + o, 546), put16(f.b + o + 2, 547);
+	fill_payload(&f, o + 4, o + 40);
+	r = one(&f, 0);
+	CHECK(r.l3_len == 0xffff && r.sport == 546 && r.dport == 547 && r.flags == 0, "ip6 plen max");
+
 	/* Short Ethernet (10 bytes): truncated, still one record, slice 1b K_TRUNC. */
 	memset(&f, 0, sizeof(f));
 	memcpy(f.b, MAC_D, 6);
