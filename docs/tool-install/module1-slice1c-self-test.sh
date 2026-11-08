@@ -442,6 +442,8 @@ for idx, (lab, body) in enumerate(blocks, 1):
         wpos = body.find("is-active johnny-capture-xdp.service")
         if wpos < 0 or "seq 0 5 120" not in body or 'STOP-unit-not-active-after-wait' not in body:
             die(f"block #{idx} missing bounded wait for unit active")
+        if 'if [ "$w" -lt 120 ]; then sleep 5; fi' not in body or re.search(r"inactive\|activating\) sleep 5", body):
+            die(f"block #{idx} wait loop must not sleep after its final sample")
         if wpos > body.find("module1-slice1c-boot.sh verify"):
             die(f"block #{idx} waits for unit active after verify")
     if "M1S1C-ROLLBACK-DONE" in body:
