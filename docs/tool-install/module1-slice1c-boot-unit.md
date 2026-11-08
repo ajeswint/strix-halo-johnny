@@ -1,5 +1,7 @@
 # Module 1, slice 1c — boot persistence unit (`johnny-capture-xdp.service`) for `j_xdp_observe` on `eno1np0` (applied)
 
+Rev 4, 2026-11-08 America/Chicago. Status: **rev 3 boot helper reinstalled on Johnny (Nits reinstall APPLIED).** AJ ran the Nits reinstall paste at **2026-11-08 07:15:55 UTC (2026-11-08 1:15:55 AM CST)** after Paste 1 on the rev 3 branch printed `E2E-OK scenarios=8`, `RUNBOOK-OK blocks=8`, **`SELF-TEST-OK`**. Installed `/root/m1s1b/module1-slice1c-boot.sh` sha256 `a501dbb7c49a611dd230f7c4fa09d6c1a7f8923f7302459180a197625ccc8c06`; `verify` passed and the paste ended **`M1S1C-VERIFY-DONE`** and **`M1S1C-NITS-REINSTALL-DONE`** (record under § Nits reinstall). The unit was not restarted, so the rev 3 fail-closed `start` path has **not yet run at a cold boot**; that proof is an optional later reboot + Paste 6 (the 2026-11-08 02:26 UTC cold boot passed on the rev 2 helper). Rev 4 doc fixes (fenced Paste 6 changed, scripts and pins unchanged): Paste 6's wait loop no longer sleeps after its last sample, so the `active` check uses a fresh sample taken at the 120 s mark (still fail closed); Paste 5's prose now matches Paste 6's wait behaviour. Rev 3 text follows unchanged except where marked.
+
 Rev 3, 2026-11-07 America/Chicago. Status: **slice 1c nits fix DRAFTED, NOT APPLIED** (branch `claude/module1-slice1c-nits` off `origin/claude/practical-ritchie-4c6vvf` base `e383c4f`). Fixes the four parked follow-ups below: `module1-slice1c-boot.sh` now stops on a boot-wait timeout (sha256 `a501dbb7c49a611dd230f7c4fa09d6c1a7f8923f7302459180a197625ccc8c06`, was `f05e7ac425ed78837ab57880f483ed42eeea431c5037da09248e11eea6a580bc`); Paste 6 gates its done token on the ordering-cycle check and waits up to 120 s for the unit to be `active`; the Rollback block prints its done token only when `status` shows no XDP attach and the unit inactive. Unit, object, attach and detach helpers are unchanged. Johnny still runs the rev 2 boot helper until AJ runs the **Nits reinstall** paste below. Rev 2 text follows unchanged except where marked.
 
 Rev 2, 2026-11-08 UTC (2026-11-07 America/Chicago). Status: **applied on Johnny.** AJ ran Pastes 1–6 from rock-box; the cold reboot (Paste 5, `M1S1C-REBOOT-ISSUED`) came back with `johnny-capture-xdp.service` attaching `j_xdp_observe` unattended (`xdpdrv`, `prog_id=75`, `M1S1C-START-BEGIN DATE-UTC 2026-11-08T02:26:28Z`), and the Paste 6 rerun ended **`M1S1C-COLD-BOOT-VERIFY-DONE`**. Rollback was **not** run. Unit, boot helper, self-test, and every sha256 pin are **unchanged** from rev 1. Rev 1 (2026-11-06 America/Chicago, branch `claude/module1-slice1c-boot-unit` off `origin/claude/practical-ritchie-4c6vvf` base tip `e41c0db`, PR #26 with B1 fix `9024600`) was the draft (Status: **drafted, not applied.**).
@@ -25,14 +27,14 @@ Rev 2, 2026-11-08 UTC (2026-11-07 America/Chicago). Status: **applied on Johnny.
 
 **`nic-rx-dropped` observation (still open, no root cause claimed).** Boot-time attach window `nic-rx-dropped-delta=7` against `0` in its baseline window (slice 1b saw `4` in its attach window). The steady-state `verify` window after boot saw `0`, with `ETHTOOL-DROP-DELTAS none (checked=16)` and `tcpdump-kernel-drops=0`. **[Inference]** the drops cluster around the attach itself, not steady-state capture; one clean window does not prove it.
 
-### Follow-ups (parked nits; fixed in the rev 3 draft, not applied)
+### Follow-ups (parked nits; fixed in rev 3, helper reinstalled 2026-11-08 07:15:55 UTC)
 
 1. `wait_boot_ready || true` falls through: if the bounded boot wait times out, `start` proceeds instead of stopping. **Rev 3:** `start` now prints `STOP-boot-wait-timeout tries=30 step=2s` and exits `1` before any change (`NOTHING-CHANGED`, `M1S1C-START-STOPS`); the unit shows `failed` and nothing is attached. Chosen because the preflight after the wait does not re-check `eno1np0` link/flags/MTU, so falling through could attach to a link that is not ready. Fail closed matches the unit's other preflight stops; recovery is `sudo systemctl restart johnny-capture-xdp.service` once the link is up, or the next boot.
 2. Paste 6's ordering-cycle `grep` does not gate the `M1S1C-COLD-BOOT-VERIFY-DONE` token. **Rev 3:** a match prints `STOP-ordering-cycle-warning` and stops the chain.
 3. The Rollback block prints `M1S1C-ROLLBACK-DONE` even if the unit was never active. **Rev 3:** the token now needs `status` to exit `0` with `XDP-ATTACH none` and `UNIT johnny-capture-xdp.service ... active=inactive`; else `STOP-rollback-not-clean`. The old `reset-failed ... || true` precedence hole (it let a failed `disable --now` fall through to the token) is closed with braces.
 4. Paste 6 should wait for the unit to reach `active` before `verify` (the `STOP-locked` race seen on the first Paste 6 try above). **Rev 3:** Paste 6 polls `systemctl is-active` every 5 s for up to 120 s while the unit is `inactive`/`activating`, then needs `active` (`OK-unit-active waited=Ns`) or prints `STOP-unit-not-active-after-wait`.
 
-Fixes 1–4 are in the rev 3 draft (needs adversarial-reviewer review, then AJ runs the Nits reinstall paste).
+Fixes 1–4 shipped in rev 3. Fix 1 is live on Johnny since the Nits reinstall (2026-11-08 07:15:55 UTC) but has not yet run at a boot; fixes 2–4 are rock-box paste changes and take effect the next time Paste 6 or Rollback is run. Rev 4 tightens fix 4: the wait loop's final sample is taken after the last sleep, not before it.
 
 ## Purpose and scope
 
@@ -151,7 +153,7 @@ Have AMT KVM ready and the LUKS recovery passphrase at hand in case TPM unlock n
 ssh -t aj@192.168.50.152 'sudo -v && echo M1S1C-REBOOT-ISSUED && sudo systemctl reboot'
 ```
 
-Wait ~60–90 s for Johnny to reboot and complete the boot oneshots, then run Paste 6 (if Paste 6 runs while `johnny-capture-irq.service` or `johnny-capture-xdp.service` is still finishing its boot work, it can stop at `STOP-locked` (the unit's `start` still holds the helper lock; this is what the applied first try hit on 2026-11-08) or `STOP-unit-not-active`; wait another 30–60 s and re-run Paste 6. Rev 3: Paste 6 now waits up to 120 s for `active` itself, so `STOP-locked` from the start race should no longer occur; `STOP-unit-not-active-after-wait` means the unit did not reach `active` in that time).
+Wait ~60–90 s for Johnny to reboot and complete the boot oneshots, then run Paste 6. Paste 6 itself polls `johnny-capture-xdp.service` every 5 s for up to 120 s while it is `inactive` or `activating`, and runs `verify` only once the unit is `active`, so the unit's `start` has released the helper lock by then. (The applied 2026-11-08 first try predates this wait: `verify` ran while `start` still held the lock and stopped at `STOP-locked`.) If Paste 6 prints `STOP-unit-not-active-after-wait state=failed`, read the `journalctl` output above it: with the rev 3 helper a `STOP-boot-wait-timeout` there means the unit failed closed with nothing attached (recover with `sudo systemctl restart johnny-capture-xdp.service` once `eno1np0` is up, or the next boot). If it prints `STOP-unit-not-active-after-wait state=activating`, the unit's `start` was still running at 120 s; wait 30–60 s and re-run Paste 6. `STOP-locked` from `verify` now means some other helper run (for example a manual `status` or `verify` in another shell) held the lock; let it finish and re-run Paste 6.
 
 ### Paste 6 — Post-reboot verify (unattended boot attach + `ethtool -S` drop deltas + cycle check)
 
@@ -164,7 +166,7 @@ uptime &&
 cyc=$(sudo journalctl -b -p warning..emerg --no-pager) &&
 if printf "%s\n" "$cyc" | grep -Ei "ordering cycle"; then echo STOP-ordering-cycle-warning; false; else echo OK-no-ordering-cycle-warnings; fi &&
 sudo journalctl -b -u johnny-capture-irq.service -u johnny-capture-xdp.service -u johnny-capture-tuning.service --no-pager &&
-for w in $(seq 0 5 120); do ac=$(systemctl is-active johnny-capture-xdp.service || true); case "$ac" in inactive|activating) sleep 5 ;; *) break ;; esac; done &&
+for w in $(seq 0 5 120); do ac=$(systemctl is-active johnny-capture-xdp.service || true); case "$ac" in inactive|activating) if [ "$w" -lt 120 ]; then sleep 5; fi ;; *) break ;; esac; done &&
 if [ "$ac" = active ]; then echo "OK-unit-active waited=${w}s"; else echo "STOP-unit-not-active-after-wait state=$ac waited=${w}s"; false; fi &&
 sudo bash /root/m1s1b/module1-slice1c-boot.sh verify &&
 sleep 10 &&
@@ -174,13 +176,15 @@ echo M1S1C-COLD-BOOT-VERIFY-DONE'
 
 What to look for after cold reboot:
 - `OK-no-ordering-cycle-warnings` (no rev 89/90 systemd ordering cycle). Rev 3: any `ordering cycle` line is printed, then `STOP-ordering-cycle-warning`, and the chain stops before `M1S1C-COLD-BOOT-VERIFY-DONE`.
-- Rev 3: `OK-unit-active waited=Ns` (the paste polls every 5 s, up to 120 s, while the unit is `inactive` or `activating`). Any other end state (`failed`, still `activating` after 120 s) prints `STOP-unit-not-active-after-wait state=... waited=...s` and stops before `verify`.
+- Rev 3: `OK-unit-active waited=Ns` (the paste polls every 5 s, up to 120 s, while the unit is `inactive` or `activating`). Rev 4: no sleep follows the last sample, so the final state is read at the 120 s mark (`waited=120s`), not 5 s before it. Any other end state (`failed`, still `inactive`/`activating` at 120 s) prints `STOP-unit-not-active-after-wait state=... waited=...s` and stops before `verify`.
 - `journalctl -b` shows `johnny-capture-irq.service` finished before `johnny-capture-xdp.service` started, and `johnny-capture-xdp.service` logged `M1S1B-ATTACH-DONE` (the unchanged pinned `module1-slice1b-attach.sh` still prints its slice 1b `attached for this boot only` note right before `M1S1B-ATTACH-DONE`), followed by `STATE attached by boot helper (xdpdrv prog_id=N)` and `M1S1C-START-DONE` with no manual start.
 - `verify` ends **`M1S1C-VERIFY-DONE`**, and the unpiped `status` read 10 s later prints the full status transcript ending **`M1S1C-STATUS-DONE`** with advancing `STAT pkts` / `STAT bytes`, gated on `status` exiting `0` before **`M1S1C-COLD-BOOT-VERIFY-DONE`**.
 
-### Nits reinstall (rev 3) — DRAFTED, NOT APPLIED
+### Nits reinstall (rev 3) — APPLIED 2026-11-08 07:15:55 UTC
 
 Replaces only `/root/m1s1b/module1-slice1c-boot.sh` on Johnny with the rev 3 helper. It does not restart the unit, so the attached observer is not touched; the new `start` code runs at the next boot (or next unit start). First re-run Paste 1 on this branch and get **`SELF-TEST-OK`**. Do not run until the adversarial-reviewer approves and AJ says go.
+
+**Applied record (rev 4).** AJ ran this paste at **2026-11-08 07:15:55 UTC (1:15:55 AM CST)**. Paste 1 first: `E2E-OK scenarios=8`, `RUNBOOK-OK blocks=8`, **`SELF-TEST-OK`**. Hashes OK; installed helper sha256 `a501dbb7c49a611dd230f7c4fa09d6c1a7f8923f7302459180a197625ccc8c06`. `verify`: `OK-xdp-mode driver id=75` before and after the install (the observer was not re-attached), IRQ pins unchanged, partitions `l3_diff=0 l4_diff=0`, 5 s window `xdp=443 tcpdump=345 pct=77` with `NOTE-pass-ratio-low`, kernel drops `0`, NIC drops `0`, `ETHTOOL-DROP-DELTAS none`, **`M1S1C-VERIFY-DONE`**, **`M1S1C-NITS-REINSTALL-DONE`**. The 77 % pass ratio is one observed 5 s window (earlier windows: 90, 87, 84); it is a NOTE, not a gate, and is not claimed to be the normal value or proof of lossless capture. Zero kernel and NIC drops were measured in that window only. No root cause for the gap is claimed. The rev 3 `start` path (fail-closed boot wait) has not run yet: the unit was not restarted, and no reboot since the reinstall has been reported. An optional later reboot + Paste 6 would prove it at cold boot; it is not required to close this reinstall.
 
 ***<u>Run on Rock Box</u>***
 
@@ -224,7 +228,7 @@ if st=$(sudo bash /root/m1s1b/module1-slice1c-boot.sh status); then printf "%s\n
 if printf "%s\n" "$st" | grep -qx "XDP-ATTACH none" && printf "%s\n" "$st" | grep -Eq "^UNIT johnny-capture-xdp[.]service .* active=inactive$"; then echo M1S1C-ROLLBACK-DONE; else echo STOP-rollback-not-clean; false; fi'
 ```
 
-Because `ExecStop=/bin/bash /root/m1s1b/module1-slice1c-boot.sh stop` runs on `systemctl disable --now`, stopping the unit invokes the pinned detach helper (`M1S1B-DETACH-DONE` + `M1S1C-STOP-DONE`), removes `/sys/fs/bpf/johnny_m1s1b/`, verifies `XDP-ATTACH none` and `IRQ-CAPTURE ok`, and ends **`M1S1C-ROLLBACK-DONE`**. Rev 3: the boot helper hash check accepts the rev 3 hash or the rev 2 hash (Johnny keeps rev 2 until the Nits reinstall runs), and the token prints only when `status` exits `0` and shows `XDP-ATTACH none` and `UNIT johnny-capture-xdp.service ... active=inactive`; else `STOP-rollback-status-failed` or `STOP-rollback-not-clean` (then run `sudo bash /root/m1s1b/module1-slice1b-detach.sh detach` and re-check `status`).
+Because `ExecStop=/bin/bash /root/m1s1b/module1-slice1c-boot.sh stop` runs on `systemctl disable --now`, stopping the unit invokes the pinned detach helper (`M1S1B-DETACH-DONE` + `M1S1C-STOP-DONE`), removes `/sys/fs/bpf/johnny_m1s1b/`, verifies `XDP-ATTACH none` and `IRQ-CAPTURE ok`, and ends **`M1S1C-ROLLBACK-DONE`**. Rev 3: the boot helper hash check accepts the rev 3 hash or the rev 2 hash (Johnny has run the rev 3 helper since the Nits reinstall on 2026-11-08 07:15:55 UTC; the rev 2 hash stays accepted for older states), and the token prints only when `status` exits `0` and shows `XDP-ATTACH none` and `UNIT johnny-capture-xdp.service ... active=inactive`; else `STOP-rollback-status-failed` or `STOP-rollback-not-clean` (then run `sudo bash /root/m1s1b/module1-slice1b-detach.sh detach` and re-check `status`).
 
 ## What each STOP means
 
@@ -248,7 +252,7 @@ Because `ExecStop=/bin/bash /root/m1s1b/module1-slice1c-boot.sh stop` runs on `s
 4. Paste 4 (Rock Box → Johnny, this boot): **`M1S1C-START-DONE`**, **`M1S1C-VERIFY-DONE`**, and **`M1S1C-ENABLE-THIS-BOOT-DONE`** (plus the `VERIFY-WINDOW` and `ETHTOOL-DROP-DELTA` / `ETHTOOL-DROP-DELTAS` lines)
 5. Paste 5 (Rock Box → Johnny): **`M1S1C-REBOOT-ISSUED`**
 6. Paste 6 (Rock Box → Johnny, after cold reboot): **`M1S1C-START-DONE`** (in journal), **`M1S1C-VERIFY-DONE`**, **`M1S1C-STATUS-DONE`**, and **`M1S1C-COLD-BOOT-VERIFY-DONE`**
-7. Nits reinstall (rev 3, only when approved): **`M1S1C-VERIFY-DONE`** and **`M1S1C-NITS-REINSTALL-DONE`**
+7. Nits reinstall (rev 3, applied 2026-11-08 07:15:55 UTC): **`M1S1C-VERIFY-DONE`** and **`M1S1C-NITS-REINSTALL-DONE`**
 8. Rollback (only if run): **`M1S1C-ROLLBACK-DONE`**
 
 ## Assumptions and sources
