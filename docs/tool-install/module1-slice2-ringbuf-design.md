@@ -93,7 +93,7 @@ Invariant the tests and `verify` check: `C_SEEN = C_SAMPLED_OUT + C_RATE_LIMITED
 ## 6. Ring buffer map and pins
 
 - `m2_rb`: `BPF_MAP_TYPE_RINGBUF`, `max_entries = 4 MiB` (a power of 2 and a page multiple, as the kernel requires). One ring for all CPUs. The kernel serializes reserve per ring with a spinlock. At ≤ 8k rec/s that is not a bottleneck **[Inference]**; per-CPU rings (array-of-maps) are deferred.
-- Pin dir **`/sys/fs/bpf/johnny/m1s2/`** (`prog`, `m1_stats`, `m1_rxq`, `m2_ctl`, `m2_cfg`, `m2_rb`), mode 0700 root. It does **not** reuse or touch slice 1b/1c's pin paths, so rollback cannot clobber them.
+- Pin dir **`/sys/fs/bpf/johnny_m1s2/`** (Phase C: one level, was `johnny/m1s2/`) (`prog`, `m1_stats`, `m1_rxq`, `m2_ctl`, `m2_cfg`, `m2_rb`), mode 0700 root. It does **not** reuse or touch slice 1b/1c's pin paths, so rollback cannot clobber them.
 - Memory: 4 MiB data + metadata pages, locked kernel memory. It is a small part of the ~5.7 GB idle kernel allocation still under investigation (handoff § Parked).
 
 ## 7. Lifecycle and keeping slice 1c
@@ -117,7 +117,7 @@ Only one XDP program can hold the netlink slot on `eno1np0`. Slice 1b deliberate
 - **How it reads:** `ctypes` `syscall(SYS_bpf, BPF_OBJ_GET)` on the pinned `m2_rb`; `mmap` the consumer page read-write and the producer page plus data (2× size, as the kernel maps it) **read-only**; `epoll` on the map fd; walk records, honoring the busy and discard bits in the 8-byte header; advance `consumer_pos` with a release store (a `ctypes` write after the data reads; **[Assumption]** CPython's ordering is enough on x86-64 TSO; Assurance to challenge). It validates `ver`, the length (= 80) and the bounds before unpacking. Any malformed header stops the reader (`STOP-ring-corrupt`). It never skips ahead silently.
 - **Bounds (all hard caps; the first one hit ends the run):** `--max-seconds` (default 60, ceiling 600), `--max-records` (default 1,000,000), `--max-bytes` for the output file (default 64 MiB, ceiling 256 MiB), and at most `--keep` 3 run files in the output dir (oldest deleted first). With all three caps it cannot fill `/var`.
 - **Output:** `/var/lib/johnny/m1s2/run-<UTC>.bin`: an 80-byte record stream plus a fixed header (magic, version, the mono→realtime offset, the cfg snapshot, start counters). Binary, not JSON, so the reader stays simple. A `--summary` mode prints counts, top talkers by count and per-queue totals to stdout for the runbook. Directory 0700 root, files 0600.
-- **Hardening, systemd unit `johnny-m1s2-reader.service` (transient or templated, started only by a paste, not enabled):** `User=root` (needs the 0700 pin dir). `CapabilityBoundingSet=CAP_BPF CAP_PERFMON`, `AmbientCapabilities=` (empty), `NoNewPrivileges=yes`. **`PrivateNetwork=yes`, `IPAddressDeny=any`, `RestrictAddressFamilies=AF_UNIX`** (no egress, enforced three ways). `ProtectSystem=strict`, `ReadWritePaths=/var/lib/johnny/m1s2`, `ReadOnlyPaths=/sys/fs/bpf/johnny/m1s2`, `ProtectHome=yes`, `PrivateTmp=yes`, `ProtectKernelTunables/Modules/Logs=yes`, `ProtectControlGroups=yes`, `ProtectClock=yes`, `ProtectHostname=yes`, `LockPersonality=yes`, `MemoryDenyWriteExecute=yes` (**[Assumption]** `ctypes` without callbacks does not need W+X; to verify), `RestrictNamespaces=yes`, `RestrictRealtime=yes`, `RestrictSUIDSGID=yes`, `SystemCallArchitectures=native`, `SystemCallFilter=@system-service bpf`, `UMask=0077`, `RuntimeMaxSec=` = `--max-seconds` + 30, `MemoryMax=128M`, `CPUQuota=50%`, and the reader pinned to CPU 0 (off the capture CPUs 1–4) with `CPUAffinity=0`. `verify` prints `systemd-analyze security johnny-m1s2-reader.service`. **[Assumption]** `CAP_BPF`+`CAP_PERFMON` is enough for `BPF_OBJ_GET` plus ringbuf `mmap` with root-owned pins. If the kernel also wants `CAP_SYS_ADMIN` (`kernel.unprivileged_bpf_disabled` behavior), the load-only step finds out, and the design changes by review rather than silently widening.
+- **Hardening, systemd unit `johnny-m1s2-reader.service` (transient or templated, started only by a paste, not enabled):** `User=root` (needs the 0700 pin dir). `CapabilityBoundingSet=` **empty** (Phase C resolution, 2026-11-08; was `CAP_BPF CAP_PERFMON`: see the runbook § Changes from the design), `AmbientCapabilities=` (empty), `NoNewPrivileges=yes`. **`PrivateNetwork=yes`, `IPAddressDeny=any`, `RestrictAddressFamilies=none`** (Phase C; the reader opens no socket) (no egress, enforced three ways). `ProtectSystem=strict`, `ReadWritePaths=/var/lib/johnny/m1s2`, `ReadOnlyPaths=/sys/fs/bpf/johnny/m1s2`, `ProtectHome=yes`, `PrivateTmp=yes`, `ProtectKernelTunables/Modules/Logs=yes`, `ProtectControlGroups=yes`, `ProtectClock=yes`, `ProtectHostname=yes`, `LockPersonality=yes`, `MemoryDenyWriteExecute=yes` (**[Assumption]** `ctypes` without callbacks does not need W+X; to verify), `RestrictNamespaces=yes`, `RestrictRealtime=yes`, `RestrictSUIDSGID=yes`, `SystemCallArchitectures=native`, `SystemCallFilter=@system-service bpf`, `UMask=0077`, `RuntimeMaxSec=` = `--max-seconds` + 30, `MemoryMax=128M`, `CPUQuota=50%`, and the reader pinned to CPU 0 (off the capture CPUs 1–4) with `CPUAffinity=0`. `verify` prints `systemd-analyze security johnny-m1s2-reader.service`. **[Assumption]** `CAP_BPF`+`CAP_PERFMON` is enough for `BPF_OBJ_GET` plus ringbuf `mmap` with root-owned pins. If the kernel also wants `CAP_SYS_ADMIN` (`kernel.unprivileged_bpf_disabled` behavior), the load-only step finds out, and the design changes by review rather than silently widening.
 - The reader **never** writes BPF maps, never loads or attaches programs, and never opens a socket other than journal `AF_UNIX`.
 
 ## 9. Build pins and tests
@@ -133,6 +133,18 @@ ac446e262ad151223784e8a17f41f70e198b25b8511bab73dfd4076f4286f760  docs/tool-inst
 e43fc1e35ea7e88310bb32e24b9640abe495a2e7a3d3466dea50dfd6abb54d85  etc/systemd/system/johnny-m1s2-reader.service
 ```
 
+**Phase C final pins (2026-11-08)** supersede the unit pin above (capability fix) and add the helper and tests. The runbook § Final sha256 pins is the copy AJ's pastes use.
+
+```
+451247d8409396f35bf4454bfa8b44f2bc73b2197f97bb7c41818a9709f780e2  docs/tool-install/module1-xdp-records.o
+32dc159f01b42a4b7cf3906c6fd0d12535b85cf1a36262f30d6211e44cce38e2  docs/tool-install/johnny-m1s2-reader.py
+267c9bd63292adfd1c157b7476acd9872c535f406a77c50b5b46d8af799eba52  etc/systemd/system/johnny-m1s2-reader.service
+889cb3dbd32cce129fff6cc0d679bca29aab777a5f613d17611e3a9904eb1c83  docs/tool-install/module1-slice2-records.sh
+ac446e262ad151223784e8a17f41f70e198b25b8511bab73dfd4076f4286f760  docs/tool-install/module1_xdp_records.c
+f80fb7eea3ceac2e5bf22bb39a561c6e97969df6fc326d7a4a5786f773764f56  docs/tool-install/module1-slice2-host-test.c
+3ebfc1970fe66b4b78bbabd0af1aa485a42a60fb65e7c6259ee7e145a304f63a  docs/tool-install/module1-slice2-reader-test.py
+```
+
 **rock-box self-test `module1-slice2-self-test.sh` → `SELF-TEST-OK`** (no Johnny, no sudo):
 - Source and disassembly: exactly one `return XDP_PASS`; every `r0` constant before `exit` is 2; only helpers {1, 5, 131, 132, 133}; no forbidden words outside comments (`XDP_DROP`, `XDP_TX`, `REDIRECT`, `ABORTED`, `adjust`, `tail_call`, `probe_read`, `ringbuf_output`, `prandom`).
 - Slice 1b enum and name table unchanged (`ENUM-ORDER-OK`); the `m2_ctl` slot order matches the script name table.
@@ -143,7 +155,7 @@ e43fc1e35ea7e88310bb32e24b9640abe495a2e7a3d3466dea50dfd6abb54d85  etc/systemd/sy
 
 **On Johnny (Phase B onward, each one AJ-run and reviewed):** load-only verifier check → swap → bounded reader run (60 s) → `verify` → back to slice 1c. Each paste is one fenced block, `sudo -v` first, fail-fast checkpoints, a `M1S2-…-DONE` token, and the rollback as a later block not part of the paste.
 
-## 10. Runbook and rollback (to be written in Phase B)
+## 10. Runbook and rollback (written in Phase C: `module1-slice2-ringbuf.md`)
 
 `docs/tool-install/module1-slice2-ringbuf.md`, slice 1b/1c structure: Status banner, Facts (from the slice 1/1b/1c records, not re-probed), Build, Self-test, Pastes 1..N with expected tokens, Rollback (§7 step 4, as its own labeled block), Not decided here, Assumptions, Sources. `etc/systemd/system/johnny-m1s2-reader.service` mirrors the live unit path, in the same commit as any live change (AGENTS.md).
 
@@ -163,7 +175,7 @@ Records hold **MAC and IP addresses, ports and timing** for household devices. T
 ## Assumptions (marked above, collected)
 
 - Helper ids and the map type number come from upstream `uapi/linux/bpf.h`, not from Johnny's BTF. The load-only step checks them.
-- `CAP_BPF`+`CAP_PERFMON` is enough for the reader. `MemoryDenyWriteExecute` works with `ctypes` as used.
+- ~~`CAP_BPF`+`CAP_PERFMON` is enough for the reader.~~ Replaced in Phase C: a capability-less uid 0 is enough (upstream commit `1d28635abcf1`); the load smoke proves it on Johnny and fails closed. `MemoryDenyWriteExecute` works with `ctypes` as used.
 - x86-64 TSO plus CPython makes the consumer-position store safe without an explicit fence.
 - The parse code can be shared between the BPF and host builds.
 - Throughput and size defaults are not measurements.

@@ -35,11 +35,16 @@ IOSchedulingClass=idle
 PrivateNetwork=yes
 IPAddressDeny=any
 RestrictAddressFamilies=none
-# Privilege: root (the pin dir is 0700 root) with CAP_BPF only. bpf() checks
-# bpf_capable() (CAP_BPF or CAP_SYS_ADMIN) when unprivileged BPF is disabled;
-# OBJ_GET, map lookup and ring mmap need no other capability.
+# Privilege: uid 0 (owner of the 0700 pin dir and state dir) with NO
+# capabilities. Upstream kernel/bpf/syscall.c checks unprivileged_bpf_disabled
+# only in map_create() and bpf_prog_load(); BPF_OBJ_GET, MAP_LOOKUP_ELEM,
+# OBJ_GET_INFO_BY_FD and the ring mmap are gated by the pin's file mode
+# (kernel/bpf/ringbuf.c: only the consumer page may be mapped writable). The
+# design's CAP_BPF + CAP_PERFMON was wider than needed (resolved 2026-11-08).
+# [Assumption] Ubuntu 7.0.0-42 matches upstream here; the `load` reader smoke
+# proves it on Johnny (EPERM there = STOP-obj-get errno=1, fail closed).
 NoNewPrivileges=yes
-CapabilityBoundingSet=CAP_BPF
+CapabilityBoundingSet=
 AmbientCapabilities=
 ProtectSystem=strict
 # /sys is read-only (ProtectKernelTunables). The ring pin alone is writable:
