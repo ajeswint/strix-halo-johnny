@@ -1,6 +1,36 @@
-# Module 1, slice 1c — boot persistence unit (`johnny-capture-xdp.service`) for `j_xdp_observe` on `eno1np0`
+# Module 1, slice 1c — boot persistence unit (`johnny-capture-xdp.service`) for `j_xdp_observe` on `eno1np0` (applied)
 
-Rev 1, 2026-11-06 America/Chicago. Status: **drafted, not applied.** Branch `claude/module1-slice1c-boot-unit` off `origin/claude/practical-ritchie-4c6vvf` (base tip `e41c0db`). Nothing in this file has been run on Johnny.
+Rev 2, 2026-11-08 UTC (2026-11-07 America/Chicago). Status: **applied on Johnny.** AJ ran Pastes 1–6 from rock-box; the cold reboot (Paste 5, `M1S1C-REBOOT-ISSUED`) came back with `johnny-capture-xdp.service` attaching `j_xdp_observe` unattended (`xdpdrv`, `prog_id=75`, `M1S1C-START-BEGIN DATE-UTC 2026-11-08T02:26:28Z`), and the Paste 6 rerun ended **`M1S1C-COLD-BOOT-VERIFY-DONE`**. Rollback was **not** run. Unit, boot helper, self-test, and every sha256 pin are **unchanged** from rev 1. Rev 1 (2026-11-06 America/Chicago, branch `claude/module1-slice1c-boot-unit` off `origin/claude/practical-ritchie-4c6vvf` base tip `e41c0db`, PR #26 with B1 fix `9024600`) was the draft (Status: **drafted, not applied.**).
+
+## Applied on Johnny (cold boot 2026-11-08 ~02:26 UTC; 2026-11-07 ~20:26 America/Chicago)
+
+**Tokens and run order.** AJ ran Pastes 1–4 and then Paste 5 (**`M1S1C-REBOOT-ISSUED`**). Per-token output for Pastes 1–4 was not supplied to this closeout **[not recorded here]**; that Paste 5 and 6 ran implies Paste 4 ended `M1S1C-ENABLE-THIS-BOOT-DONE` (the runbook says to roll back otherwise) **[Inference]**. Paste 6 ran twice:
+
+- **First try: no done token.** `verify` ran about 20 s after boot while the unit's `start` still held the helper lock (unit still running its attach), so `verify` hit **`STOP-locked`** and the `&&` chain stopped before `M1S1C-COLD-BOOT-VERIFY-DONE`. Nothing was changed by the failed run. This is the Paste 6 race listed under Follow-ups.
+- **Rerun at uptime 2 min: passed**, ending **`M1S1C-VERIFY-DONE`**, **`M1S1B-STATUS-DONE`**, **`M1S1C-STATUS-DONE`**, **`M1S1C-COLD-BOOT-VERIFY-DONE`**.
+
+**Boot health.** `systemctl is-system-running` = `running`; `OK-no-ordering-cycle-warnings`.
+
+**`johnny-capture-irq.service` (step 13, ran first).** `PIN-OK`, `ENO3-OK`, `CPU0-CLEAR`, `CAPTURE-CPUS 1 2 3 4`; `ice-eno1np0-TxRx-0..11` round-robin on CPUs 1–4.
+
+**`johnny-capture-xdp.service` (journal, this boot).** `enabled`, `active (exited)` since 02:26:47 UTC, `status=0`. `M1S1C-START-BEGIN DATE-UTC 2026-11-08T02:26:28Z`; all hash checks OK (object `8be9877f…`, attach `f9f95ec6…`, rollback `f78ca14e…`, irq-helper `db58d7c7…`, cores `16fbd7d1…`, unit `2510bc97…`); `OK-link` 10000 `carrier=1` up; `ATTACHED xdpdrv prog_id=75`; `OBS-WINDOW xdp-pps=186`, `PASS-RATIO 87`, `nic-rx-dropped-delta=7` (NOTE; baseline window 0); `M1S1B-ATTACH-DONE`; `STATE attached by boot helper (xdpdrv prog_id=75)`; **`M1S1C-START-DONE`**. Start to `active` took about 19 s.
+
+**Paste 6 `verify` (rerun).** `OK-unit johnny-capture-xdp.service enabled=enabled active=active`; `OK-tuning-service active`; `OK-xdp-mode driver id=75`; IRQ pins unchanged; partition `l3_diff=0 l4_diff=0`; `VERIFY-WINDOW xdp-pkts-delta=1182 tcpdump-kernel-drops=0 nic-rx-dropped-delta=0`; `PASS-RATIO 84`; `ETHTOOL-DROP-DELTAS none (checked=16)`; **`M1S1C-VERIFY-DONE`**.
+
+**Paste 6 `status` read: `XDP-ATTACH driver id=75`, `PROG-XDP-COUNT 1`, `PROG-OURS 1 ids=75`, `PINS` all present, `IRQ-COUNT 12`, `IRQ-CAPTURE ok`, `IRQ-BASELINE same`, `STAT pkts 25189 trunc 0 vlan 0`, `PART diff 0`, `KERNEL 7.0.0-42-generic`; `M1S1B-STATUS-DONE`, `M1S1C-STATUS-DONE`, `M1S1C-COLD-BOOT-VERIFY-DONE`.**
+
+**Program id.** Slice 1b's `prog_id=472` was a this-boot-only attach and is gone after the reboot. `prog_id=75` is now the boot-attached observer, attached by this unit. Program ids are assigned per boot, so the next boot will likely show a different id **[Inference]**.
+
+**`nic-rx-dropped` observation (still open, no root cause claimed).** Boot-time attach window `nic-rx-dropped-delta=7` against `0` in its baseline window (slice 1b saw `4` in its attach window). The steady-state `verify` window after boot saw `0`, with `ETHTOOL-DROP-DELTAS none (checked=16)` and `tcpdump-kernel-drops=0`. **[Inference]** the drops cluster around the attach itself, not steady-state capture; one clean window does not prove it.
+
+### Follow-ups (parked nits; code not changed in this closeout)
+
+1. `wait_boot_ready || true` falls through: if the bounded boot wait times out, `start` proceeds instead of stopping.
+2. Paste 6's ordering-cycle `grep` does not gate the `M1S1C-COLD-BOOT-VERIFY-DONE` token.
+3. The Rollback block prints `M1S1C-ROLLBACK-DONE` even if the unit was never active.
+4. Paste 6 should wait for the unit to reach `active` before `verify` (the `STOP-locked` race seen on the first Paste 6 try above).
+
+Each fix changes a pinned script or paste and needs its own draft, review, and hash update.
 
 ## Purpose and scope
 
