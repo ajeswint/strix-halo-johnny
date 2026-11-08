@@ -245,6 +245,10 @@ eno1_ready_now() {
 # Bounded boot wait (step 13c/13d lesson): wait for eno1np0 link/flags/MTU,
 # eno3 mgmt IPv4 + default route, and johnny-capture-irq.service active.
 # Never wait on johnny-capture-tuning.service (After=multi-user.target).
+# A timeout is a hard stop (STOP-boot-wait-timeout, exit 1, before any change):
+# the unit then shows failed and nothing is attached (fail closed). Falling
+# through would let start attach with eno1np0 not yet ready, since the
+# preflight checks below do not re-check eno1np0 link/flags/MTU.
 wait_boot_ready() {
   local i=0 r1 r3 rirq irq_ac
   while :; do
@@ -352,7 +356,7 @@ do_start() {
   echo "M1S1C-START-BEGIN DATE-UTC $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   need_tools
   need_files
-  wait_boot_ready || true
+  wait_boot_ready || stop "boot-wait-timeout tries=$WAIT_BOOT_TRIES step=${WAIT_STEP}s"
   check_common_env
   get_status || {
     printf '%s\n' "$ST"
