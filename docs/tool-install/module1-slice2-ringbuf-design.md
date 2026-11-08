@@ -124,6 +124,15 @@ Only one XDP program can hold the netlink slot on `eno1np0`. Slice 1b deliberate
 
 **Build (off-box, rock-box, same as slice 1b):** Ubuntu clang **22.1.8 (1ubuntu1)** unpacked from `apt-get download clang-22 libclang-common-22-dev llvm-22` with `dpkg-deb -x`, `-O2 -g -Wall -Wextra -Werror -target bpfel -mcpu=v3 -ffile-prefix-map="$PWD"=.`. The object's sha256 is pinned in the runbook, and a rebuild must match it byte for byte (`OK-rebuild-reproducible`). Every script and the reader get a sha256 pin too, checked by `sha256sum -c` in each paste before use (slice 1b/1c pattern).
 
+**Phase B build pins (2026-11-08, rock-box, Ubuntu clang 22.1.8 (1ubuntu1)).** The object rebuilt byte for byte from the repo root and from a second checkout path; `bpftool gen skeleton` parsed it. The runbook copies these; a later change to any file needs a new pin and a new review.
+
+```
+451247d8409396f35bf4454bfa8b44f2bc73b2197f97bb7c41818a9709f780e2  docs/tool-install/module1-xdp-records.o
+ac446e262ad151223784e8a17f41f70e198b25b8511bab73dfd4076f4286f760  docs/tool-install/module1_xdp_records.c
+32dc159f01b42a4b7cf3906c6fd0d12535b85cf1a36262f30d6211e44cce38e2  docs/tool-install/johnny-m1s2-reader.py
+e43fc1e35ea7e88310bb32e24b9640abe495a2e7a3d3466dea50dfd6abb54d85  etc/systemd/system/johnny-m1s2-reader.service
+```
+
 **rock-box self-test `module1-slice2-self-test.sh` → `SELF-TEST-OK`** (no Johnny, no sudo):
 - Source and disassembly: exactly one `return XDP_PASS`; every `r0` constant before `exit` is 2; only helpers {1, 5, 131, 132, 133}; no forbidden words outside comments (`XDP_DROP`, `XDP_TX`, `REDIRECT`, `ABORTED`, `adjust`, `tail_call`, `probe_read`, `ringbuf_output`, `prandom`).
 - Slice 1b enum and name table unchanged (`ENUM-ORDER-OK`); the `m2_ctl` slot order matches the script name table.

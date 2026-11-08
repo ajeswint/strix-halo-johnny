@@ -1,0 +1,72 @@
+[Unit]
+Description=Johnny Module 1 slice 2 bounded ring buffer reader (one run, no network)
+# Started only by an AJ-run paste (module1-slice2-records.sh read). Not enabled:
+# no [Install] section, so it can never start at boot. Missing ring pin = the
+# unit fails to start (ReadWritePaths below), which is fail closed.
+ConditionPathExists=/usr/local/libexec/johnny/johnny-m1s2-reader.py
+
+[Service]
+Type=exec
+User=root
+ExecStart=/usr/bin/python3 -I -B /usr/local/libexec/johnny/johnny-m1s2-reader.py --max-seconds 60 --max-records 1000000 --max-bytes 67108864 --keep 3
+Restart=no
+# --max-seconds + 30.
+RuntimeMaxSec=90
+TimeoutStopSec=20
+# Output: /var/lib/johnny/m1s2 (0700 root, files 0600).
+StateDirectory=johnny/m1s2
+StateDirectoryMode=0700
+UMask=0077
+# Resource bounds. The reader caps its own file (--max-bytes, ceiling 256 MiB);
+# LimitFSIZE is the kernel backstop (SIGXFSZ) at the ceiling + header.
+MemoryMax=128M
+MemorySwapMax=0
+CPUQuota=50%
+CPUAffinity=0
+TasksMax=4
+LimitNOFILE=64
+LimitFSIZE=257M
+LimitCORE=0
+Nice=10
+IOSchedulingClass=idle
+# No egress, enforced three ways: its own empty network namespace, no IP, no
+# socket family at all (stdout/stderr are the journal stream systemd passes in;
+# the reader never calls socket()).
+PrivateNetwork=yes
+IPAddressDeny=any
+RestrictAddressFamilies=none
+# Privilege: root (the pin dir is 0700 root) with CAP_BPF only. bpf() checks
+# bpf_capable() (CAP_BPF or CAP_SYS_ADMIN) when unprivileged BPF is disabled;
+# OBJ_GET, map lookup and ring mmap need no other capability.
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_BPF
+AmbientCapabilities=
+ProtectSystem=strict
+# /sys is read-only (ProtectKernelTunables). The ring pin alone is writable:
+# BPF_OBJ_GET without BPF_F_RDONLY asks for MAY_WRITE on the pin, and the
+# consumer page mmap needs that read-write fd. m2_cfg / m2_ctl are opened
+# BPF_F_RDONLY and stay read-only.
+ReadWritePaths=/sys/fs/bpf/johnny_m1s2/m2_rb
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateIPC=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+KeyringMode=private
+DevicePolicy=closed
+SystemCallArchitectures=native
+SystemCallFilter=@system-service bpf
+SystemCallErrorNumber=EPERM
