@@ -188,7 +188,7 @@ Records hold **MAC and IP addresses, ports and timing** for household devices. T
 - BPF ring buffer design and the mmap layout (consumer page RW, producer+data RO, data mapped twice): <https://docs.kernel.org/bpf/ringbuf.html>
 - `BPF_MAP_TYPE_RINGBUF` map docs: <https://docs.kernel.org/bpf/map_ringbuf.html>
 - XDP `xdp_md` (`rx_queue_index`, `ingress_ifindex`): <https://docs.kernel.org/bpf/redirect.html> and UAPI above
-- bpftool `prog loadall`, `net attach`: <https://man.archlinux.org/man/bpftool-prog.8.en>, <https://man.archlinux.org/man/bpftool-net.8.en>
+- bpftool `prog load`, `net attach`: <https://man.archlinux.org/man/bpftool-prog.8.en>, <https://man.archlinux.org/man/bpftool-net.8.en>
 - systemd sandboxing (`PrivateNetwork`, `IPAddressDeny`, `RestrictAddressFamilies`, `SystemCallFilter`): <https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html>, <https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html>
 - ice driver XDP / 3 KB limit: <https://docs.kernel.org/networking/device_drivers/ethernet/intel/ice.html>
 - Prior slices: `module1-slice1-span-xdp.md`, `module1-slice1b-attach.md`, `module1-slice1c-boot-unit.md`; handoff rev 104.
