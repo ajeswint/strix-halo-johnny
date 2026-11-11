@@ -253,10 +253,10 @@ sudo systemctl disable johnny-capture-xdp-records.service johnny-m1s2b-reader.se
 sudo bash /root/m1s2b/module1-slice2b-boot.sh stop &&
 sudo systemctl enable --now johnny-capture-xdp.service &&
 st=$(sudo bpftool net show dev eno1np0 2>/dev/null || true) &&
-drv_ids=($(echo "$st" | grep -o 'driver id [0-9]*' | awk '{print $3}')) &&
+drv_ids=($(echo "$st" | grep -o "driver id [0-9]*" | awk "{print \$3}")) &&
 pname= &&
 if [ "${#drv_ids[@]}" -eq 1 ]; then
-  pname=$(sudo bpftool prog show id "${drv_ids[0]}" 2>/dev/null | grep -o 'name [^ ]*' | head -n1 | awk '{print $2}')
+  pname=$(sudo bpftool prog show id "${drv_ids[0]}" 2>/dev/null | grep -o "name [^ ]*" | head -n1 | awk "{print \$2}")
 fi &&
 e1c=$(sudo systemctl is-enabled johnny-capture-xdp.service 2>/dev/null || true) &&
 u1c=$(sudo systemctl is-active johnny-capture-xdp.service 2>/dev/null || true) &&

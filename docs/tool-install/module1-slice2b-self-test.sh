@@ -332,6 +332,48 @@ exit 0
 EOF
 chmod +x "$E2E_DIR/bin/tcpdump"
 
+cat > "$E2E_DIR/bin/sudo" <<'EOF'
+#!/bin/bash
+if [ "$1" = "-v" ]; then
+  exit 0
+fi
+if [ "$1" = "bash" ] && [ "$2" = "/root/m1s2b/module1-slice2b-boot.sh" ]; then
+  exit 0
+fi
+exec "$@"
+EOF
+chmod +x "$E2E_DIR/bin/sudo"
+
+cat > "$E2E_DIR/bin/sha256sum" <<'EOF'
+#!/bin/bash
+if [ "$1" = "-c" ]; then
+  while read -r hash path; do
+    if [ -f "$path" ]; then
+      echo "$hash  $path" | /usr/bin/sha256sum -c -
+    else
+      echo "$path: OK"
+    fi
+  done
+  exit 0
+fi
+exec /usr/bin/sha256sum "$@"
+EOF
+chmod +x "$E2E_DIR/bin/sha256sum"
+
+cat > "$E2E_DIR/bin/ssh" <<'EOF'
+#!/bin/bash
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -*) shift ;;
+    *@*|192.168.*) shift; break ;;
+    *) break ;;
+  esac
+done
+remote_cmd="$*"
+exec bash -c "$remote_cmd"
+EOF
+chmod +x "$E2E_DIR/bin/ssh"
+
 # Populate sysfs mock
 echo 0x1183 > "$E2E_DIR/sysfs/net/eno1np0/flags"
 echo 10000 > "$E2E_DIR/sysfs/net/eno1np0/speed"
@@ -491,6 +533,20 @@ out=$(bash -c '
 grep -q "STOP-irq-baseline-diff-test-bad-aff" <<<"$out" || fail "Scenario 10 failed (bad affinity should stop): $out"
 
 # Test 11: Rollback verification (driver id 138 -> j_xdp_observe, 1c enabled/active, 2b disabled/inactive)
+# Extract actual rollback fence from runbook, simulate outer single-quote parse via fake ssh,
+# and run against fixtures requiring M1S2B-ROLLBACK-DONE
+RB_FENCE=$(python3 -I - "$DOC" <<'PY'
+import re, shlex, sys
+text = open(sys.argv[1]).read()
+m = re.search(r"## Rollback.*?\n```bash\n(.*?\n)```", text, re.DOTALL)
+if not m:
+    sys.stderr.write("Rollback fence not found\n")
+    sys.exit(1)
+sys.stdout.write(m.group(1))
+PY
+)
+[ -n "$RB_FENCE" ] || fail "could not extract rollback fence from $DOC"
+
 rm -f /tmp/mock_*
 echo "xdp: eno1np0(4) driver id 138" > /tmp/mock_net_show_text
 echo "j_xdp_observe" > /tmp/mock_prog_id_name
@@ -501,52 +557,12 @@ echo "inactive" > /tmp/mock_2x_state
 echo "disabled" > /tmp/mock_2r_enabled
 echo "inactive" > /tmp/mock_2r_state
 
-out=$(bash -c '
-  export PATH="'"$E2E_DIR"'/bin:$PATH"
-  st=$(bpftool net show dev eno1np0 2>/dev/null || true)
-  drv_ids=($(echo "$st" | grep -o "driver id [0-9]*" | awk "{print \$3}"))
-  pname=
-  if [ "${#drv_ids[@]}" -eq 1 ]; then
-    pname=$(bpftool prog show id "${drv_ids[0]}" 2>/dev/null | grep -o "name [^ ]*" | head -n1 | awk "{print \$2}")
-  fi
-  e1c=$(systemctl is-enabled johnny-capture-xdp.service 2>/dev/null || true)
-  u1c=$(systemctl is-active johnny-capture-xdp.service 2>/dev/null || true)
-  e2x=$(systemctl is-enabled johnny-capture-xdp-records.service 2>/dev/null || true)
-  u2x=$(systemctl is-active johnny-capture-xdp-records.service 2>/dev/null || true)
-  e2r=$(systemctl is-enabled johnny-m1s2b-reader.service 2>/dev/null || true)
-  u2r=$(systemctl is-active johnny-m1s2b-reader.service 2>/dev/null || true)
-  if [ "${#drv_ids[@]}" -eq 1 ] && [ "$pname" = "j_xdp_observe" ] && [ "$e1c" = "enabled" ] && [ "$u1c" = "active" ] && [ "$e2x" = "disabled" ] && [ "$e2r" = "disabled" ] && [ "$u2x" = "inactive" ] && [ "$u2r" = "inactive" ]; then
-    echo M1S2B-ROLLBACK-DONE
-  else
-    echo "STOP-rollback-not-clean st=$st drv_ids=${drv_ids[*]} pname=$pname 1c=$e1c/$u1c 2x=$e2x/$u2x 2r=$e2r/$u2r"
-    false
-  fi
-' 2>&1)
+out=$(PATH="$E2E_DIR/bin:$PATH" bash -c "$RB_FENCE" 2>&1 || true)
 grep -q "M1S2B-ROLLBACK-DONE" <<<"$out" || fail "Scenario 11 failed (clean rollback): $out"
 
 # Unclean rollback should fail closed
 echo "disabled" > /tmp/mock_c1_enabled
-out=$(bash -c '
-  export PATH="'"$E2E_DIR"'/bin:$PATH"
-  st=$(bpftool net show dev eno1np0 2>/dev/null || true)
-  drv_ids=($(echo "$st" | grep -o "driver id [0-9]*" | awk "{print \$3}"))
-  pname=
-  if [ "${#drv_ids[@]}" -eq 1 ]; then
-    pname=$(bpftool prog show id "${drv_ids[0]}" 2>/dev/null | grep -o "name [^ ]*" | head -n1 | awk "{print \$2}")
-  fi
-  e1c=$(systemctl is-enabled johnny-capture-xdp.service 2>/dev/null || true)
-  u1c=$(systemctl is-active johnny-capture-xdp.service 2>/dev/null || true)
-  e2x=$(systemctl is-enabled johnny-capture-xdp-records.service 2>/dev/null || true)
-  u2x=$(systemctl is-active johnny-capture-xdp-records.service 2>/dev/null || true)
-  e2r=$(systemctl is-enabled johnny-m1s2b-reader.service 2>/dev/null || true)
-  u2r=$(systemctl is-active johnny-m1s2b-reader.service 2>/dev/null || true)
-  if [ "${#drv_ids[@]}" -eq 1 ] && [ "$pname" = "j_xdp_observe" ] && [ "$e1c" = "enabled" ] && [ "$u1c" = "active" ] && [ "$e2x" = "disabled" ] && [ "$e2r" = "disabled" ] && [ "$u2x" = "inactive" ] && [ "$u2r" = "inactive" ]; then
-    echo M1S2B-ROLLBACK-DONE
-  else
-    echo "STOP-rollback-not-clean st=$st drv_ids=${drv_ids[*]} pname=$pname 1c=$e1c/$u1c 2x=$e2x/$u2x 2r=$e2r/$u2r"
-    false
-  fi
-' 2>&1 || true)
+out=$(PATH="$E2E_DIR/bin:$PATH" bash -c "$RB_FENCE" 2>&1 || true)
 grep -q "STOP-rollback-not-clean" <<<"$out" || fail "Scenario 11 failed (unclean rollback should fail): $out"
 
 # Clean mock files
@@ -558,7 +574,7 @@ echo "E2E-OK scenarios=11"
 
 [ -f "$DOC" ] || fail "missing runbook $DOC"
 python3 -I - "$DOC" "$WANT_OBJ_SHA" "$WANT_BOOT_SHA" "$WANT_UNIT_SHA" "$WANT_READER_SHA" "$WANT_RUNIT_SHA" <<'PY'
-import re, sys
+import re, shlex, sys
 doc_path, obj, boot, unit, rdr, runit = sys.argv[1:7]
 text = open(doc_path).read()
 lines = text.splitlines()
@@ -626,8 +642,34 @@ for idx, (lab, body) in enumerate(blocks, 1):
             die(f"block #{idx}: a sudo paste must start ssh -t aj@192.168.50.152 'sudo -v &&")
         if body.count("ssh ") != 1:
             die(f"block #{idx}: one ssh -t per sudo paste")
+        if not body.rstrip().endswith("'"):
+            die(f"block #{idx}: sudo paste must end with a single quote closing ssh")
+        if body.count("'") != 2:
+            die(f"block #{idx}: nested single quotes in ssh -t argument (found {body.count(chr(39))} single quotes, expected 2)")
     if "ssh" in body and "192.168.50.152" not in body:
         die(f"block #{idx}: ssh to an unexpected host")
+
+    # Audit all ssh commands in any block for nested quotes breaking the remote command argument
+    stoks = shlex.split(body)
+    for k, tok in enumerate(stoks):
+        if tok == "ssh":
+            h_idx = -1
+            for m in range(k + 1, len(stoks)):
+                if stoks[m].startswith("-"):
+                    continue
+                if "@" in stoks[m] or "192.168." in stoks[m]:
+                    h_idx = m
+                    break
+            if h_idx < 0:
+                die(f"block #{idx}: ssh without destination host")
+            end_idx = len(stoks)
+            for m in range(h_idx + 1, len(stoks)):
+                if stoks[m] in ("&&", ";", "||", "|"):
+                    end_idx = m
+                    break
+            remote_args = stoks[h_idx + 1:end_idx]
+            if len(remote_args) != 1:
+                die(f"block #{idx}: ssh call at token {k} has {len(remote_args)} remote args instead of 1 single-quoted command string (nested quotes broke the argument): {remote_args[:3]}")
     for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
         name = path.rsplit("/", 1)[-1]
         if name in want and want[name] != h:
