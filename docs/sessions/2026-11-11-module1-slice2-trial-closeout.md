@@ -1,4 +1,4 @@
-# 2026-11-11 UTC (~19:11 to ~19:21 UTC; ~1:11 to ~1:21 PM America/Chicago): Module 1 slice 2 header-only ringbuf trial applied on Johnny and closed (closeout)
+# 2026-11-11 UTC (~19:11 to ~19:21 UTC, where ~19:11 is the Paste 5 run-file stamp `20261111T191146Z` (Pastes 1–4 printed no clock and ran before it) and ~19:21 rounds the printed close 19:20:39Z; ~1:11 to ~1:21 PM America/Chicago): Module 1 slice 2 header-only ringbuf trial applied on Johnny and closed (closeout)
 
 Seat: code-writer (Claude Code, Claude Fable 5.1). Branch `claude/module1-slice2-closeout`, from `origin/claude/practical-ritchie-4c6vvf` tip `f7840f4` (PR #30 merged there: slice 2 design, code, runbook, self-test; reviewed by the adversarial-reviewer). Docs-only closeout. **No SSH, no sudo, no write on Johnny in this closeout.** No deployed object, reader, unit, helper or source changed; all seven sha256 pins unchanged; the self-test is unchanged and still prints `SELF-TEST-OK`.
 
