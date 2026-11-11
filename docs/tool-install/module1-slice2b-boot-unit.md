@@ -29,16 +29,16 @@ Plain words, numbered:
 
 ## Rate-Limit Reasoning
 
-Trial Paste 7 used 2,000 rec/s/CPU, burst 4,000; cumulative `ctl_seen=46978`, `rate_limited=15527`, `emitted=31451`, `rb_full=0` (~33% limited); `span_s=98.160`; RXQ 6 = 15,794 of 31,419 emitted; top src 172.217.153.231 = 18,917; Paste 8 NIC drop deltas 0. Ring and reader kept up; the per-CPU token bucket was the limiter. Average seen was ~479 pps, so unused quota on idle CPUs could not help the hot queue.
+Trial Paste 7 used 2,000 rec/s/CPU, burst 4,000; cumulative `ctl_seen=46978`, `rate_limited=15527`, `emitted=31451`, `rb_full=0` (15,527/46,978 = 33.1% rate-limited); output file `span_s=98.160`; RXQ 6 = 15,794 of 31,419 emitted; top src 172.217.153.231 = 18,917; Paste 8 NIC drop deltas 0. Ring and reader kept up; the per-CPU token bucket was the limiter. The ~479 pps figure divides cumulative `ctl_seen` (46,978) across all CPUs by one file's 98.160 s span (~478.6 pps), so unused quota on idle CPUs could not help the hot queue.
 
-A 4× increase in rate and burst keeps a ~2 s burst window and gives one hot CPU 8,000/s (~700 KiB/s at 88 B, 2.8 MiB/s worst-case across 4 CPUs). The 4 MiB ring then holds ~1.4 s of worst-case backlog. This is a proposed default, not a proof. Sampling stays N=1. The compiled limits `M2_RATE_MAX=1000000` and `M2_BURST_MAX=100000` in the verified BPF object already permit 8,000/16,000.
+A 4× increase to 8,000 rec/s and burst 16,000 gives an exact 2.0 s burst window (16,000/8,000) and an exact token leak period of 125,000 ns (`1000000000/8000`), giving one hot CPU 8,000 rec/s (on-disk size is 80 B per record, about 625 KiB/s per CPU, or ~2.44 MiB/s across 4 CPUs). In the kernel BPF ring buffer, each slot is 88 B (80 B record + 8 B header); at 4 × 8,000 rec/s (32,000 rec/s = 2,816,000 B/s), the 4 MiB ring buffer holds about 1.49 s of worst-case backlog. This is a proposed default, not a proof. Sampling stays N=1. The compiled limits `M2_RATE_MAX=1000000` and `M2_BURST_MAX=100000` in the verified BPF object already permit 8,000/16,000.
 
 ## Short Design Addendum
 
 - **BPF Object:** Reuses `docs/tool-install/module1-xdp-records.o` byte-for-byte. The object's compiled fallback is 2,000/4,000 with `ver=0`. `module1-slice2b-boot.sh start` writes `m2_cfg` with `ver=1`, `sample_every=1`, `rate=8000`, `burst=16000` and verifies the map before attach. If write or verify fails, it fails closed: no attach, no reader start.
 - **Boot Helper:** `/root/m1s2b/module1-slice2b-boot.sh` (0700 root:root). Owns `start`, `stop`, `verify`, `status`. Incorporates the proven 30 × 2 s `wait_boot_ready` guard from slice 1c. Refuses if a foreign program or the slice 1c observer holds the slot (no overwrite). On failure after load or attach, detaches only our program and unpins to leave a clean unattached state; never starts 1c from a failed 2b start.
 - **XDP Boot Unit:** `etc/systemd/system/johnny-capture-xdp-records.service`. Type=oneshot, RemainAfterExit=yes. Ordered `After=/Wants= network-online.target johnny-capture-irq.service`. No `After=johnny-capture-tuning.service` (avoids rev 89/90 ordering cycle). `Wants=johnny-m1s2b-reader.service` (no BindsTo).
-- **Persistent Reader:** `docs/tool-install/johnny-m1s2b-reader.py` -> `/usr/local/libexec/johnny/johnny-m1s2b-reader.py` (0644 root:root). Service `etc/systemd/system/johnny-m1s2b-reader.service`. Continuous drain without `RuntimeMaxSec`. Rotates output files under `/var/lib/johnny/m1s2b/run-<UTC>.bin` (0700 dir, 0600 files). Rotates at 64 MiB or 3600 s. Prunes oldest files to maintain `keep=6` and total directory size <= 384 MiB. Refuses to start or stops writing if free disk space is below 256 MiB reserve. Exits immediately on corrupt ring without skipping ahead.
+- **Persistent Reader:** `docs/tool-install/johnny-m1s2b-reader.py` -> `/usr/local/libexec/johnny/johnny-m1s2b-reader.py` (0644 root:root). Service `etc/systemd/system/johnny-m1s2b-reader.service`. Continuous drain without `RuntimeMaxSec`. Rotates output files under `/var/lib/johnny/m1s2b/run-<UTC>.bin` (0700 dir, 0600 files). Rotates at 64 MiB or 3600 s. Prunes oldest files to maintain `keep=6` and total directory size <= 384 MiB. Refuses to start or stops writing if free disk space is below 256 MiB reserve. Exits immediately on corrupt ring without skipping ahead. A reader `STOP` exits 1 (`johnny-m1s2b-reader.py:671-673`); under `Restart=on-failure` and `StartLimitBurst=5` (`johnny-m1s2b-reader.service:6-13`), repeated failures leave the reader failed while the XDP unit stays active (`Wants=`, without `BindsTo=`), preserving kernel packet capture while dropping unread ring records.
 
 ## Final sha256 Pins
 
@@ -46,7 +46,7 @@ Deployables (copied to Johnny):
 
 ```
 a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  docs/tool-install/module1-xdp-records.o
-468853baaeb009ac39a4a75e52e40a875a7d4040b4cde7a4b8efdb4fe96b269c  docs/tool-install/module1-slice2b-boot.sh
+650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  docs/tool-install/module1-slice2b-boot.sh
 4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a  etc/systemd/system/johnny-capture-xdp-records.service
 e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581  docs/tool-install/johnny-m1s2b-reader.py
 5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  etc/systemd/system/johnny-m1s2b-reader.service
@@ -84,7 +84,7 @@ cd /home/aj/Projects/strix-halo-johnny-slice2b &&
 bash docs/tool-install/module1-slice2b-self-test.sh
 ```
 
-Expect `PINS-OK`, `SHELLCHECK-OK`, `STATIC-CHECKS-OK`, `READER-TESTS-OK`, `E2E-OK scenarios=8`, `RUNBOOK-OK blocks=9`, and **`SELF-TEST-OK`**.
+Expect `PINS-OK`, `SHELLCHECK-OK`, `STATIC-CHECKS-OK`, `READER-TESTS-OK`, `E2E-OK scenarios=11`, `RUNBOOK-OK blocks=9`, and **`SELF-TEST-OK`**.
 
 ### Paste 2: Copy deployables to Johnny (no sudo)
 
@@ -94,7 +94,7 @@ Expect `PINS-OK`, `SHELLCHECK-OK`, `STATIC-CHECKS-OK`, `READER-TESTS-OK`, `E2E-O
 ssh aj@192.168.50.152 'mkdir -p -m 0700 /home/aj/cis-audit/m1s2b' &&
 scp /home/aj/Projects/strix-halo-johnny-slice2b/docs/tool-install/module1-xdp-records.o /home/aj/Projects/strix-halo-johnny-slice2b/docs/tool-install/module1-slice2b-boot.sh /home/aj/Projects/strix-halo-johnny-slice2b/etc/systemd/system/johnny-capture-xdp-records.service /home/aj/Projects/strix-halo-johnny-slice2b/docs/tool-install/johnny-m1s2b-reader.py /home/aj/Projects/strix-halo-johnny-slice2b/etc/systemd/system/johnny-m1s2b-reader.service aj@192.168.50.152:/home/aj/cis-audit/m1s2b/ &&
 ssh aj@192.168.50.152 'cd /home/aj/cis-audit/m1s2b && echo "a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  module1-xdp-records.o
-468853baaeb009ac39a4a75e52e40a875a7d4040b4cde7a4b8efdb4fe96b269c  module1-slice2b-boot.sh
+650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  module1-slice2b-boot.sh
 4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a  johnny-capture-xdp-records.service
 e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581  johnny-m1s2b-reader.py
 5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  johnny-m1s2b-reader.service" | sha256sum -c - && echo M1S2B-COPY-DONE'
@@ -109,7 +109,7 @@ Expect five `OK` hash lines and **`M1S2B-COPY-DONE`**.
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
 cd /home/aj/cis-audit/m1s2b &&
-echo "468853baaeb009ac39a4a75e52e40a875a7d4040b4cde7a4b8efdb4fe96b269c  module1-slice2b-boot.sh" | sha256sum -c - &&
+echo "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  module1-slice2b-boot.sh" | sha256sum -c - &&
 echo "16fbd7d1f18d2fedb247d73edc3bc6aa040f5ab99bd3b48c35b79e543d22179b  /etc/johnny/capture-cores
 db58d7c72b5a58cbd0c2533caa819d397e4c205242e30e5defb0eae0f4ab59e4  /etc/johnny/irq-affinity.sh" | sudo sha256sum -c - &&
 sudo bpftool net show dev eno1np0 &&
@@ -128,7 +128,7 @@ Expect three `OK` hash lines, `eno1np0` showing driver attachment, `enabled`, `a
 ssh -t aj@192.168.50.152 'sudo -v &&
 cd /home/aj/cis-audit/m1s2b &&
 echo "a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  module1-xdp-records.o
-468853baaeb009ac39a4a75e52e40a875a7d4040b4cde7a4b8efdb4fe96b269c  module1-slice2b-boot.sh
+650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  module1-slice2b-boot.sh
 4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a  johnny-capture-xdp-records.service
 e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581  johnny-m1s2b-reader.py
 5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  johnny-m1s2b-reader.service" | sha256sum -c - &&
@@ -139,7 +139,7 @@ sudo mkdir -p -m 0755 /usr/local/libexec/johnny &&
 sudo install -m 0644 -o root -g root johnny-m1s2b-reader.py /usr/local/libexec/johnny/johnny-m1s2b-reader.py &&
 sudo install -m 0644 -o root -g root johnny-m1s2b-reader.service /etc/systemd/system/johnny-m1s2b-reader.service &&
 sudo install -m 0644 -o root -g root johnny-capture-xdp-records.service /etc/systemd/system/johnny-capture-xdp-records.service &&
-echo "468853baaeb009ac39a4a75e52e40a875a7d4040b4cde7a4b8efdb4fe96b269c  /root/m1s2b/module1-slice2b-boot.sh
+echo "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  /root/m1s2b/module1-slice2b-boot.sh
 a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  /root/m1s2b/module1-xdp-records.o
 e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
 5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  /etc/systemd/system/johnny-m1s2b-reader.service
@@ -157,7 +157,11 @@ Expect five `OK` lines twice, clean daemon-reload, no systemd verify errors, and
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "468853baaeb009ac39a4a75e52e40a875a7d4040b4cde7a4b8efdb4fe96b269c  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
+echo "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  /root/m1s2b/module1-slice2b-boot.sh
+a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  /root/m1s2b/module1-xdp-records.o
+e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
+5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  /etc/systemd/system/johnny-m1s2b-reader.service
+4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a  /etc/systemd/system/johnny-capture-xdp-records.service" | sudo sha256sum -c - &&
 sudo systemctl stop johnny-capture-xdp.service &&
 sudo systemctl disable johnny-capture-xdp.service &&
 sudo systemctl enable johnny-capture-xdp-records.service johnny-m1s2b-reader.service &&
@@ -167,7 +171,7 @@ sudo bash /root/m1s2b/module1-slice2b-boot.sh status &&
 echo M1S2B-CUTOVER-DONE'
 ```
 
-Expect `OK`, slice 1c stopped/disabled, slice 2b units enabled/started, `status` showing `ATTACH records <id>`, `CFG ver=1 sample_every=1 rate=8000 burst=16000`, `UNIT-2B enabled=enabled active=active`, `UNIT-READER enabled=enabled active=active`, and **`M1S2B-CUTOVER-DONE`**.
+Expect five `OK` hash lines, slice 1c stopped/disabled, slice 2b units enabled/started, `status` showing `ATTACH records <id>`, `CFG ver=1 sample_every=1 rate=8000 burst=16000`, `UNIT-2B enabled=enabled active=active`, `UNIT-READER enabled=enabled active=active`, and **`M1S2B-CUTOVER-DONE`**.
 
 ### Paste 6: Short read-only verify window
 
@@ -175,7 +179,7 @@ Expect `OK`, slice 1c stopped/disabled, slice 2b units enabled/started, `status`
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "468853baaeb009ac39a4a75e52e40a875a7d4040b4cde7a4b8efdb4fe96b269c  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
+echo "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
 sudo bash /root/m1s2b/module1-slice2b-boot.sh verify &&
 echo M1S2B-VERIFY-DONE'
 ```
@@ -188,12 +192,17 @@ Expect `VERIFY-WINDOW`, `PASS-RATIO`, `ETHTOOL-DROP-DELTAS none`, and **`M1S2B-V
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
+echo "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  /root/m1s2b/module1-slice2b-boot.sh
+a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  /root/m1s2b/module1-xdp-records.o
+e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
+5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  /etc/systemd/system/johnny-m1s2b-reader.service
+4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a  /etc/systemd/system/johnny-capture-xdp-records.service" | sudo sha256sum -c - &&
 echo "Issuing reboot to test unattended boot persistence..." &&
 sudo reboot &&
 echo M1S2B-REBOOT-ISSUED'
 ```
 
-Expect **`M1S2B-REBOOT-ISSUED`**. Johnny reboots (~60–90 s).
+Expect five `OK` hash lines and **`M1S2B-REBOOT-ISSUED`**. Johnny reboots (~60–90 s).
 
 ### Paste 8: Post-reboot verify (unattended boot persistence check)
 
@@ -201,7 +210,7 @@ Expect **`M1S2B-REBOOT-ISSUED`**. Johnny reboots (~60–90 s).
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "468853baaeb009ac39a4a75e52e40a875a7d4040b4cde7a4b8efdb4fe96b269c  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
+echo "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
 for i in {1..24}; do
   st_xdp=$(sudo systemctl is-active johnny-capture-xdp-records.service 2>/dev/null || true)
   st_rdr=$(sudo systemctl is-active johnny-m1s2b-reader.service 2>/dev/null || true)
@@ -237,25 +246,33 @@ Run this block to revert Johnny back to slice 1c (`j_xdp_observe` attached, `joh
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "468853baaeb009ac39a4a75e52e40a875a7d4040b4cde7a4b8efdb4fe96b269c  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
+echo "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
 sudo systemctl stop johnny-m1s2b-reader.service &&
 sudo systemctl stop johnny-capture-xdp-records.service &&
 sudo systemctl disable johnny-capture-xdp-records.service johnny-m1s2b-reader.service &&
 sudo bash /root/m1s2b/module1-slice2b-boot.sh stop &&
 sudo systemctl enable --now johnny-capture-xdp.service &&
 st=$(sudo bpftool net show dev eno1np0 2>/dev/null || true) &&
+drv_ids=($(echo "$st" | grep -o 'driver id [0-9]*' | awk '{print $3}')) &&
+pname= &&
+if [ "${#drv_ids[@]}" -eq 1 ]; then
+  pname=$(sudo bpftool prog show id "${drv_ids[0]}" 2>/dev/null | grep -o 'name [^ ]*' | head -n1 | awk '{print $2}')
+fi &&
+e1c=$(sudo systemctl is-enabled johnny-capture-xdp.service 2>/dev/null || true) &&
 u1c=$(sudo systemctl is-active johnny-capture-xdp.service 2>/dev/null || true) &&
+e2x=$(sudo systemctl is-enabled johnny-capture-xdp-records.service 2>/dev/null || true) &&
 u2x=$(sudo systemctl is-active johnny-capture-xdp-records.service 2>/dev/null || true) &&
+e2r=$(sudo systemctl is-enabled johnny-m1s2b-reader.service 2>/dev/null || true) &&
 u2r=$(sudo systemctl is-active johnny-m1s2b-reader.service 2>/dev/null || true) &&
-if echo "$st" | grep -q "j_xdp_observe" && [ "$u1c" = "active" ] && [ "$u2x" = "inactive" ] && [ "$u2r" = "inactive" ]; then
+if [ "${#drv_ids[@]}" -eq 1 ] && [ "$pname" = "j_xdp_observe" ] && [ "$e1c" = "enabled" ] && [ "$u1c" = "active" ] && [ "$e2x" = "disabled" ] && [ "$e2r" = "disabled" ] && [ "$u2x" = "inactive" ] && [ "$u2r" = "inactive" ]; then
   echo M1S2B-ROLLBACK-DONE
 else
-  echo "STOP-rollback-not-clean st=$st 1c=$u1c 2x=$u2x 2r=$u2r"
+  echo "STOP-rollback-not-clean st=$st drv_ids=${drv_ids[*]} pname=$pname 1c=$e1c/$u1c 2x=$e2x/$u2x 2r=$e2r/$u2r"
   false
 fi'
 ```
 
-Expect slice 2b stopped/disabled, 2b pins removed, slice 1c enabled/active, observer attached, and **`M1S2B-ROLLBACK-DONE`**.
+Expect slice 2b stopped/disabled, 2b pins removed, slice 1c enabled/active, observer attached (`driver id <id>`, name `j_xdp_observe`), and **`M1S2B-ROLLBACK-DONE`**.
 
 ## What Each STOP Means
 
@@ -271,7 +288,8 @@ Expect slice 2b stopped/disabled, 2b pins removed, slice 1c enabled/active, obse
 | `STOP-units-not-active` | One or both 2b units did not reach active within 120 s after boot. |
 | `STOP-ordering-cycle-warning` | Systemd ordering cycle detected in journal. |
 | `STOP-1c-unit-not-disabled` | Slice 1c unit remained enabled after reboot. |
-| `STOP-rollback-not-clean` | Rollback did not return Johnny to active slice 1c observer state. |
+| `STOP-rollback-not-clean` | Rollback did not return Johnny to clean slice 1c observer state (requires one attached driver id with prog name `j_xdp_observe`, 1c enabled/active, and both 2b units disabled/inactive). |
+| reader exit 1 (`Restart=on-failure`) | Reader encountered a STOP condition (e.g. disk reserve or corrupt ring); after `StartLimitBurst=5`, systemd leaves the reader failed while XDP unit remains active. |
 
 ## Tokens AJ Sends Back
 

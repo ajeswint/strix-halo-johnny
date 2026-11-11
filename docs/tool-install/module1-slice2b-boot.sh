@@ -94,14 +94,12 @@ kv() {
 }
 
 owner_ok() {
-  local p=$1 st
-  [ -e "$p" ] || return 1
-  [ ! -L "$p" ] || return 1
-  st=$(stat -c '%u:%g:%a' "$p" 2>/dev/null || true)
-  case "$st" in
-    0:0:[0-7][0-5][0-5]) return 0 ;;
-    *) return 1 ;;
-  esac
+  local p=$1 o m
+  [ -f "$p" ] && [ ! -L "$p" ] || return 1
+  o=$(stat -c '%u:%g' "$p" 2>/dev/null || true)
+  [ "$o" = "0:0" ] || return 1
+  m=$(stat -c '%a' "$p" 2>/dev/null || true)
+  [[ $m =~ ^[0-7]*[0145][0145]$ ]]
 }
 
 flags_capture_ok() {
@@ -467,8 +465,8 @@ verify_attached_invariants() {
   snap=$(irq_snapshot) || stop "irq-snapshot-$tag"
   irq_in_cores <<<"$snap" || stop "irq-outside-cores-$tag"
   if [ -f "$(baseline_file)" ]; then
-    cur=$(awk '{ print $2, $3, $4 }' <<<"$snap" | sort)
-    base=$(awk '{ print $2, $3, $4 }' "$(baseline_file)" | sort)
+    cur=$(awk '{ print $3, $4 }' <<<"$snap" | sort)
+    base=$(awk '{ print $3, $4 }' "$(baseline_file)" | sort)
     [ "$cur" = "$base" ] || stop "irq-baseline-diff-$tag"
   fi
   echo "OK-xdp-mode driver id=$REC_ID ($tag)"

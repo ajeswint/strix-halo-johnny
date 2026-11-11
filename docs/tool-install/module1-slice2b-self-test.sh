@@ -6,8 +6,8 @@
 # 2. Syntax & Shellcheck: module1-slice2b-boot.sh and this test.
 # 3. Static checks: systemd units, python compile, helper command gates.
 # 4. Reader tests: synthetic ring, rotation, pruning, dir cap, free space reserve, corrupt ring, summary.
-# 5. E2E simulated scenarios: clean attach, observer refuse, foreign refuse, idempotent already-attached,
-#    fail-closed rollback, clean stop, keep-pins on detach failure, keep-observer, status, verify, boot wait timeout.
+# 5. E2E simulated scenarios: clean attach, idempotent already-attached, observer refuse, foreign refuse,
+#    clean stop, keep-observer, status, verify, boot wait timeout, IRQ-renumber, rollback.
 # 6. Runbook verification: markdown fence check, tokens, hashes, single-quote sudo.
 
 set -euo pipefail
@@ -26,7 +26,7 @@ CORES="etc/johnny/capture-cores"
 IRQ_HELPER="etc/johnny/irq-affinity.sh"
 
 WANT_OBJ_SHA="a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481"
-WANT_BOOT_SHA="468853baaeb009ac39a4a75e52e40a875a7d4040b4cde7a4b8efdb4fe96b269c"
+WANT_BOOT_SHA="650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2"
 WANT_UNIT_SHA="4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a"
 WANT_READER_SHA="e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581"
 WANT_RUNIT_SHA="5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c"
@@ -231,12 +231,12 @@ case "$*" in
   *"is-active suricata"*) echo "inactive"; exit 0 ;;
   *"is-active johnny-capture-irq.service"*) echo "active"; exit 0 ;;
   *"is-active johnny-capture-tuning.service"*) echo "active"; exit 0 ;;
-  *"is-enabled johnny-capture-xdp.service"*) echo "disabled"; exit 0 ;;
+  *"is-enabled johnny-capture-xdp.service"*) cat /tmp/mock_c1_enabled 2>/dev/null || echo "disabled"; exit 0 ;;
   *"is-active johnny-capture-xdp.service"*) cat /tmp/mock_c1_state 2>/dev/null || echo "inactive"; exit 0 ;;
-  *"is-enabled johnny-capture-xdp-records.service"*) echo "enabled"; exit 0 ;;
-  *"is-active johnny-capture-xdp-records.service"*) echo "active"; exit 0 ;;
-  *"is-enabled johnny-m1s2b-reader.service"*) echo "enabled"; exit 0 ;;
-  *"is-active johnny-m1s2b-reader.service"*) echo "active"; exit 0 ;;
+  *"is-enabled johnny-capture-xdp-records.service"*) cat /tmp/mock_2x_enabled 2>/dev/null || echo "enabled"; exit 0 ;;
+  *"is-active johnny-capture-xdp-records.service"*) cat /tmp/mock_2x_state 2>/dev/null || echo "active"; exit 0 ;;
+  *"is-enabled johnny-m1s2b-reader.service"*) cat /tmp/mock_2r_enabled 2>/dev/null || echo "enabled"; exit 0 ;;
+  *"is-active johnny-m1s2b-reader.service"*) cat /tmp/mock_2r_state 2>/dev/null || echo "active"; exit 0 ;;
   *) exit 0 ;;
 esac
 EOF
@@ -247,6 +247,16 @@ cat > "$E2E_DIR/bin/bpftool" <<'EOF'
 case "$*" in
   *"-j net show dev eno1np0"*)
     cat /tmp/mock_net_attach 2>/dev/null || echo '[]'
+    exit 0
+    ;;
+  *"net show dev eno1np0"*)
+    cat /tmp/mock_net_show_text 2>/dev/null || echo "xdp: eno1np0(4) driver id 138"
+    exit 0
+    ;;
+  *"prog show id "*)
+    id=$(echo "$*" | awk '{for(i=1;i<=NF;i++) if($i=="id") print $(i+1)}')
+    pname=$(cat /tmp/mock_prog_id_name 2>/dev/null || echo "j_xdp_observe")
+    echo "$id: xdp  name $pname  tag b5b852630d7539c7  gpl"
     exit 0
     ;;
   *"-j prog show pinned"*)
@@ -426,10 +436,123 @@ out=$(bash -c '
 ')
 grep -q "TIMEOUT-OK" <<<"$out" || fail "Scenario 9 failed: $out"
 
+# Test 10: IRQ renumbering across boots (name and affinity unchanged, numbers change)
+mkdir -p "$E2E_DIR/root/m1s2b"
+cat > "$E2E_DIR/root/m1s2b/irq-baseline.txt" <<'EOF'
+IRQ 100 ice-eno1np0-TxRx-0 1
+IRQ 101 ice-eno1np0-TxRx-1 2
+IRQ 102 ice-eno1np0-TxRx-2 3
+IRQ 103 ice-eno1np0-TxRx-3 4
+IRQ 104 ice-eno1np0-TxRx-4 1
+IRQ 105 ice-eno1np0-TxRx-5 2
+IRQ 106 ice-eno1np0-TxRx-6 3
+IRQ 107 ice-eno1np0-TxRx-7 4
+IRQ 108 ice-eno1np0-TxRx-8 1
+IRQ 109 ice-eno1np0-TxRx-9 2
+IRQ 110 ice-eno1np0-TxRx-10 3
+IRQ 111 ice-eno1np0-TxRx-11 4
+EOF
+echo '[{"xdp": [{"mode": "driver", "id": 200}]}]' > /tmp/mock_net_attach
+echo '[{"id": 200, "name": "j_xdp_records", "type": "xdp"}]' > /tmp/mock_prog_show
+echo '{"id": 200, "name": "j_xdp_records"}' > /tmp/mock_prog_pinned
+out=$(bash -c '
+  source '"$E2E_DIR/test-helper.sh"'
+  gate_host() { return 0; }
+  need_files() { return 0; }
+  eno3_ok() { return 0; }
+  wait_boot_ready() { return 0; }
+  eno1_ready_now() { return 0; }
+  irq_snapshot() {
+    for i in {0..11}; do
+      echo "IRQ $((189 + i)) ice-eno1np0-TxRx-$i $(((i % 4) + 1))"
+    done
+  }
+  irq_in_cores() { return 0; }
+  verify_attached_invariants test-renumber
+' 2>&1)
+grep -q "OK-irq-pins-unchanged (test-renumber)" <<<"$out" || fail "Scenario 10 failed (renumber should pass): $out"
+
+# Check that if affinity actually changes, verify_attached_invariants detects it and stops
+out=$(bash -c '
+  source '"$E2E_DIR/test-helper.sh"'
+  gate_host() { return 0; }
+  need_files() { return 0; }
+  eno3_ok() { return 0; }
+  wait_boot_ready() { return 0; }
+  eno1_ready_now() { return 0; }
+  irq_snapshot() {
+    for i in {0..11}; do
+      echo "IRQ $((189 + i)) ice-eno1np0-TxRx-$i 1"
+    done
+  }
+  irq_in_cores() { return 0; }
+  verify_attached_invariants test-bad-aff
+' 2>&1 || true)
+grep -q "STOP-irq-baseline-diff-test-bad-aff" <<<"$out" || fail "Scenario 10 failed (bad affinity should stop): $out"
+
+# Test 11: Rollback verification (driver id 138 -> j_xdp_observe, 1c enabled/active, 2b disabled/inactive)
+rm -f /tmp/mock_*
+echo "xdp: eno1np0(4) driver id 138" > /tmp/mock_net_show_text
+echo "j_xdp_observe" > /tmp/mock_prog_id_name
+echo "enabled" > /tmp/mock_c1_enabled
+echo "active" > /tmp/mock_c1_state
+echo "disabled" > /tmp/mock_2x_enabled
+echo "inactive" > /tmp/mock_2x_state
+echo "disabled" > /tmp/mock_2r_enabled
+echo "inactive" > /tmp/mock_2r_state
+
+out=$(bash -c '
+  export PATH="'"$E2E_DIR"'/bin:$PATH"
+  st=$(bpftool net show dev eno1np0 2>/dev/null || true)
+  drv_ids=($(echo "$st" | grep -o "driver id [0-9]*" | awk "{print \$3}"))
+  pname=
+  if [ "${#drv_ids[@]}" -eq 1 ]; then
+    pname=$(bpftool prog show id "${drv_ids[0]}" 2>/dev/null | grep -o "name [^ ]*" | head -n1 | awk "{print \$2}")
+  fi
+  e1c=$(systemctl is-enabled johnny-capture-xdp.service 2>/dev/null || true)
+  u1c=$(systemctl is-active johnny-capture-xdp.service 2>/dev/null || true)
+  e2x=$(systemctl is-enabled johnny-capture-xdp-records.service 2>/dev/null || true)
+  u2x=$(systemctl is-active johnny-capture-xdp-records.service 2>/dev/null || true)
+  e2r=$(systemctl is-enabled johnny-m1s2b-reader.service 2>/dev/null || true)
+  u2r=$(systemctl is-active johnny-m1s2b-reader.service 2>/dev/null || true)
+  if [ "${#drv_ids[@]}" -eq 1 ] && [ "$pname" = "j_xdp_observe" ] && [ "$e1c" = "enabled" ] && [ "$u1c" = "active" ] && [ "$e2x" = "disabled" ] && [ "$e2r" = "disabled" ] && [ "$u2x" = "inactive" ] && [ "$u2r" = "inactive" ]; then
+    echo M1S2B-ROLLBACK-DONE
+  else
+    echo "STOP-rollback-not-clean st=$st drv_ids=${drv_ids[*]} pname=$pname 1c=$e1c/$u1c 2x=$e2x/$u2x 2r=$e2r/$u2r"
+    false
+  fi
+' 2>&1)
+grep -q "M1S2B-ROLLBACK-DONE" <<<"$out" || fail "Scenario 11 failed (clean rollback): $out"
+
+# Unclean rollback should fail closed
+echo "disabled" > /tmp/mock_c1_enabled
+out=$(bash -c '
+  export PATH="'"$E2E_DIR"'/bin:$PATH"
+  st=$(bpftool net show dev eno1np0 2>/dev/null || true)
+  drv_ids=($(echo "$st" | grep -o "driver id [0-9]*" | awk "{print \$3}"))
+  pname=
+  if [ "${#drv_ids[@]}" -eq 1 ]; then
+    pname=$(bpftool prog show id "${drv_ids[0]}" 2>/dev/null | grep -o "name [^ ]*" | head -n1 | awk "{print \$2}")
+  fi
+  e1c=$(systemctl is-enabled johnny-capture-xdp.service 2>/dev/null || true)
+  u1c=$(systemctl is-active johnny-capture-xdp.service 2>/dev/null || true)
+  e2x=$(systemctl is-enabled johnny-capture-xdp-records.service 2>/dev/null || true)
+  u2x=$(systemctl is-active johnny-capture-xdp-records.service 2>/dev/null || true)
+  e2r=$(systemctl is-enabled johnny-m1s2b-reader.service 2>/dev/null || true)
+  u2r=$(systemctl is-active johnny-m1s2b-reader.service 2>/dev/null || true)
+  if [ "${#drv_ids[@]}" -eq 1 ] && [ "$pname" = "j_xdp_observe" ] && [ "$e1c" = "enabled" ] && [ "$u1c" = "active" ] && [ "$e2x" = "disabled" ] && [ "$e2r" = "disabled" ] && [ "$u2x" = "inactive" ] && [ "$u2r" = "inactive" ]; then
+    echo M1S2B-ROLLBACK-DONE
+  else
+    echo "STOP-rollback-not-clean st=$st drv_ids=${drv_ids[*]} pname=$pname 1c=$e1c/$u1c 2x=$e2x/$u2x 2r=$e2r/$u2r"
+    false
+  fi
+' 2>&1 || true)
+grep -q "STOP-rollback-not-clean" <<<"$out" || fail "Scenario 11 failed (unclean rollback should fail): $out"
+
 # Clean mock files
 rm -f /tmp/mock_*
 
-echo "E2E-OK scenarios=9"
+echo "E2E-OK scenarios=11"
 
 # ---------------------------------------------------------------- 6. runbook validation
 
