@@ -1,0 +1,67 @@
+[Unit]
+Description=Johnny Module 1 slice 2b persistent rotating ring buffer reader
+After=johnny-capture-xdp-records.service
+Requires=johnny-capture-xdp-records.service
+ConditionPathExists=/usr/local/libexec/johnny/johnny-m1s2b-reader.py
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=root
+ExecStart=/usr/bin/python3 -I -B /usr/local/libexec/johnny/johnny-m1s2b-reader.py
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=20
+# Output: /var/lib/johnny/m1s2b (0700 root, files 0600).
+StateDirectory=johnny/m1s2b
+StateDirectoryMode=0700
+UMask=0077
+# Resource bounds.
+MemoryMax=128M
+MemorySwapMax=0
+CPUQuota=50%
+CPUAffinity=0
+TasksMax=4
+LimitNOFILE=64
+LimitFSIZE=257M
+LimitCORE=0
+Nice=10
+IOSchedulingClass=idle
+# No egress, enforced three ways.
+PrivateNetwork=yes
+IPAddressDeny=any
+RestrictAddressFamilies=none
+# Privilege: uid 0 with NO capabilities.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+# /sys is read-only. The ring pin and output dir are writable.
+ReadWritePaths=/sys/fs/bpf/johnny_m1s2b/m2_rb /var/lib/johnny/m1s2b
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateIPC=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+KeyringMode=private
+DevicePolicy=closed
+SystemCallArchitectures=native
+SystemCallFilter=@system-service bpf
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target
