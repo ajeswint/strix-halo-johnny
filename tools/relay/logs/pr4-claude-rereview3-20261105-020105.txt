@@ -1,0 +1,59 @@
+The 07fa366 link gate passes for Johnny's live values, and the earlier rollback fixes still hold. I read the code only. The sandbox refused `bash -n` and `step-11-self-test.sh`, so neither has been run. I edited nothing.
+
+**Link gate with flags 0x1003, speed 10000, carrier 1, IFF_UP set**
+
+- **`STOP-flags` cannot fire.** The gate is `if ! flags_well_formed "$flags"; then die STOP-flags` (`step-11-e810-capture.sh:405-406`). `flags_well_formed` is `[[ $f =~ ^(0[xX])?[0-9a-fA-F]+$ ]]` (`:90`), and `0x1003` matches.
+- **`STOP-eno1-link` cannot fire.** The gate is `if ! eno1_link_ok "$speed" "$flags" "$carrier" "$oper"; then die "STOP-eno1-link ..."` (`:408-409`). `eno1_link_ok` (`:107-111`) does three things:
+  - `flags_admin_up "$flags" || return 1` passes, because `$((0x1003 & 1))` is 1.
+  - `[ "$speed" = 10000 ] || return 1` passes.
+  - `[ "$carrier" = 1 ] || [ "$oper" = up ]` passes on carrier 1.
+- **IFF_LOWER_UP is not required.** The old `(f & 65536)` check is gone from both `flags_capture_ok` and the preflight. The new comment at `:102` says "IFF_UP, IFF_PROMISC (0x100), IFF_NOARP (0x80). Not IFF_LOWER_UP."
+- **Promisc and NOARP are required only after the drop-in.**
+  - The preflight (`:392-411`) calls only `flags_well_formed` and `eno1_link_ok`, never `flags_capture_ok`.
+  - `flags_capture_ok` is called at `:707` (after the drop-in is written) and inside `wait_capture_port` (`:841`).
+  - `wait_capture_port` is reached at `:712`, `:761` and `:765`.
+- **Same fix on the other paths.** `wait_capture_port` now uses `flags_capture_ok "$f" && eno1_link_ok ...`, so the post-apply check no longer demands LOWER_UP either. The eno2 and eno3 waits use `flags_well_formed` and `flags_admin_up`.
+
+**Rollback fixes still hold**
+
+- **`trap '' HUP PIPE`** is at `:283`.
+- **Nonzero exit still reverts.**
+  - `cleanup` runs `set +e`, then `if [ "$rc" -ne 0 ]; then failed=1` (`:314-317`).
+  - It reverts when `failed=1`, `revert_ready=1` and `this_run_changed=1` (`:323-325`).
+  - `on_err` and `die` both set `failed=1`.
+- **`networkctl reload` on `NETPLAN-UNCHANGED`.** The `else` branch runs `if ! networkctl reload; then echo STOP-networkctl-reload; reload_failed=1; fi` and then `echo NETPLAN-UNCHANGED` (`:643-648`). `reload_failed` becomes the return code, and that sets `rc=1` and `STOP-revert-incomplete`.
+- **eno3 is cmp-guarded before apply.** `:727-731` loops over `eno3 eno1np0 eno4` with `cmp -s "/root/step11-pre/${nic}.network" ... || die "STOP-generate-$nic"`. `netplan apply` only comes after, at `:740`. eno2 has its own `ActivationPolicy=always-down` check at `:732`. The header at `:5` says "Does not change eno3's netplan stanza."
+- **No per-interface `disable_ipv6` write.** The only references are read-only `sysctl -n` at `:447-448`, followed by `STOP-ipv6` if either value isn't 1. A search for `sysctl -w`, `/proc/sys` and `tee` found nothing but the log `tee` at `:293`.
+- **No `rp_filter` write.** `:453` and `:455` are `sysctl -n` reads, and `:457` dies if `all` isn't 1.
+- **XDP is `xdpdrv` only, then detached.**
+  - Attach is `bpftool net attach xdpdrv ...` (`:906`).
+  - Detach is `bpftool net detach xdpdrv dev eno1np0` (`:941`), followed by `STOP-xdp-linger` if any mode remains (`:945`).
+  - The cleanup trap (`:319`) and the revert script (`:605`) detach `xdpdrv`.
+  - The revert script's extra `net detach xdp` (`:606`) is only defensive cleanup. It is not an attach.
+  - There is no `xdpgeneric` and no `xdpoffload`.
+- **No DDP, IRQ pin, GRUB or sudoers.** The only `ddp` hit is a read-only `grep -Ei 'xdp|ice|ddp'` over kernel log on a failed attach (`:909`). There is no `smp_affinity`, no `update-grub`, and nothing that writes sudoers. The `sudoers` and GRUB hits are the "No GRUB. No sudoers" line in the header comment (`:5`).
+
+**Nits (none block the paste)**
+
+1. `flags_well_formed` accepts a bare hex string with no `0x` prefix, such as `1003`, but `$((f & 1))` would read it as decimal. A string like `09` would make the arithmetic fail. Sysfs always prints `0x…` on this kernel, so it can't happen on Johnny. A stricter `^0[xX][0-9a-fA-F]+$` would be safer.
+2. The post-apply speed read at `:771` still uses `tr -d '\n'`, while every other read was changed to `tr -d '[:space:]'`. It is harmless.
+3. I did not run `step-11-self-test.sh`. The diff adds `eno1_link_ok 10000 0x1003 1 up`, `flags_capture_ok 0x1183`, and a case that `0 down` fails. Grok or AJ should run it before the paste.
+
+VERDICT: APPROVE-WITH-NITS
+
+**Relay (for Grok 4.7)**
+
+Claude Code reviewed 07fa366 and gives APPROVE-WITH-NITS. `STOP-flags` and `STOP-eno1-link` cannot fire on 0x1003 / 10000 / carrier 1 / IFF_UP, and LOWER_UP is not required. Promisc and NOARP are checked only after the drop-in (`:707`, `wait_capture_port`). Rollback is intact: `trap '' HUP PIPE` (`:283`), nonzero exit reverts (`:315-325`), `networkctl reload` runs on `NETPLAN-UNCHANGED` (`:644-648`). The eno3 cmp guard (`:727-731`) comes before `netplan apply` (`:740`). There is no `disable_ipv6` or `rp_filter` write, XDP is `xdpdrv` only and detached, and there is no DDP, IRQ pin, GRUB or sudoers. Two optional nits remain: tighten the flags regex to require the `0x` prefix, and switch `:771` to `tr -d '[:space:]'`. Run `step-11-self-test.sh` before AJ pastes. I could not run it, and the nits are not gates.
+
+**Outline**
+
+- Link gate
+  - `STOP-flags` cannot fire (`:90`, `:405`)
+  - `STOP-eno1-link` cannot fire (`:107-111`, `:408`)
+  - LOWER_UP is dropped; promisc and NOARP are required only after the drop-in
+- Rollback
+  - Trap, nonzero-exit revert, `networkctl reload`
+- Scope
+  - eno3 cmp guard, no sysctl writes, `xdpdrv` only, no DDP, IRQ pin, GRUB or sudoers
+- Nits
+  - Hex regex prefix, `:771` read, self-test not run

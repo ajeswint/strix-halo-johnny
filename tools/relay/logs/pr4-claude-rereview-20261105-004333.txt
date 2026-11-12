@@ -1,0 +1,51 @@
+I'm giving the verdict from reading the diff and the files. I couldn't run the self-test or `shellcheck`, because the sandbox refused those commands. **Both are unverified by me.** I did confirm that `sha256sum step-11-revert.sh` is `16016830…8a92`, which matches the hash in `step-11-e810-capture.md`.
+
+**Your three checks**
+
+1. **HUP/PIPE trap: confirmed.**
+   - `trap '' HUP PIPE` is at `step-11-e810-capture.sh:265`. The `exec > >(tee …)` is at `:275`, so the ignore is in place before `tee` starts and `tee` inherits it.
+   - `cleanup` (`:289-318`) does `set +e` first and guards its `echo` and `cat` calls with `|| true`.
+   - It sends the revert's output to `/root/step11-revert.out`, then appends it to the log, so the revert doesn't depend on the dead pipe.
+   - What I reasoned through, not ran: a dead SSH makes `tee` exit on its stdout error. The script's next `echo` then fails with EPIPE, and `set -e` and the ERR trap send it to `cleanup`. A dropped SSH therefore rolls back; it doesn't carry on.
+
+2. **`set -E` and `failed=1`: confirmed.**
+   - `set -eEuo pipefail` at `:264` makes the ERR trap fire inside functions such as `install_tuning`.
+   - `cleanup` also sets `failed=1` whenever `rc != 0` (`:297-299`). So a failure in `install_tuning` reaches the `REVERTING` branch, provided `this_run_changed=1` and `revert_ready=1`.
+   - In `install_tuning`, every write path calls `mark_changed`: the cores file, the script, the unit, and `enable --now` (`:959`, `:1119`, `:1147`, `:1154`, `:1158`).
+
+3. **`networkctl reload` placement: confirmed.**
+   - In `step-11-revert.sh` and the embedded copy in `step-11-e810-capture.sh`, the reload is in the `else` branch (`NETPLAN-UNCHANGED`).
+   - It sits after the unconditional drop-in `rm -f`. It sits before `ENO1-FLAGS-CLEARED`, where promisc and ARP are cleared.
+   - It is guarded by `if !`, so it is safe under `set -e`, and a failure returns nonzero through `reload_failed`.
+
+**Standing checks: all hold**
+- `eno3` is in the pre/post `cmp -s` loop (`:704-708`), which runs before `timeout 90 netplan apply` (`:717`).
+- `disable_ipv6` and `rp_filter` are only read (`:424-432`).
+- XDP attach is `xdpdrv` only (`:881`) and is detached afterward (`:916`). The revert's `detach xdp` is cleanup only.
+- I found no DDP load, no `smp_affinity`, no GRUB edit and no sudoers edit. The only matches are comments and a `journalctl | grep ddp`.
+
+**Nits (none block the paste)**
+- If SSH drops after every change has succeeded but before `STEP11-DONE`, the script reverts a good run. That fits the "dropped SSH reverts" intent, but AJ should know it can happen.
+- `NETPLAN-UNCHANGED` is printed even when `STOP-networkctl-reload` came just before it.
+- The new self-test checks are mostly `grep` on text. The behavioral model (`boom`) runs without an ERR trap and without `-E`, so it only covers the `rc != 0` path. Nothing in the self-test exercises `set -E` plus `on_err` inside `install_tuning`.
+- I did not diff the revert script embedded in `step-11-e810-capture.sh` against `step-11-revert.sh` byte for byte. The self-test presumably does, but I couldn't run it.
+
+VERDICT: APPROVE-WITH-NITS
+
+**Relay (for Grok 4.7):** Review of `4cff1d8` is APPROVE-WITH-NITS. The HUP/PIPE trap is before `tee`, `set -E` plus `failed=1` on a nonzero exit reverts on an `install_tuning` failure, and `networkctl reload` is on the `NETPLAN-UNCHANGED` branch before the flags are cleared. The standing checks hold, and the revert hash matches the `.md`. I could not run the self-test or `shellcheck`, so please re-run both and paste the output. Nits: add an ERR-trap and `-E` model to the self-test, and keep `NETPLAN-UNCHANGED` from printing after `STOP-networkctl-reload`.
+
+**Outline**
+- Verdict: APPROVE-WITH-NITS
+- Verification
+  - Self-test and `shellcheck`: not run (sandbox refused)
+  - Revert hash matches the `.md`
+- Your three checks
+  - HUP/PIPE trap before `tee`; cleanup guarded
+  - `set -E` plus `failed=1`; every `install_tuning` write marks the run changed
+  - `networkctl reload` placement
+- Standing checks: all hold
+- Nits
+  - Drop after full success still reverts
+  - `NETPLAN-UNCHANGED` printed after a failed reload
+  - Self-test is textual and doesn't model ERR or `-E`
+  - Embedded-vs-standalone revert diff not independently checked
