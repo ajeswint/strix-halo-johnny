@@ -238,12 +238,13 @@ class Bpf:
         ]
         PROT_READ, PROT_WRITE = 1, 2
         MAP_SHARED = 1
+        failed = ctypes.c_void_p(-1).value
         cons_addr = c_mmap(None, page, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)
-        if cons_addr == -1 or cons_addr is None:
+        if cons_addr in (None, failed):
             err = ctypes.get_errno()
             raise Stop("mmap-consumer errno=%d (%s)" % (err, os.strerror(err)))
         data_addr = c_mmap(None, page + 2 * size, PROT_READ, MAP_SHARED, fd, page)
-        if data_addr == -1 or data_addr is None:
+        if data_addr in (None, failed):
             err = ctypes.get_errno()
             raise Stop("mmap-producer errno=%d (%s)" % (err, os.strerror(err)))
         return Ring(cons_addr, data_addr, data_addr + page, size)
@@ -272,14 +273,12 @@ def possible_cpus(path="/sys/devices/system/cpu/possible"):
 
 
 def read_ctl(bpf, fd, ncpu):
-    stride = 8
-    val = bpf.lookup(fd, 0, stride * ncpu * len(CTL_NAMES))
-    sums = [0] * len(CTL_NAMES)
-    for idx in range(len(CTL_NAMES)):
-        base = idx * ncpu * stride
-        for c in range(ncpu):
-            sums[idx] += struct.unpack_from("<Q", val, base + c * stride)[0]
-    return tuple(sums)
+    """m2_ctl summed over CPUs, in CTL_NAMES order."""
+    out = []
+    for k in range(len(CTL_NAMES)):
+        raw = bpf.lookup(fd, k, 8 * ncpu)
+        out.append(sum(struct.unpack("<%dQ" % ncpu, raw)))
+    return out
 
 
 # ------------------------------------------------------------------ output

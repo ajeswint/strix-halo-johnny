@@ -26,9 +26,9 @@ CORES="etc/johnny/capture-cores"
 IRQ_HELPER="etc/johnny/irq-affinity.sh"
 
 WANT_OBJ_SHA="a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481"
-WANT_BOOT_SHA="650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2"
+WANT_BOOT_SHA="b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55"
 WANT_UNIT_SHA="4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a"
-WANT_READER_SHA="e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581"
+WANT_READER_SHA="fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573"
 WANT_RUNIT_SHA="5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c"
 WANT_CORES_SHA="16fbd7d1f18d2fedb247d73edc3bc6aa040f5ab99bd3b48c35b79e543d22179b"
 WANT_IRQ_SHA="db58d7c72b5a58cbd0c2533caa819d397e4c205242e30e5defb0eae0f4ab59e4"
@@ -159,7 +159,36 @@ try:
 
     # Test rotating writer
     class DummyBpf:
-        pass
+        def lookup(self, fd, key, size):
+            ncpu = size // 8
+            if key == 0:
+                return struct.pack("<%dQ" % ncpu, 10, *([0] * (ncpu - 1)))
+            elif key == 4:
+                return struct.pack("<%dQ" % ncpu, 10, *([0] * (ncpu - 1)))
+            return b"\x00" * size
+
+    # Direct test of read_ctl without stubbing (must not stub read_ctl)
+    ctl_direct = mod.read_ctl(DummyBpf(), 0, 4)
+    assert list(ctl_direct) == [10, 0, 0, 0, 10, 0], f"unexpected read_ctl: {ctl_direct}"
+
+    # Test mmap failure check uses ctypes.c_void_p(-1).value
+    class FakeMmap:
+        restype = None
+        argtypes = None
+        def __call__(self, *args):
+            return ctypes.c_void_p(-1).value
+
+    class FakeLibc:
+        mmap = FakeMmap()
+
+    bpf_test = mod.Bpf.__new__(mod.Bpf)
+    bpf_test.libc = FakeLibc()
+    try:
+        bpf_test.mmap_ring(0, 4096)
+        assert False, "expected Stop on MAP_FAILED"
+    except mod.Stop as e:
+        assert "mmap-consumer" in str(e), f"unexpected Stop: {e}"
+
     writer = mod.RotatingWriter(
         out_dir=tmpdir,
         file_max_bytes=mod.HDR.size + 2 * mod.REC_SIZE,
@@ -172,7 +201,6 @@ try:
         ctl_fd=0,
         ncpu=4
     )
-    mod.read_ctl = lambda bpf, fd, ncpu: (10, 0, 0, 0, 10, 0)
     mod.check_disk_free = lambda out_dir, res: 1000000
 
     writer.open_next_file()
@@ -211,7 +239,39 @@ echo READER-TESTS-OK
 E2E_DIR=$(mktemp -d /tmp/m1s2b-e2e.XXXXXX)
 trap 'rm -rf "$E2E_DIR"' EXIT
 
-mkdir -p "$E2E_DIR/bin" "$E2E_DIR/root/m1s2b" "$E2E_DIR/etc/johnny" "$E2E_DIR/etc/systemd/system" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b" "$E2E_DIR/var/lib/johnny/m1s2b" "$E2E_DIR/proc/irq" "$E2E_DIR/sysfs/net/eno1np0"
+MOCK_DIR="$E2E_DIR/mock_state"
+FIXTURES_DIR="$E2E_DIR/fixtures"
+
+mkdir -p "$E2E_DIR/bin" "$E2E_DIR/root/m1s2b" "$E2E_DIR/etc/johnny" "$E2E_DIR/etc/systemd/system" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b" "$E2E_DIR/var/lib/johnny/m1s2b" "$E2E_DIR/proc/irq" "$E2E_DIR/sysfs/net/eno1np0" "$MOCK_DIR" "$FIXTURES_DIR"
+
+# Extract fixtures copied VERBATIM from evidence file
+EVIDENCE="docs/findings/module1-slice2b/2026-11-12-evidence-johnny.txt"
+[ -f "$EVIDENCE" ] || fail "missing evidence file $EVIDENCE"
+
+M1_STATS_JSON=$(sed -n '/^== m1_stats$/{n;p}' "$EVIDENCE")
+M2_CTL_JSON=$(sed -n '/^== m2_ctl$/{n;p}' "$EVIDENCE")
+M2_CFG_JSON=$(sed -n '/^== m2_cfg$/{n;p}' "$EVIDENCE")
+
+[ -n "$M1_STATS_JSON" ] || fail "failed to extract m1_stats fixture from $EVIDENCE"
+[ -n "$M2_CTL_JSON" ] || fail "failed to extract m2_ctl fixture from $EVIDENCE"
+[ -n "$M2_CFG_JSON" ] || fail "failed to extract m2_cfg fixture from $EVIDENCE"
+
+echo "$M1_STATS_JSON" > "$FIXTURES_DIR/m1_stats.json"
+echo "$M2_CTL_JSON" > "$FIXTURES_DIR/m2_ctl.json"
+echo "$M2_CFG_JSON" > "$FIXTURES_DIR/m2_cfg.json"
+
+# Prepare stats_after.json for verify window delta (+100 packets on CPU 1 of key 0)
+python3 -I - "$FIXTURES_DIR/m1_stats.json" "$FIXTURES_DIR/stats_after.json" <<'PY'
+import json, sys
+src, dst = sys.argv[1], sys.argv[2]
+with open(src) as f:
+    doc = json.load(f)
+doc[0]["formatted"]["values"][1]["value"] += 100
+v = doc[0]["formatted"]["values"][1]["value"]
+doc[0]["values"][1]["value"] = ["0x%02x" % ((v >> (8 * b)) & 0xFF) for b in range(8)]
+with open(dst, "w") as f:
+    json.dump(doc, f)
+PY
 
 # Copy deployables into fake root
 cp "$OBJ" "$E2E_DIR/root/m1s2b/module1-xdp-records.o"
@@ -223,82 +283,87 @@ cp "$CORES" "$E2E_DIR/etc/johnny/capture-cores"
 cp "$IRQ_HELPER" "$E2E_DIR/etc/johnny/irq-affinity.sh"
 chmod 0755 "$E2E_DIR/etc/johnny/irq-affinity.sh"
 
-# Mock system commands
-cat > "$E2E_DIR/bin/systemctl" <<'EOF'
+# Mock system commands using isolated per-test MOCK_DIR (no shared /tmp/mock_* paths)
+cat > "$E2E_DIR/bin/systemctl" <<EOF
 #!/bin/bash
-case "$*" in
+MOCK_DIR="$MOCK_DIR"
+case "\$*" in
   *"is-enabled suricata"*) echo "disabled"; exit 0 ;;
   *"is-active suricata"*) echo "inactive"; exit 0 ;;
   *"is-active johnny-capture-irq.service"*) echo "active"; exit 0 ;;
   *"is-active johnny-capture-tuning.service"*) echo "active"; exit 0 ;;
-  *"is-enabled johnny-capture-xdp.service"*) cat /tmp/mock_c1_enabled 2>/dev/null || echo "disabled"; exit 0 ;;
-  *"is-active johnny-capture-xdp.service"*) cat /tmp/mock_c1_state 2>/dev/null || echo "inactive"; exit 0 ;;
-  *"is-enabled johnny-capture-xdp-records.service"*) cat /tmp/mock_2x_enabled 2>/dev/null || echo "enabled"; exit 0 ;;
-  *"is-active johnny-capture-xdp-records.service"*) cat /tmp/mock_2x_state 2>/dev/null || echo "active"; exit 0 ;;
-  *"is-enabled johnny-m1s2b-reader.service"*) cat /tmp/mock_2r_enabled 2>/dev/null || echo "enabled"; exit 0 ;;
-  *"is-active johnny-m1s2b-reader.service"*) cat /tmp/mock_2r_state 2>/dev/null || echo "active"; exit 0 ;;
+  *"is-enabled johnny-capture-xdp.service"*) cat "\$MOCK_DIR/c1_enabled" 2>/dev/null || echo "disabled"; exit 0 ;;
+  *"is-active johnny-capture-xdp.service"*) cat "\$MOCK_DIR/c1_state" 2>/dev/null || echo "inactive"; exit 0 ;;
+  *"is-enabled johnny-capture-xdp-records.service"*) cat "\$MOCK_DIR/2x_enabled" 2>/dev/null || echo "enabled"; exit 0 ;;
+  *"is-active johnny-capture-xdp-records.service"*) cat "\$MOCK_DIR/2x_state" 2>/dev/null || echo "active"; exit 0 ;;
+  *"is-enabled johnny-m1s2b-reader.service"*) cat "\$MOCK_DIR/2r_enabled" 2>/dev/null || echo "enabled"; exit 0 ;;
+  *"is-active johnny-m1s2b-reader.service"*) cat "\$MOCK_DIR/2r_state" 2>/dev/null || echo "active"; exit 0 ;;
   *) exit 0 ;;
 esac
 EOF
 chmod +x "$E2E_DIR/bin/systemctl"
 
-cat > "$E2E_DIR/bin/bpftool" <<'EOF'
+cat > "$E2E_DIR/bin/bpftool" <<EOF
 #!/bin/bash
-case "$*" in
+MOCK_DIR="$MOCK_DIR"
+FIXTURES_DIR="$FIXTURES_DIR"
+case "\$*" in
   *"-j net show dev eno1np0"*)
-    cat /tmp/mock_net_attach 2>/dev/null || echo '[]'
+    cat "\$MOCK_DIR/net_attach" 2>/dev/null || echo '[]'
     exit 0
     ;;
   *"net show dev eno1np0"*)
-    cat /tmp/mock_net_show_text 2>/dev/null || echo "xdp: eno1np0(4) driver id 138"
+    cat "\$MOCK_DIR/net_show_text" 2>/dev/null || echo "xdp: eno1np0(4) driver id 138"
     exit 0
     ;;
   *"prog show id "*)
-    id=$(echo "$*" | awk '{for(i=1;i<=NF;i++) if($i=="id") print $(i+1)}')
-    pname=$(cat /tmp/mock_prog_id_name 2>/dev/null || echo "j_xdp_observe")
-    echo "$id: xdp  name $pname  tag b5b852630d7539c7  gpl"
+    id=\$(echo "\$*" | awk '{for(i=1;i<=NF;i++) if(\$i=="id") print \$(i+1)}')
+    pname=\$(cat "\$MOCK_DIR/prog_id_name" 2>/dev/null || echo "j_xdp_observe")
+    echo "\$id: xdp  name \$pname  tag b5b852630d7539c7  gpl"
     exit 0
     ;;
   *"-j prog show pinned"*)
-    cat /tmp/mock_prog_pinned 2>/dev/null || echo '{"id": 200, "name": "j_xdp_records"}'
+    cat "\$MOCK_DIR/prog_pinned" 2>/dev/null || echo '{"id": 200, "name": "j_xdp_records"}'
     exit 0
     ;;
   *"-j prog show"*)
-    cat /tmp/mock_prog_show 2>/dev/null || echo '[{"id": 200, "name": "j_xdp_records", "type": "xdp"}]'
+    cat "\$MOCK_DIR/prog_show" 2>/dev/null || echo '[{"id": 200, "name": "j_xdp_records", "type": "xdp"}]'
     exit 0
     ;;
   *"prog load"*)
-    pdir="${6:-/tmp/mock_pins}"
-    mkdir -p "$pdir"
-    touch "$pdir/m1_rxq" "$pdir/m1_stats" "$pdir/m2_cfg" "$pdir/m2_ctl" "$pdir/m2_rb" "$pdir/m2_state" "$pdir/prog"
-    echo '{"id": 200, "name": "j_xdp_records"}' > /tmp/mock_prog_pinned
-    echo '[{"id": 200, "name": "j_xdp_records", "type": "xdp"}]' > /tmp/mock_prog_show
+    pdir="\${6:-$E2E_DIR/sys/fs/bpf/johnny_m1s2b}"
+    mkdir -p "\$pdir"
+    touch "\$pdir/m1_rxq" "\$pdir/m1_stats" "\$pdir/m2_cfg" "\$pdir/m2_ctl" "\$pdir/m2_rb" "\$pdir/m2_state" "\$pdir/prog"
+    echo '{"id": 200, "name": "j_xdp_records"}' > "\$MOCK_DIR/prog_pinned"
+    echo '[{"id": 200, "name": "j_xdp_records", "type": "xdp"}]' > "\$MOCK_DIR/prog_show"
     exit 0
     ;;
   *"map update pinned"*"m2_cfg"*)
-    echo "ver=1 sample_every=1 rate=8000 burst=16000" > /tmp/mock_cfg_val
+    echo "ver=1 sample_every=1 rate=8000 burst=16000" > "\$MOCK_DIR/cfg_val"
     exit 0
     ;;
   *"-j map dump pinned"*"m2_cfg"*)
-    echo '[{"key": 0, "value": {"ver": 1, "sample_every": 1, "rate": 8000, "burst": 16000}}]'
+    cat "\$FIXTURES_DIR/m2_cfg.json"
     exit 0
     ;;
   *"-j map dump pinned"*"m2_ctl"*)
-    echo '[{"key": 0, "formatted": {"values": [{"cpu": 0, "value": {"seen": 100, "sampled_out": 0, "rate_limited": 0, "rb_full": 0, "emitted": 100, "discarded": 0}}]}}]'
+    cat "\$FIXTURES_DIR/m2_ctl.json"
     exit 0
     ;;
   *"-j map dump pinned"*"m1_stats"*)
-    pkts=$(cat /tmp/mock_pkts 2>/dev/null || echo 500)
-    echo $((pkts + 50)) > /tmp/mock_pkts
-    echo '[{"key": 0, "formatted": {"value": {"packets": '$pkts', "bytes": 40000}}}]'
+    if [ -f "\$MOCK_DIR/stats_delta" ]; then
+      cat "\$FIXTURES_DIR/stats_after.json"
+    else
+      cat "\$FIXTURES_DIR/m1_stats.json"
+    fi
     exit 0
     ;;
   *"net attach xdpdrv"*)
-    echo '[{"xdp": [{"mode": "driver", "id": 200}]}]' > /tmp/mock_net_attach
+    echo '[{"xdp": [{"mode": "driver", "id": 200}]}]' > "\$MOCK_DIR/net_attach"
     exit 0
     ;;
   *"net detach"*)
-    echo '[]' > /tmp/mock_net_attach
+    echo '[]' > "\$MOCK_DIR/net_attach"
     exit 0
     ;;
   *)
@@ -324,8 +389,9 @@ esac
 EOF
 chmod +x "$E2E_DIR/bin/ethtool"
 
-cat > "$E2E_DIR/bin/tcpdump" <<'EOF'
+cat > "$E2E_DIR/bin/tcpdump" <<EOF
 #!/bin/bash
+touch "$MOCK_DIR/stats_delta"
 echo "100 packets captured" >&2
 echo "0 packets dropped by kernel" >&2
 exit 0
@@ -415,13 +481,40 @@ run_sub() {
       done
     }
     irq_in_cores() { return 0; }
-    do_'"$1"
+    if declare -f "do_'"$1"'" >/dev/null; then
+      do_'"$1"'
+    else
+      '"$1"'
+    fi
+  '
 }
 
+# Ensure pin directory and map dummy files exist for fixture tests
+mkdir -p "$E2E_DIR/sys/fs/bpf/johnny_m1s2b"
+touch "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m1_rxq" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m1_stats" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m2_cfg" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m2_ctl" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m2_rb" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m2_state" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/prog"
+
+# Assertions on exact sums on evidence fixtures
+# m2_ctl key0 seen = 164180+155070+220713+303884 = 843847; key2 = 407183; key4 = 436664; m1_stats key0 pkts = 843840
+out_stats=$(run_sub dump_stats)
+[ "$out_stats" = "pkts=843840 bytes=922600250" ] || fail "dump_stats failed on evidence fixture: got '$out_stats' want 'pkts=843840 bytes=922600250'"
+
+out_ctl=$(run_sub ctl_rows)
+expected_ctl=$(printf 'seen 843847\nsampled_out 0\nrate_limited 407183\nrb_full 0\nemitted 436664\ndiscarded 0')
+[ "$out_ctl" = "$expected_ctl" ] || fail "ctl_rows failed on evidence fixture: got '$out_ctl'"
+
+# Assertions on exact sums mentioned in prompt
+[ "$(awk '$1=="seen"{print $2}' <<<"$out_ctl")" = "843847" ] || fail "ctl seen mismatch"
+[ "$(awk '$1=="rate_limited"{print $2}' <<<"$out_ctl")" = "407183" ] || fail "ctl rate_limited mismatch"
+[ "$(awk '$1=="emitted"{print $2}' <<<"$out_ctl")" = "436664" ] || fail "ctl emitted mismatch"
+[ "$(awk -F'[ =]' '{print $2}' <<<"$out_stats")" = "843840" ] || fail "stats pkts mismatch"
+
+out_cfg=$(run_sub cfg_line)
+[ "$out_cfg" = "ver=1 sample_every=1 rate=8000 burst=16000" ] || fail "cfg_line failed on evidence fixture: got '$out_cfg'"
+
 # Test 1: clean start
-rm -f /tmp/mock_*
-echo '[]' > /tmp/mock_net_attach
-echo '[]' > /tmp/mock_prog_show
+rm -f "$MOCK_DIR"/*
+echo '[]' > "$MOCK_DIR/net_attach"
+echo '[]' > "$MOCK_DIR/prog_show"
 out=$(run_sub start 2>&1)
 grep -q "M1S2B-START-DONE" <<<"$out" || fail "Scenario 1 failed: $out"
 
@@ -430,34 +523,34 @@ out=$(run_sub start 2>&1)
 grep -q "ALREADY-ATTACHED" <<<"$out" || fail "Scenario 2 failed: $out"
 
 # Test 3: observer attached -> refuse
-echo '[{"xdp": [{"mode": "driver", "id": 100}]}]' > /tmp/mock_net_attach
-echo '[{"id": 100, "name": "j_xdp_observe", "type": "xdp"}]' > /tmp/mock_prog_show
+echo '[{"xdp": [{"mode": "driver", "id": 100}]}]' > "$MOCK_DIR/net_attach"
+echo '[{"id": 100, "name": "j_xdp_observe", "type": "xdp"}]' > "$MOCK_DIR/prog_show"
 out=$(run_sub start 2>&1 || true)
 grep -q "STOP-observer-attached-stop-first" <<<"$out" || fail "Scenario 3 failed: $out"
 
 # Test 4: foreign program attached -> refuse
-echo '[{"xdp": [{"mode": "driver", "id": 999}]}]' > /tmp/mock_net_attach
-echo '[{"id": 999, "name": "foreign_prog", "type": "xdp"}]' > /tmp/mock_prog_show
+echo '[{"xdp": [{"mode": "driver", "id": 999}]}]' > "$MOCK_DIR/net_attach"
+echo '[{"id": 999, "name": "foreign_prog", "type": "xdp"}]' > "$MOCK_DIR/prog_show"
 out=$(run_sub start 2>&1 || true)
 grep -q "STOP-xdp-foreign-attached" <<<"$out" || fail "Scenario 4 failed: $out"
 
 # Test 5: stop when records attached
-echo '[{"xdp": [{"mode": "driver", "id": 200}]}]' > /tmp/mock_net_attach
-echo '[{"id": 200, "name": "j_xdp_records", "type": "xdp"}]' > /tmp/mock_prog_show
-echo '{"id": 200, "name": "j_xdp_records"}' > /tmp/mock_prog_pinned
+echo '[{"xdp": [{"mode": "driver", "id": 200}]}]' > "$MOCK_DIR/net_attach"
+echo '[{"id": 200, "name": "j_xdp_records", "type": "xdp"}]' > "$MOCK_DIR/prog_show"
+echo '{"id": 200, "name": "j_xdp_records"}' > "$MOCK_DIR/prog_pinned"
 out=$(run_sub stop 2>&1)
 grep -q "M1S2B-STOP-DONE" <<<"$out" || fail "Scenario 5 failed: $out"
 
 # Test 6: stop when observer attached -> KEEP-observer
-echo '[{"xdp": [{"mode": "driver", "id": 100}]}]' > /tmp/mock_net_attach
-echo '[{"id": 100, "name": "j_xdp_observe", "type": "xdp"}]' > /tmp/mock_prog_show
+echo '[{"xdp": [{"mode": "driver", "id": 100}]}]' > "$MOCK_DIR/net_attach"
+echo '[{"id": 100, "name": "j_xdp_observe", "type": "xdp"}]' > "$MOCK_DIR/prog_show"
 out=$(run_sub stop 2>&1)
 grep -q "KEEP-observer" <<<"$out" || fail "Scenario 6 failed: $out"
 
 # Test 7: status output
-echo '[{"xdp": [{"mode": "driver", "id": 200}]}]' > /tmp/mock_net_attach
-echo '[{"id": 200, "name": "j_xdp_records", "type": "xdp"}]' > /tmp/mock_prog_show
-echo '{"id": 200, "name": "j_xdp_records"}' > /tmp/mock_prog_pinned
+echo '[{"xdp": [{"mode": "driver", "id": 200}]}]' > "$MOCK_DIR/net_attach"
+echo '[{"id": 200, "name": "j_xdp_records", "type": "xdp"}]' > "$MOCK_DIR/prog_show"
+echo '{"id": 200, "name": "j_xdp_records"}' > "$MOCK_DIR/prog_pinned"
 mkdir -p "$E2E_DIR/sys/fs/bpf/johnny_m1s2b"
 touch "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m1_rxq" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m1_stats" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m2_cfg" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m2_ctl" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m2_rb" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m2_state" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/prog"
 out=$(run_sub status 2>&1)
@@ -494,9 +587,9 @@ IRQ 109 ice-eno1np0-TxRx-9 2
 IRQ 110 ice-eno1np0-TxRx-10 3
 IRQ 111 ice-eno1np0-TxRx-11 4
 EOF
-echo '[{"xdp": [{"mode": "driver", "id": 200}]}]' > /tmp/mock_net_attach
-echo '[{"id": 200, "name": "j_xdp_records", "type": "xdp"}]' > /tmp/mock_prog_show
-echo '{"id": 200, "name": "j_xdp_records"}' > /tmp/mock_prog_pinned
+echo '[{"xdp": [{"mode": "driver", "id": 200}]}]' > "$MOCK_DIR/net_attach"
+echo '[{"id": 200, "name": "j_xdp_records", "type": "xdp"}]' > "$MOCK_DIR/prog_show"
+echo '{"id": 200, "name": "j_xdp_records"}' > "$MOCK_DIR/prog_pinned"
 out=$(bash -c '
   source '"$E2E_DIR/test-helper.sh"'
   gate_host() { return 0; }
@@ -547,26 +640,26 @@ PY
 )
 [ -n "$RB_FENCE" ] || fail "could not extract rollback fence from $DOC"
 
-rm -f /tmp/mock_*
-echo "xdp: eno1np0(4) driver id 138" > /tmp/mock_net_show_text
-echo "j_xdp_observe" > /tmp/mock_prog_id_name
-echo "enabled" > /tmp/mock_c1_enabled
-echo "active" > /tmp/mock_c1_state
-echo "disabled" > /tmp/mock_2x_enabled
-echo "inactive" > /tmp/mock_2x_state
-echo "disabled" > /tmp/mock_2r_enabled
-echo "inactive" > /tmp/mock_2r_state
+rm -f "$MOCK_DIR"/*
+echo "xdp: eno1np0(4) driver id 138" > "$MOCK_DIR/net_show_text"
+echo "j_xdp_observe" > "$MOCK_DIR/prog_id_name"
+echo "enabled" > "$MOCK_DIR/c1_enabled"
+echo "active" > "$MOCK_DIR/c1_state"
+echo "disabled" > "$MOCK_DIR/2x_enabled"
+echo "inactive" > "$MOCK_DIR/2x_state"
+echo "disabled" > "$MOCK_DIR/2r_enabled"
+echo "inactive" > "$MOCK_DIR/2r_state"
 
 out=$(PATH="$E2E_DIR/bin:$PATH" bash -c "$RB_FENCE" 2>&1 || true)
 grep -q "M1S2B-ROLLBACK-DONE" <<<"$out" || fail "Scenario 11 failed (clean rollback): $out"
 
 # Unclean rollback should fail closed
-echo "disabled" > /tmp/mock_c1_enabled
+echo "disabled" > "$MOCK_DIR/c1_enabled"
 out=$(PATH="$E2E_DIR/bin:$PATH" bash -c "$RB_FENCE" 2>&1 || true)
 grep -q "STOP-rollback-not-clean" <<<"$out" || fail "Scenario 11 failed (unclean rollback should fail): $out"
 
 # Clean mock files
-rm -f /tmp/mock_*
+rm -f "$MOCK_DIR"/*
 
 echo "E2E-OK scenarios=11"
 
@@ -611,6 +704,11 @@ want = {
     "johnny-m1s2b-reader.service": runit,
 }
 
+prev_hashes = {
+    "module1-slice2b-boot.sh": "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2",
+    "johnny-m1s2b-reader.py": "e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581",
+}
+
 def outside_single_quotes(body):
     inq = False
     for ln in body.split("\n"):
@@ -625,7 +723,10 @@ def outside_single_quotes(body):
 tokens = [
     "SELF-TEST-OK", "M1S2B-COPY-DONE", "M1S2B-PROBE-DONE", "M1S2B-INSTALL-DONE",
     "M1S2B-CUTOVER-DONE", "M1S2B-VERIFY-DONE", "M1S2B-REBOOT-ISSUED",
-    "M1S2B-COLD-BOOT-VERIFY-DONE", "M1S2B-ROLLBACK-DONE"
+    "M1S2B-COLD-BOOT-VERIFY-DONE",
+    "SELF-TEST-OK", "M1S2B-FIX-COPY-DONE", "M1S2B-FIX-INSTALL-DONE",
+    "M1S2B-VERIFY-DONE",
+    "M1S2B-ROLLBACK-DONE"
 ]
 
 seen = []
@@ -672,12 +773,17 @@ for idx, (lab, body) in enumerate(blocks, 1):
                 die(f"block #{idx}: ssh call at token {k} has {len(remote_args)} remote args instead of 1 single-quoted command string (nested quotes broke the argument): {remote_args[:3]}")
     for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
         name = path.rsplit("/", 1)[-1]
-        if name in want and want[name] != h:
+        if name in want and want[name] != h and prev_hashes.get(name) != h:
             die(f"block #{idx}: wrong hash for {name}: {h}")
-    for t in tokens:
-        hit = re.search(r"echo " + re.escape(t) + r"\b", body) or (t == "SELF-TEST-OK" and "module1-slice2b-self-test.sh" in body)
-        if hit:
-            seen.append(t)
+    block_token = None
+    for t in set(tokens):
+        if re.search(r"echo " + re.escape(t) + r"\b", body) or (t == "SELF-TEST-OK" and "module1-slice2b-self-test.sh" in body):
+            block_token = t
+            break
+    if block_token:
+        seen.append(block_token)
+    else:
+        die(f"block #{idx} did not emit any expected token")
 
 if seen != tokens:
     die(f"paste order/tokens: got {seen} want {tokens}")

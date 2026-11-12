@@ -1,0 +1,56 @@
+VERDICT: APPROVE-WITH-NITS
+
+I read all four files plus the repo mirrors. I did not run `step-11-self-test.sh` or `shellcheck`, because the sandbox asked for approval on those commands. Treat the author's "passed" claims for those two as unverified by me. I did not touch Johnny.
+
+## Detail
+
+**Claims I checked**
+
+- **sha256 table:** all six hashes in the md table match the repo files. The five files are the netplan mirror, the drop-in, `capture-tuning.sh`, the service and `step-11-revert.sh`. The sixth is `xdp-pass-count.o`.
+- **eno3 guard:** `step-11-e810-capture.sh:681-686` runs `netplan generate`, then `cmp`s the eno3, eno1np0 and eno4 generated files against copies taken before the change. Any difference calls `die` before `netplan apply`. After the apply, `wait_eno3` (line 703) checks `.152`, the default route and the admin-up flag.
+- **Sysctl writes:** grep shows only `sysctl -n` reads (lines 409-417). There is no `disable_ipv6` write, no `rp_filter` write and no `sysctl -w`.
+- **Capture CPUs:** `pick_capture_cpus` (lines 44-82) drops CPU 0's sibling list, takes the lowest four from `cpu_core`, and stops on fewer than four.
+- **XDP:** the attach is `xdpdrv` only (line 859). The mode must read `driver`, and the program is detached and unpinned. `cleanup` also detaches on failure.
+- **Out of scope:** no DDP, IRQ, GRUB or sudoers changes. `eno3` and `eno4` stanzas are untouched.
+- **bpftool JSON parsing:** my reading of its non-multi-attach output matches `xdp_modes_from_json`.
+
+**Lockout analysis**
+
+The step never edits the eno3 stanza and `netplan apply` runs only after the `cmp` guard. I see no path that removes `.152`. The worst case is SSH dropping during `netplan apply`, and the documented recovery is the AMT KVM, where `sudo bash /root/step11-revert.sh` runs. No STOPPERS. The nits below are about the rollback not finishing in some failure paths.
+
+## NITS
+
+1. **Revert can be killed mid-run if SSH drops** (`step-11-e810-capture.sh:273`, `:312-313`). `ssh -t` sends SIGHUP and `tee` dies. The `echo`s in `cleanup` and in the child `step11-revert.sh` then take SIGPIPE, so the rollback aborts at its first echo. Suggested fix: add `trap '' HUP PIPE` after line 273, or run the apply under `systemd-run`. The KVM fallback covers this, but it is exactly the case AJ worries about.
+2. **`install_tuning` failures bypass the auto-revert** (`:745`, trap at `:312`). The script has `set -e` but no `set -E`, so the ERR trap does not fire inside functions. An unguarded failure in `install_tuning` (`mkdir`, `install`, `daemon-reload`, the final `sha256sum`) exits with `failed=0`. There is then no `REVERTING` and no `CONFIG-KEPT`, and the box is left half-applied. Suggested fix: `set -E`, or set `failed=1` in `cleanup` whenever `rc` is nonzero.
+3. **Early-failure revert leaves the drop-in loaded in networkd** (`step-11-revert.sh:56`, the `NETPLAN-UNCHANGED` branch). The revert removes the drop-in file but only runs `netplan apply` when the yaml differs. If the failure came before the yaml edit, networkd still holds `Promiscuous=yes` and `ARP=no` in memory. A carrier bounce on the SPAN port would re-apply them. Suggested fix: run `networkctl reload` in that branch.
+4. **A quiet SPAN rolls back the whole step** (`:913-914`). `STOP-xdp-no-traffic` triggers `REVERTING`, which undoes promisc, netplan and tuning. That is by design, but the md should say so in the Paste section.
+5. **Doc claims about revert are unverified.** The md says the revert restores `eno2np1` and "runs `netplan apply` only in that case". It does not say whether `eno2np1` returns to admin-up once `always-down` is gone. Say so, or check after the run.
+6. **`sudo -v` as the first paste line** runs on rock-box, which needs no sudo. The sudo prompt that matters is the remote one under `ssh -t`. This is harmless, but the rule's rationale does not apply here.
+7. **"No GRUB password yet" in Known gaps** (`os-handoff.md:118`) is now stale, since 1.4.1 is PASS per batch 10 (`docs/cis-fix/batch-10.md:107`). Fix it later in a docs commit. It is not a gate.
+
+## Relay
+
+Claude Code review of PR #4: APPROVE-WITH-NITS, no STOPPERS.
+- **Verified:** hashes match, eno3 is cmp-guarded before `netplan apply`, there are no sysctl writes, XDP is xdpdrv only, and the CPU pick matches the claim. I did not run the self-test or shellcheck.
+- **Fix before AJ runs it:**
+  1. Add `trap '' HUP PIPE` so an SSH drop cannot abort the revert.
+  2. Add `set -E`, or set `failed=1` when `cleanup` sees a nonzero `rc`, so `install_tuning` failures revert.
+  3. Add `networkctl reload` in the revert's `NETPLAN-UNCHANGED` branch.
+- **Later:** docs fixes for nits 4-7.
+
+## Outline
+
+- Verdict: APPROVE-WITH-NITS
+  - Verified
+    - hashes match, no sysctl writes
+    - eno3 cmp guard, `wait_eno3`
+    - XDP `xdpdrv` only, detached
+    - CPU selection as claimed
+  - Not run: self-test, shellcheck
+  - Lockout
+    - none: eno3 untouched, KVM fallback
+  - Nits
+    - SIGHUP/SIGPIPE can abort the revert
+    - no `set -E`, so `install_tuning` failures skip revert
+    - the networkd drop-in stays in memory after an early-failure revert
+    - doc nits (quiet SPAN, eno2 state, `sudo -v`, stale GRUB line)

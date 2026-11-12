@@ -29,7 +29,7 @@ HELPER_SHA256=db58d7c72b5a58cbd0c2533caa819d397e4c205242e30e5defb0eae0f4ab59e4
 
 OBJ_SHA256=a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481
 READER=/usr/local/libexec/johnny/johnny-m1s2b-reader.py
-READER_SHA256=e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581
+READER_SHA256=fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573
 R_UNIT_FILE=/etc/systemd/system/johnny-m1s2b-reader.service
 R_UNIT_SHA256=5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c
 R_UNIT=johnny-m1s2b-reader.service
@@ -290,35 +290,61 @@ write_and_verify_cfg() {
   echo "OK-cfg $cfg"
 }
 
-ctl_rows() {
-  local js
-  [ -e "$PIN_DIR/m2_ctl" ] || return 1
-  js=$(bpftool -j map dump pinned "$PIN_DIR/m2_ctl" 2>/dev/null) || return 1
+percpu_from_json() {
   python3 -I -c '
 import json, sys
+def le(seq):
+    n = 0
+    for i, b in enumerate(seq):
+        if isinstance(b, str):
+            b = int(b, 16) if b.lower().startswith("0x") else int(b)
+        n |= (int(b) & 0xFF) << (8 * i)
+    return n
+def num(v):
+    return v if isinstance(v, int) else le(v)
 try:
     doc = json.load(sys.stdin)
-    names = sys.argv[1].split()
-    sums = {}
-    for entry in doc:
-        f = entry.get("formatted")
-        val = f.get("values") if (isinstance(f, dict) and isinstance(f.get("values"), list)) else entry.get("values")
-        if isinstance(val, list):
-            for item in val:
-                cpu = item.get("cpu")
-                v = item.get("value")
-                if isinstance(v, dict):
-                    for k, count in v.items():
-                        sums[k] = sums.get(k, 0) + int(count)
-    if sums:
-        for name in names:
-            print("%s %d" % (name, sums.get(name, 0)))
-    else:
-        for name in names:
-            print("%s 0" % name)
-except Exception:
+except ValueError:
     sys.exit(2)
-' "$CTL_NAMES" <<<"$js"
+if not isinstance(doc, list):
+    sys.exit(2)
+for it in doc:
+    if not isinstance(it, dict):
+        sys.exit(2)
+    f = it.get("formatted")
+    if isinstance(f, dict):
+        key, vals = f.get("key"), f.get("values")
+    else:
+        key, vals = it.get("key"), it.get("values")
+    if key is None or not isinstance(vals, list) or not vals:
+        sys.exit(2)
+    key = num(key)
+    total = 0
+    for v in vals:
+        if not isinstance(v, dict) or "value" not in v:
+            sys.exit(2)
+        total += num(v["value"])
+    print("%d %d" % (key, total))
+'
+}
+
+# "name total" per m2_ctl slot, in CTL_NAMES order. rc 1 on any read/parse error.
+ctl_rows() {
+  local js rows k t i=0 name
+  local -a names
+  [ -e "$PIN_DIR/m2_ctl" ] || return 1
+  js=$(bpftool -j map dump pinned "$PIN_DIR/m2_ctl" 2>/dev/null) || return 1
+  rows=$(percpu_from_json <<<"$js") || return 1
+  read -r -a names <<<"$CTL_NAMES"
+  declare -A got=()
+  while read -r k t; do
+    [ -n "$k" ] && got[$k]=$t
+  done <<<"$rows"
+  [ "${#got[@]}" -eq "${#names[@]}" ] || return 1
+  for name in "${names[@]}"; do
+    printf '%s %s\n' "$name" "${got[$i]}"
+    i=$((i + 1))
+  done
 }
 
 ctl_val() {
@@ -326,23 +352,16 @@ ctl_val() {
 }
 
 dump_stats() {
-  local js
+  local js rows k t
+  declare -A got=()
   [ -e "$PIN_DIR/m1_stats" ] || return 1
   js=$(bpftool -j map dump pinned "$PIN_DIR/m1_stats" 2>/dev/null) || return 1
-  python3 -I -c '
-import json, sys
-try:
-    doc = json.load(sys.stdin)
-    p = b = 0
-    for it in doc:
-        v = it.get("formatted", {}).get("value") if isinstance(it.get("formatted"), dict) else it.get("value")
-        if isinstance(v, dict):
-            p += int(v.get("packets", 0))
-            b += int(v.get("bytes", 0))
-    print("pkts=%d bytes=%d" % (p, b))
-except Exception:
-    sys.exit(2)
-' <<<"$js"
+  rows=$(percpu_from_json <<<"$js") || return 1
+  while read -r k t; do
+    [ -n "$k" ] && got[$k]=$t
+  done <<<"$rows"
+  [ -n "${got[0]:-}" ] && [ -n "${got[1]:-}" ] || return 1
+  printf 'pkts=%s bytes=%s\n' "${got[0]}" "${got[1]}"
 }
 
 # ---------------------------------------------------------------- network & IRQ

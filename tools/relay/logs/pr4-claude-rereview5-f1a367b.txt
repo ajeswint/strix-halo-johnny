@@ -1,0 +1,39 @@
+**Verdict: APPROVE-WITH-NITS.** This was a read-through review at HEAD f1a367b. The self-test, shellcheck and diff commands were blocked by the permission check, so I did not run them. I compared the embedded heredocs to the on-disk copies by eye, so please run `bash docs/tool-install/step-11-self-test.sh` once yourself.
+
+**C1_ACPI fix (the main ask)**
+- **`STOP-no-c1`:** it does not fire on `POLL,C1_ACPI,C2_ACPI,C3_ACPI`. In the per-CPU check (`step-11-e810-capture.sh:558-574`), `is_shallow_c1` matches `C1_ACPI`, so `have_c1=1`. `C2_ACPI` and `C3_ACPI` are not kept, so `deep=1`. Both gates pass.
+- **Disabled states:** `C2_ACPI` and `C3_ACPI` get `disable=1` on the capture CPUs, in `apply_one` at `capture-tuning.sh:87-99`. `verify_tuning` checks those states and skips `POLL` and `C1_ACPI`.
+- **Kept states:** `POLL` and `C1_ACPI` stay enabled. `is_keep_idle` skips both in `apply_one`, `collect_before` and `verify_tuning`.
+- **Sync:** `is_shallow_c1` and `is_keep_idle` are identical in the main script, the tuning script and the embedded copy. The tuning embed (lines 1026-1188) reads the same as `etc/johnny/capture-tuning.sh`.
+
+**Prior fixes**
+- **Overlap:** `cpu_lists_overlap` uses an associative array, not `comm`. An empty overlap returns 0 and prints nothing. A real overlap returns 1 and prints the shared ids, so `STOP-hybrid-overlap` fires.
+- **Flags:** they are parsed as hex with `0x` optional. `flags_admin_up` tests only IFF_UP. `flags_capture_ok` tests UP, PROMISC and NOARP. Nothing tests LOWER_UP. `eno1_link_ok` needs speed 10000, admin-up, and carrier=1 or oper=up.
+- **Signals:** `trap '' HUP PIPE` is set at line 320.
+- **Nonzero exit reverts:** `set -E` plus the ERR trap sets `failed`, and the EXIT trap checks `rc != 0`. Revert runs only when `revert_ready` and `this_run_changed` are both set. Otherwise it prints `CONFIG-KEPT`.
+- **Revert script:** `networkctl reload` is in the `NETPLAN-UNCHANGED` branch. A failed reload returns nonzero, so the run ends in `STOP-revert-incomplete`. The embedded revert (lines 623-702) matches `step-11-revert.sh`.
+- **eno3 guard:** after `netplan generate` and before `netplan apply`, `eno3`, `eno1np0` and `eno4` are `cmp`-checked against the pre-change copies in `/root/step11-pre`. The `eno2np1` stanza is checked for `ActivationPolicy=always-down`.
+- **Forbidden writes:** I found no per-interface `disable_ipv6` write and no `rp_filter` write. Both are only read and gated. I also found no DDP, IRQ pin, GRUB or sudoers handling, and no `pci=noaer`. This is from reading the files, not from the grep, which did not run.
+- **XDP:** attach is `xdpdrv` only, and the mode must read `driver`. Then it detaches, removes the pin, and checks nothing lingers. The cleanup trap detaches `xdpdrv` if still attached.
+
+**Nits (none block the paste)**
+1. `step-11-e810-capture.sh:438` reads `speed` without `|| true`. If the link is down, the sysfs read errors and the script exits via the ERR trap with `STOP-err` instead of `STOP-eno1-link`. This is before any change, so it is harmless, but the code is misleading.
+2. The revert script also runs `bpftool net detach xdp` (generic mode) on `eno1np0`, at `step-11-revert.sh:21`. It is best-effort and only removes a stray attachment, but it is wider than "xdpdrv only". Fine for a rollback.
+3. The CPU0 unchanged check at lines 534-542 only records the first non-kept idle state. It would not notice if the script disabled a second one on CPU0. It is not a risk today because the script never writes CPU0.
+4. The self-test hardcodes `/tmp/step11-*.out` paths. That is a minor tidiness point, not a risk.
+
+**Relay (for Grok 4.7):** Claude review of f1a367b is APPROVE-WITH-NITS. C1_ACPI no longer trips `STOP-no-c1`. `C2_ACPI` and `C3_ACPI` get disabled, and `POLL` and `C1_ACPI` stay on. Every prior fix holds on read-through. Two nits: the unguarded `speed` read at line 438, and the generic `xdp` detach in the revert. Please run `step-11-self-test.sh` locally to confirm, since I could not.
+
+**Outline**
+- Verdict: APPROVE-WITH-NITS
+- C1_ACPI fix: verified
+  - `STOP-no-c1` and `STOP-no-deep-state` pass on the live idle names
+  - `C2_ACPI` and `C3_ACPI` disabled; `POLL` and `C1_ACPI` kept
+  - Embeds in sync
+- Prior fixes: all hold
+  - Overlap, hex flags, signal trap, revert on nonzero exit
+  - Reload on `NETPLAN-UNCHANGED`, eno3 `cmp` guard
+  - No IPv6, `rp_filter`, DDP, IRQ, GRUB or sudoers writes
+  - XDP `xdpdrv` only, then detached
+- Nits: unguarded `speed` read, generic `xdp` detach in revert, first-idle-state-only CPU0 check, `/tmp` paths in the self-test
+- Not verified: self-test and shellcheck did not run (permission check)

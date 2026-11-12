@@ -1,0 +1,68 @@
+**Review of PR #6 (f81aa47): both pastes are safe to run as written. No stoppers; nits below.**
+
+I ran the rotate script's self-test and shellcheck, and read both action fences. I did not touch Johnny, rotate DMT, or install MeshCommander.
+
+## What I ran
+
+- **Self-test:** `bash docs/tool-install/step-6-dmt-rotate.sh --self-test` printed `SELF-TEST-OK`, exit 0. Grok's cloud result is now verified by me.
+- **shellcheck:** `shellcheck -x` on the script returned 0 findings.
+- **Package metadata:** `npm view meshcommander@0.9.5-a` returns the same `dist.integrity` as the runbook pin. I also unpacked the tarball into a fresh temp directory without installing it.
+  - `webserver.js:150-156` listens on `127.0.0.1:3000` unless `--any` or `--port` is given, which matches the runbook.
+  - `public/default.htm` contains the "Soft-reset" label.
+  - Dependencies are `express`, `minimist`, and `express-ws`, with `scripts = {}`.
+
+## Your checklist
+
+- **Remote client:** confirmed. MeshCommander over Digest/TLS on 16993 is the remote path from rock-box. `rpc-go` is treated as local HECI only, and the runbook has no `rpc` command. The upstream command-list claim is marked an assumption and not run on Johnny, which is the right label.
+- **Power click:** Soft-reset is the test, Reset is the fallback, and Power down is excluded. The runbook also bans Reset to BIOS, Soft-off, and Sleep.
+- **Fingerprint gate:** the openssl check sits in the read-only block, before the Add Computer step where the password is typed. The expected hash matches the 2026-10-30 record in `docs/network-map.md`. See nit 2.
+- **Secrets:**
+  - I found no secret values in the repo.
+  - The rotate script prints only lengths, backup paths, and the username.
+  - It refuses root, hostname `johnny`, a missing `192.168.51.2/`, and 8181 open.
+  - It also refuses env overrides, symlinks, repo or git paths, bad line counts or shapes, and a pointer that is not a same-directory `config.yml.bak-step6-<14 digits>` name.
+- **Johnny post-check:** read-only SSH with no sudo. It does not touch step 11 files, and the runbook says not to run the step 11 revert.
+- **Docs state:** handoff rev 74 keeps item 6 as "Drafted, not applied". `docs/agent-team.md` is not in the commit diff.
+
+## Nits
+
+1. `set -euo pipefail` and `exit 1` in the install paste will close the terminal on any STOP if AJ pastes it into an interactive shell. The STOP token disappears with the window. Wrapping the block in `bash -c` or a subshell, or telling AJ to paste it into a throwaway `bash`, would fix that.
+2. Neither MeshCommander nor Node checks the AMT certificate, and the openssl check runs earlier, in the read-only block. Re-run the openssl line immediately before typing the password. Risk is low on a point-to-point link, but it costs nothing.
+3. The integrity pin covers only the top-level package. The dependencies come from the registry by caret range and are not pinned. `--ignore-scripts` limits the exposure. Mention it in the SBOM note.
+4. **Reset** is a hard reset. Johnny hosts a database, so a note that Soft-reset is preferred for the sake of filesystem state would help. The runbook already prefers it.
+5. The server prints `MeshCommander running on http://127.0.0.1:3000.` with a trailing period. The runbook's expected line has no period, which is cosmetic.
+6. Fix for `--shred-backup`: `shred -u` on ext4 or btrfs is best-effort. Fine given the old secrets are already exposed and are being replaced.
+
+VERDICT: APPROVE-WITH-NITS
+
+## Relay (for Grok 4.7)
+
+PR #6 is approved with nits. I confirmed `SELF-TEST-OK` and shellcheck 0 myself. The `meshcommander@0.9.5-a` integrity pin matches the registry, and `webserver.js` binds to `127.0.0.1:3000` unless `--any` or `--port` is passed. Please do the following before the next rev:
+
+- Make the install paste survive a STOP without killing the terminal, for example by running it as a `bash` subshell.
+- Re-run the openssl fingerprint line right before the password-typing step.
+- Add one SBOM line saying the transitive npm dependencies are unpinned.
+
+No scope changes are needed. Handoff item 6 stays open, and `docs/agent-team.md` stays untouched.
+
+## Outline
+
+- Verification
+  - Self-test OK; shellcheck clean
+  - npm metadata matches the pin
+  - Tarball: `127.0.0.1:3000` default, Soft-reset label present
+- Paste 1 (MeshCommander install)
+  - Correct remote client and ports
+  - No `--any`, no `--port`
+  - Fingerprint gate in the read-only block, before the password
+  - Nits: the `set -e` terminal kill, the cert re-check, unpinned dependencies
+- Paste 2 (rotate script)
+  - No secrets printed
+  - Refuses root, host `johnny`, missing `192.168.51.2/`, and 8181 open
+  - Restore and shred stay as rollback and cleanup
+- Johnny post-check
+  - Read-only; no step 11 undo
+- Docs state
+  - Rev 74 touches only item 6
+  - `docs/agent-team.md` unchanged
+- Verdict: approve with nits

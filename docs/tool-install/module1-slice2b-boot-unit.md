@@ -1,6 +1,6 @@
 # Module 1 Slice 2b: Boot-time j_xdp_records and Persistent Rotating Reader
 
-Rev 1, 2026-11-11 America/Chicago. Status: **drafted, NOT APPLIED.**
+Rev 2, 2026-11-12 America/Chicago. Status: **2b applied on Johnny 2026-11-12T04:05Z; verify not yet passed (checker bug); 1c disabled.**
 
 ## Purpose and Scope
 
@@ -19,12 +19,12 @@ This runbook specifies:
 
 ## Decisions (AJ)
 
-Plain words, numbered:
-1. **Rate/burst:** Proposed 8,000 rec/s per CPU, burst 16,000, written to `m2_cfg` at boot. Confirm or name another pair.
-2. **Retention:** 64 MiB or 3,600 s per file, `keep=6` (max 384 MiB dir cap), 256 MiB free-space reserve. Confirm or name other caps. Boundedness is not optional.
-3. **This-boot cutover:** Stop/disable 1c, then start 2b (few-second capture gap). Not overwrite. Same recommendation as slice 2 Decision 1 (a).
-4. **1c files:** Disable the 1c unit, leave its files in place for rollback. Do not uninstall 1c in the apply path.
-5. **MACs stay raw:** Unless AJ says otherwise (slice 2 default).
+Plain words, numbered (AJ confirmed decisions: option A, 2026-11-11 22:13 CT):
+1. **Rate/burst:** 8,000 rec/s per CPU, burst 16,000, written to `m2_cfg` at boot. Live evidence at 2026-11-12T04:13Z shows `m2_ctl` `rate_limited` 407,183 of 843,847 seen (~48%) over ~7 min even at 8000/16000 â€” flagged as an open question for AJ, rate left at 8000/16000.
+2. **Retention:** 64 MiB or 3,600 s per file, `keep=6` (max 384 MiB dir cap), 256 MiB free-space reserve. Boundedness is not optional.
+3. **This-boot cutover:** Stop/disable 1c, then start 2b (few-second capture gap). Not overwrite. Completed on Johnny 2026-11-12T04:05Z.
+4. **1c files:** Disable the 1c unit, leave its files in place for rollback. Do not uninstall 1c in the apply path. Completed on Johnny 2026-11-12T04:05Z.
+5. **MACs stay raw:** Defaults as applied (AJ chose option A 2026-11-11 22:13 CT).
 6. **Cold-reboot proof is a separate later paste:** Run only after this-boot verify passes, not part of the first apply batch.
 
 ## Rate-Limit Reasoning
@@ -46,9 +46,9 @@ Deployables (copied to Johnny):
 
 ```
 a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  docs/tool-install/module1-xdp-records.o
-650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  docs/tool-install/module1-slice2b-boot.sh
+b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  docs/tool-install/module1-slice2b-boot.sh
 4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a  etc/systemd/system/johnny-capture-xdp-records.service
-e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581  docs/tool-install/johnny-m1s2b-reader.py
+fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573  docs/tool-install/johnny-m1s2b-reader.py
 5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  etc/systemd/system/johnny-m1s2b-reader.service
 ```
 
@@ -80,11 +80,11 @@ No paste in this runbook is typed directly on Johnny. Every paste is labeled `**
 ***<u>Run on Rock Box</u>***
 
 ```bash
-cd /home/aj/Projects/strix-halo-johnny-slice2b &&
+cd /home/aj/Projects/strix-halo-johnny-slice2b-fix3 &&
 bash docs/tool-install/module1-slice2b-self-test.sh
 ```
 
-Expect `PINS-OK`, `SHELLCHECK-OK`, `STATIC-CHECKS-OK`, `READER-TESTS-OK`, `E2E-OK scenarios=11`, `RUNBOOK-OK blocks=9`, and **`SELF-TEST-OK`**.
+Expect `PINS-OK`, `SHELLCHECK-OK`, `STATIC-CHECKS-OK`, `READER-TESTS-OK`, `E2E-OK scenarios=11`, `RUNBOOK-OK blocks=13`, and **`SELF-TEST-OK`**.
 
 ### Paste 2: Copy deployables to Johnny (no sudo)
 
@@ -92,11 +92,11 @@ Expect `PINS-OK`, `SHELLCHECK-OK`, `STATIC-CHECKS-OK`, `READER-TESTS-OK`, `E2E-O
 
 ```bash
 ssh aj@192.168.50.152 'mkdir -p -m 0700 /home/aj/cis-audit/m1s2b' &&
-scp /home/aj/Projects/strix-halo-johnny-slice2b/docs/tool-install/module1-xdp-records.o /home/aj/Projects/strix-halo-johnny-slice2b/docs/tool-install/module1-slice2b-boot.sh /home/aj/Projects/strix-halo-johnny-slice2b/etc/systemd/system/johnny-capture-xdp-records.service /home/aj/Projects/strix-halo-johnny-slice2b/docs/tool-install/johnny-m1s2b-reader.py /home/aj/Projects/strix-halo-johnny-slice2b/etc/systemd/system/johnny-m1s2b-reader.service aj@192.168.50.152:/home/aj/cis-audit/m1s2b/ &&
+scp /home/aj/Projects/strix-halo-johnny-slice2b-fix3/docs/tool-install/module1-xdp-records.o /home/aj/Projects/strix-halo-johnny-slice2b-fix3/docs/tool-install/module1-slice2b-boot.sh /home/aj/Projects/strix-halo-johnny-slice2b-fix3/etc/systemd/system/johnny-capture-xdp-records.service /home/aj/Projects/strix-halo-johnny-slice2b-fix3/docs/tool-install/johnny-m1s2b-reader.py /home/aj/Projects/strix-halo-johnny-slice2b-fix3/etc/systemd/system/johnny-m1s2b-reader.service aj@192.168.50.152:/home/aj/cis-audit/m1s2b/ &&
 ssh aj@192.168.50.152 'cd /home/aj/cis-audit/m1s2b && echo "a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  module1-xdp-records.o
-650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  module1-slice2b-boot.sh
+b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  module1-slice2b-boot.sh
 4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a  johnny-capture-xdp-records.service
-e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581  johnny-m1s2b-reader.py
+fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573  johnny-m1s2b-reader.py
 5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  johnny-m1s2b-reader.service" | sha256sum -c - && echo M1S2B-COPY-DONE'
 ```
 
@@ -109,7 +109,7 @@ Expect five `OK` hash lines and **`M1S2B-COPY-DONE`**.
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
 cd /home/aj/cis-audit/m1s2b &&
-echo "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  module1-slice2b-boot.sh" | sha256sum -c - &&
+echo "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  module1-slice2b-boot.sh" | sha256sum -c - &&
 echo "16fbd7d1f18d2fedb247d73edc3bc6aa040f5ab99bd3b48c35b79e543d22179b  /etc/johnny/capture-cores
 db58d7c72b5a58cbd0c2533caa819d397e4c205242e30e5defb0eae0f4ab59e4  /etc/johnny/irq-affinity.sh" | sudo sha256sum -c - &&
 sudo bpftool net show dev eno1np0 &&
@@ -128,9 +128,9 @@ Expect three `OK` hash lines, `eno1np0` showing driver attachment, `enabled`, `a
 ssh -t aj@192.168.50.152 'sudo -v &&
 cd /home/aj/cis-audit/m1s2b &&
 echo "a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  module1-xdp-records.o
-650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  module1-slice2b-boot.sh
+b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  module1-slice2b-boot.sh
 4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a  johnny-capture-xdp-records.service
-e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581  johnny-m1s2b-reader.py
+fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573  johnny-m1s2b-reader.py
 5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  johnny-m1s2b-reader.service" | sha256sum -c - &&
 sudo install -d -m 0700 -o root -g root /root/m1s2b &&
 sudo install -m 0700 -o root -g root module1-slice2b-boot.sh /root/m1s2b/module1-slice2b-boot.sh &&
@@ -139,9 +139,9 @@ sudo mkdir -p -m 0755 /usr/local/libexec/johnny &&
 sudo install -m 0644 -o root -g root johnny-m1s2b-reader.py /usr/local/libexec/johnny/johnny-m1s2b-reader.py &&
 sudo install -m 0644 -o root -g root johnny-m1s2b-reader.service /etc/systemd/system/johnny-m1s2b-reader.service &&
 sudo install -m 0644 -o root -g root johnny-capture-xdp-records.service /etc/systemd/system/johnny-capture-xdp-records.service &&
-echo "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  /root/m1s2b/module1-slice2b-boot.sh
+echo "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  /root/m1s2b/module1-slice2b-boot.sh
 a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  /root/m1s2b/module1-xdp-records.o
-e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
+fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
 5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  /etc/systemd/system/johnny-m1s2b-reader.service
 4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a  /etc/systemd/system/johnny-capture-xdp-records.service" | sudo sha256sum -c - &&
 sudo systemctl daemon-reload &&
@@ -157,9 +157,9 @@ Expect five `OK` lines twice, clean daemon-reload, no systemd verify errors, and
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  /root/m1s2b/module1-slice2b-boot.sh
+echo "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  /root/m1s2b/module1-slice2b-boot.sh
 a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  /root/m1s2b/module1-xdp-records.o
-e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
+fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
 5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  /etc/systemd/system/johnny-m1s2b-reader.service
 4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a  /etc/systemd/system/johnny-capture-xdp-records.service" | sudo sha256sum -c - &&
 sudo systemctl stop johnny-capture-xdp.service &&
@@ -179,7 +179,7 @@ Expect five `OK` hash lines, slice 1c stopped/disabled, slice 2b units enabled/s
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
+echo "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
 sudo bash /root/m1s2b/module1-slice2b-boot.sh verify &&
 echo M1S2B-VERIFY-DONE'
 ```
@@ -192,9 +192,9 @@ Expect `VERIFY-WINDOW`, `PASS-RATIO`, `ETHTOOL-DROP-DELTAS none`, and **`M1S2B-V
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  /root/m1s2b/module1-slice2b-boot.sh
+echo "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  /root/m1s2b/module1-slice2b-boot.sh
 a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  /root/m1s2b/module1-xdp-records.o
-e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
+fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
 5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  /etc/systemd/system/johnny-m1s2b-reader.service
 4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a  /etc/systemd/system/johnny-capture-xdp-records.service" | sudo sha256sum -c - &&
 echo "Issuing reboot to test unattended boot persistence..." &&
@@ -210,7 +210,7 @@ Expect five `OK` hash lines and **`M1S2B-REBOOT-ISSUED`**. Johnny reboots (~60â€
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
+echo "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
 for i in {1..24}; do
   st_xdp=$(sudo systemctl is-active johnny-capture-xdp-records.service 2>/dev/null || true)
   st_rdr=$(sudo systemctl is-active johnny-m1s2b-reader.service 2>/dev/null || true)
@@ -238,6 +238,75 @@ echo M1S2B-COLD-BOOT-VERIFY-DONE'
 
 Expect both units active, no ordering cycles, 1c disabled, verify and status clean, and **`M1S2B-COLD-BOOT-VERIFY-DONE`**.
 
+## Verify-fix reinstall (2b already live)
+
+Slice 2b is live on Johnny since 2026-11-12T04:05Z (`j_xdp_records` driver mode id 192 attached, reader active writing `/var/lib/johnny/m1s2b/run-*.bin`, 1c disabled). Paste 6 verify stopped at `STOP-no-traffic-verify` because the checker parsed per-CPU maps using an invalid JSON shape.
+
+This procedure updates only the two changed files (`module1-slice2b-boot.sh` and `johnny-m1s2b-reader.py`) on Johnny, restarts only the reader service (leaving XDP driver attach untouched), runs status, and completes verify.
+
+Rollback note: if reinstall needs to be rolled back to the original slice 2b deployables, their previous hashes are:
+- `module1-slice2b-boot.sh`: `650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2`
+- `johnny-m1s2b-reader.py`: `e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581`
+
+### Paste R1: Rock-box self-test (no root, no SSH)
+
+***<u>Run on Rock Box</u>***
+
+```bash
+cd /home/aj/Projects/strix-halo-johnny-slice2b-fix3 &&
+bash docs/tool-install/module1-slice2b-self-test.sh
+```
+
+Expect `PINS-OK`, `SHELLCHECK-OK`, `STATIC-CHECKS-OK`, `READER-TESTS-OK`, `E2E-OK scenarios=11`, `RUNBOOK-OK blocks=13`, and **`SELF-TEST-OK`**.
+
+### Paste R2: Copy changed fix files to Johnny (no sudo)
+
+***<u>Run on Rock Box</u>***
+
+```bash
+ssh aj@192.168.50.152 'mkdir -p -m 0700 /home/aj/cis-audit/m1s2b-fix' &&
+scp /home/aj/Projects/strix-halo-johnny-slice2b-fix3/docs/tool-install/module1-slice2b-boot.sh /home/aj/Projects/strix-halo-johnny-slice2b-fix3/docs/tool-install/johnny-m1s2b-reader.py aj@192.168.50.152:/home/aj/cis-audit/m1s2b-fix/ &&
+ssh aj@192.168.50.152 'cd /home/aj/cis-audit/m1s2b-fix && echo "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  module1-slice2b-boot.sh
+fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573  johnny-m1s2b-reader.py" | sha256sum -c - && echo M1S2B-FIX-COPY-DONE'
+```
+
+Expect two `OK` hash lines and **`M1S2B-FIX-COPY-DONE`**.
+
+### Paste R3: Install fix files, restart reader service, and status check
+
+***<u>Run on Rock Box</u>***
+
+```bash
+ssh -t aj@192.168.50.152 'sudo -v &&
+cd /home/aj/cis-audit/m1s2b-fix &&
+echo "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  module1-slice2b-boot.sh
+fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573  johnny-m1s2b-reader.py" | sha256sum -c - &&
+echo "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  /root/m1s2b/module1-slice2b-boot.sh
+e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581  /usr/local/libexec/johnny/johnny-m1s2b-reader.py" | sudo sha256sum -c - &&
+sudo install -m 0700 -o root -g root module1-slice2b-boot.sh /root/m1s2b/module1-slice2b-boot.sh &&
+sudo install -m 0644 -o root -g root johnny-m1s2b-reader.py /usr/local/libexec/johnny/johnny-m1s2b-reader.py &&
+echo "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  /root/m1s2b/module1-slice2b-boot.sh
+fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573  /usr/local/libexec/johnny/johnny-m1s2b-reader.py" | sudo sha256sum -c - &&
+sudo systemctl restart johnny-m1s2b-reader.service &&
+sudo bash /root/m1s2b/module1-slice2b-boot.sh status &&
+echo M1S2B-FIX-INSTALL-DONE'
+```
+
+Expect two `OK` hash lines for source files, two `OK` hash lines for previous installed files, two `OK` hash lines for updated installed files, clean restart of `johnny-m1s2b-reader.service` (XDP unit unchanged), `status` showing non-zero parsed `STATS` and `CTL` counters, and **`M1S2B-FIX-INSTALL-DONE`**.
+
+### Paste R4: Verify window
+
+***<u>Run on Rock Box</u>***
+
+```bash
+ssh -t aj@192.168.50.152 'sudo -v &&
+echo "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
+sudo bash /root/m1s2b/module1-slice2b-boot.sh verify &&
+echo M1S2B-VERIFY-DONE'
+```
+
+Expect one `OK` hash line, `VERIFY-WINDOW` with positive `xdp-pkts-delta` and `tcpdump-captured`, `PASS-RATIO`, `ETHTOOL-DROP-DELTAS none`, and **`M1S2B-VERIFY-DONE`**.
+
 ## Rollback (not part of the paste sequence above)
 
 Run this block to revert Johnny back to slice 1c (`j_xdp_observe` attached, `johnny-capture-xdp.service` enabled and active). Slice 2b files remain on disk for inspection.
@@ -246,7 +315,7 @@ Run this block to revert Johnny back to slice 1c (`j_xdp_observe` attached, `joh
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
+echo "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
 sudo systemctl stop johnny-m1s2b-reader.service &&
 sudo systemctl stop johnny-capture-xdp-records.service &&
 sudo systemctl disable johnny-capture-xdp-records.service johnny-m1s2b-reader.service &&
@@ -298,9 +367,14 @@ Expect slice 2b stopped/disabled, 2b pins removed, slice 1c enabled/active, obse
 3. Paste 3: **`M1S2B-PROBE-DONE`**
 4. Paste 4: **`M1S2B-INSTALL-DONE`**
 5. Paste 5: **`M1S2B-CUTOVER-DONE`**
-6. Paste 7: **`M1S2B-REBOOT-ISSUED`**
-7. Paste 8: **`M1S2B-COLD-BOOT-VERIFY-DONE`**
-8. Rollback: **`M1S2B-ROLLBACK-DONE`**
+6. Paste 6: **`M1S2B-VERIFY-DONE`**
+7. Paste 7: **`M1S2B-REBOOT-ISSUED`**
+8. Paste 8: **`M1S2B-COLD-BOOT-VERIFY-DONE`**
+9. Paste R1: **`SELF-TEST-OK`**
+10. Paste R2: **`M1S2B-FIX-COPY-DONE`**
+11. Paste R3: **`M1S2B-FIX-INSTALL-DONE`**
+12. Paste R4: **`M1S2B-VERIFY-DONE`**
+13. Rollback: **`M1S2B-ROLLBACK-DONE`**
 
 ## Assumptions
 

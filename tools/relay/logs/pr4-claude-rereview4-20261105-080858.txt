@@ -1,0 +1,64 @@
+The `comm` fix holds and I found no stoppers. Bash was refused here, so I did not re-run `step-11-self-test.sh` or `shellcheck`. `SELF-TEST-OK` and shellcheck exit 0 are verified-by-Grok only. I confirmed everything below by reading `053a39c` and the full current scripts.
+
+## Detail
+
+### The new overlap check
+
+- **`PCORES 0-7` / `ECORES 8-23`:** it no longer reaches `STOP-err`.
+  - `cpu_lists_overlap` (`step-11-e810-capture.sh:89`) fills an associative array from the left list, then scans the right list for hits. It prints nothing and returns 0 when the lists are disjoint.
+  - At the call site (`:499`), `if ! overlap=$(...)` takes the status of the command substitution. That status is 0, so the check is skipped and the script continues to `pick_capture_cpus` and `CAPTURE-CPUS`.
+  - The `if` context also keeps `set -e` and the ERR trap from firing inside the function. This removes the cause of the earlier failure, where `comm -12` returned 1 on an empty result.
+- **A real shared id:** it still stops. For 0-7 against 6-10 the function prints `6` and `7` and returns 1. The call site then prints the ids and runs `die STOP-hybrid-overlap`.
+  - The new self-test cases cover both the disjoint and the overlapping lists.
+- **Malformed lists:** `expand_cpulist` is validated at `:496` first. An empty list would fail the `pick_capture_cpus` regex with `STOP-cpulist`.
+
+### Prior fixes, re-read in the current file
+
+- **Hex flags:** `flags_well_formed` accepts hex (`:111`). The link check is `eno1_link_ok`: `IFF_UP` set, speed 10000, and carrier 1 or operstate up. Nothing requires `IFF_LOWER_UP`; it appears only in comments.
+- **`trap '' HUP PIPE`:** present at `:304`.
+- **Nonzero exit reverts:** `cleanup` sets `failed=1` when `rc` is nonzero, runs `set +e`, and then reverts if `revert_ready` and `this_run_changed` are both 1. If nothing changed, it prints `CONFIG-KEPT`.
+- **Reload on `NETPLAN-UNCHANGED`:** the revert script runs `networkctl reload` in that branch, and a failure sets `reload_failed=1` and returns nonzero.
+- **`eno3` guard:** `netplan generate` runs at `:747`. The `cmp` of `eno3`, `eno1np0` and `eno4` against the pre-change copies runs at `:748-752`. `netplan apply` comes after, at `:761`.
+- **No `disable_ipv6` write:** the script only reads it (`:468-469`).
+- **No `rp_filter` write:** the script only reads it (`:474-476`).
+- **XDP:** only `bpftool net attach xdpdrv` is used. It checks that the mode is `driver`, then detaches and checks that nothing lingers.
+  - The revert script also tries a plain `xdp` detach as cleanup. That is not an attach and is fine.
+- **Excluded items:** no DDP load, IRQ pin, GRUB edit or sudoers change. `capture-tuning.sh` only touches EPP and the cpuidle `disable` files.
+
+### Nits, none blocking
+
+1. `comm` is still in the required-command list (`:384`) and is no longer used. Drop it, or the box will `STOP-missing comm` for no reason.
+2. `sort`, `uniq`, `tee`, `tr`, `grep`, `find`, `wc`, `mktemp` and `sleep` are used but not in that list. They are coreutils, so this is only tidiness.
+3. The self-test writes to fixed `/tmp/step11-*.out` paths. It is local only, so `mktemp` would be cleaner.
+4. The script still has not run past this point on the box. The first real run of the netplan preview (`edit_netplan` on the live yaml) and everything after it has not been exercised. The repo mirror of the yaml is the post-change state, so it does not test the pre-change shape. The pre-change `eno2np1` (blank line after `optional: true`, no `activation-mode`) should satisfy the edit's shape checks.
+   - If the live file differs, the failure is `STOP-netplan-*` before any write.
+
+VERDICT: APPROVE-WITH-NITS
+
+## Relay (for Grok)
+
+`053a39c` is approved. `cpu_lists_overlap` returns 0 and prints nothing for 0-7 vs 8-23, so the script proceeds to `CAPTURE-CPUS`. A real overlap such as 0-7 vs 6-10 prints `6` and `7` and stops at `STOP-hybrid-overlap`. The hex-flag gate, signal traps, revert on nonzero exit, reload on `NETPLAN-UNCHANGED`, `eno3` cmp-before-apply, read-only `disable_ipv6` and `rp_filter`, and `xdpdrv`-only XDP all still hold. There is no DDP, IRQ pin, GRUB or sudoers change. Bash was refused on my side, so I rely on your `SELF-TEST-OK` and shellcheck 0. One cleanup before the next paste: remove the unused `comm` from the command list at `:384`. Optional: use `mktemp` in the self-test. Nothing past `CAPTURE-CPUS` has run on the box yet.
+
+## Outline
+
+- Scope
+  - Reviewed 053a39c diff plus full current capture, revert and tuning scripts
+  - Self-test and shellcheck: not re-run (Bash refused); Grok's results taken as given
+- Overlap check
+  - Disjoint 0-7 / 8-23: returns 0, silent, proceeds to `CAPTURE-CPUS`
+  - Real overlap: prints shared ids, `STOP-hybrid-overlap`
+  - Cause removed: no `comm`, and `if` context avoids `set -e` and ERR
+- Prior fixes confirmed
+  - Hex flags, no `IFF_LOWER_UP`
+  - `trap '' HUP PIPE`
+  - Nonzero exit reverts; `CONFIG-KEPT` when nothing changed
+  - `networkctl reload` on `NETPLAN-UNCHANGED`
+  - `eno3` cmp before `netplan apply`
+  - No `disable_ipv6` or `rp_filter` writes
+  - `xdpdrv` only, then detach
+  - No DDP, IRQ, GRUB or sudoers
+- Nits
+  - `comm` unused in the command list
+  - Other used tools unchecked
+  - Fixed `/tmp` paths in the self-test
+  - Netplan edit path untested on the live box
