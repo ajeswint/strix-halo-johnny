@@ -5,7 +5,7 @@ Seat: code-writer (Antigravity agy, Gemini 3.8 Flash high). Branch `claude/modul
 ## Summary of Events
 
 1. **Slice 2b Applied (2026-11-12T04:05Z):** AJ applied Pastes 1–5 from `docs/tool-install/module1-slice2b-boot-unit.md`. `j_xdp_records` attached on `eno1np0` in driver mode (`prog_id=192`), rotating reader active writing `/var/lib/johnny/m1s2b/run-*.bin`, slice 1c unit disabled. Paste 6 verify stopped at `STOP-no-traffic-verify` because the checker parsed per-CPU maps using an invalid JSON shape.
-2. **Verify-Fix Applied (PR #34, `6891fa3`):** Reinstall Pastes R1–R4 applied. Replaced `module1-slice2b-boot.sh` (sha256 `b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55`) and `johnny-m1s2b-reader.py` (sha256 `fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573`). Paste R4 verify passed: xdp 491 vs tcpdump 426, no NIC drops.
+2. **Verify-Fix Applied (PR #34, `6891fa3`):** Reinstall Pastes R1–R4 applied. Replaced `module1-slice2b-boot.sh` (sha256 `b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55`) and `johnny-m1s2b-reader.py` (sha256 `fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573`). Paste R4 verify passed: xdp 491 vs tcpdump 426 (operator-reported by AJ in chat; transcript not saved), no NIC drops.
 3. **Cold-Boot Proven (2026-11-12 ~05:54Z):**
    - AJ ran Paste 7 (cold reboot of Johnny) then Paste 8 (post-reboot verify) from Rock Box.
    - Initial Paste 8 run encountered a false positive: `sudo journalctl -b --grep "ordering cycle" -q` searched all journal lines, matching sudo's own command line log entry and opening a pager.
@@ -39,7 +39,7 @@ Module 1 port-mirror sniffing is **COMPLETE**.
 ## Docs Changed
 
 - `docs/tool-install/module1-slice2b-boot-unit.md`: Rev 3; corrected Paste 8 ordering cycle check to use `_PID=1` and `--no-pager`; added explanatory note under Paste 8; updated token table; status updated to applied, verified, cold-boot proven.
-- `docs/findings/module1-slice2b/README.md`: Updated with full apply, verify fix, cold boot proof facts, gate fix, rate-limit observation, and Module 1 complete status.
+- `docs/findings/module1-slice2b/README.md`: Updated with full apply, verify fix, cold boot proof facts, gate fix, rate-limit observation, and Module 1 port-mirror sniffing complete status.
 - `README.md`: Updated Module 1 sequence item to port-mirror sniffing COMPLETE.
 - `docs/os-handoff.md`: Bumped to rev 111 with new top rev entry, updated Next steps item 4 and carried baseline decisions line.
 - `docs/sessions/2026-11-12-module1-slice2b-closeout.md`: This session closeout record.

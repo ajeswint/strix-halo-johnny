@@ -236,11 +236,11 @@ echo M1S2B-COLD-BOOT-VERIFY-DONE'
 
 Expect both units active, no ordering cycles, 1c disabled, verify and status clean, and **`M1S2B-COLD-BOOT-VERIFY-DONE`**.
 
-Note: The ordering-cycle gate searches only PID 1 systemd messages (`_PID=1`) with `--no-pager`; the old form matched sudo's own log line on 2026-11-12.
+Note: The ordering-cycle gate searches only PID 1 systemd messages (`_PID=1`) with `--no-pager`; the old form matched sudo's own log line on 2026-11-12. Known limitation: without pipefail, a journalctl failure with empty stdout reads as cyc=0; stderr would still show; a future revision could capture journalctl output and STOP on its non-zero exit.
 
 ## Verify-fix reinstall (2b already live)
 
-Slice 2b is live on Johnny since 2026-11-12T04:05Z (`j_xdp_records` driver mode id 192 attached, reader active writing `/var/lib/johnny/m1s2b/run-*.bin`, 1c disabled). Paste 6 verify stopped at `STOP-no-traffic-verify` because the checker parsed per-CPU maps using an invalid JSON shape.
+Slice 2b is live on Johnny since 2026-11-12T04:05Z (`j_xdp_records` driver mode id 192 was the 04:05Z pre-reboot attach; live id after the 2026-11-12 ~05:54Z cold boot is 78; reader active writing `/var/lib/johnny/m1s2b/run-*.bin`, 1c disabled). Paste 6 verify stopped at `STOP-no-traffic-verify` because the checker parsed per-CPU maps using an invalid JSON shape.
 
 This procedure updates only the two changed files (`module1-slice2b-boot.sh` and `johnny-m1s2b-reader.py`) on Johnny, restarts only the reader service (leaving XDP driver attach untouched), runs status, and completes verify.
 
