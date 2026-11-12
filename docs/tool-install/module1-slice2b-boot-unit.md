@@ -1,6 +1,6 @@
 # Module 1 Slice 2b: Boot-time j_xdp_records and Persistent Rotating Reader
 
-Rev 2, 2026-11-12 America/Chicago. Status: **2b applied on Johnny 2026-11-12T04:05Z; verify not yet passed (checker bug); 1c disabled.**
+Rev 3, 2026-11-12 America/Chicago. Status: **2b APPLIED, VERIFIED, and COLD-BOOT PROVEN on Johnny (2026-11-12 ~05:54Z). Module 1 port-mirror sniffing COMPLETE.**
 
 ## Purpose and Scope
 
@@ -20,12 +20,12 @@ This runbook specifies:
 ## Decisions (AJ)
 
 Plain words, numbered (AJ confirmed decisions: option A, 2026-11-11 22:13 CT):
-1. **Rate/burst:** 8,000 rec/s per CPU, burst 16,000, written to `m2_cfg` at boot. Live evidence at 2026-11-12T04:13Z shows `m2_ctl` `rate_limited` 407,183 of 843,847 seen (~48%) over ~7 min even at 8000/16000 — flagged as an open question for AJ, rate left at 8000/16000.
+1. **Rate/burst:** 8,000 rec/s per CPU, burst 16,000, written to `m2_cfg` at boot. Live evidence at 2026-11-12T04:13Z showed `m2_ctl` `rate_limited` 407,183 of 843,847 seen (~48%) over ~7 min; at the 2026-11-12 ~05:54Z cold boot, `rate_limited` was 0 of 33,436 seen at the same config. Rate left at 8000/16000; still AJ's call whether to revisit.
 2. **Retention:** 64 MiB or 3,600 s per file, `keep=6` (max 384 MiB dir cap), 256 MiB free-space reserve. Boundedness is not optional.
 3. **This-boot cutover:** Stop/disable 1c, then start 2b (few-second capture gap). Not overwrite. Completed on Johnny 2026-11-12T04:05Z.
 4. **1c files:** Disable the 1c unit, leave its files in place for rollback. Do not uninstall 1c in the apply path. Completed on Johnny 2026-11-12T04:05Z.
 5. **MACs stay raw:** Defaults as applied (AJ chose option A 2026-11-11 22:13 CT).
-6. **Cold-reboot proof is a separate later paste:** Run only after this-boot verify passes, not part of the first apply batch.
+6. **Cold-reboot proof is a separate later paste:** Cold boot run and verified clean 2026-11-12 ~05:54Z (`M1S2B-COLD-BOOT-VERIFY-DONE`; see `docs/findings/module1-slice2b/2026-11-12-cold-boot-verify.md`).
 
 ## Rate-Limit Reasoning
 
@@ -223,10 +223,8 @@ if [ "$st_xdp" != "active" ] || [ "$st_rdr" != "active" ]; then
   echo "STOP-units-not-active xdp=$st_xdp reader=$st_rdr"
   false
 fi &&
-if sudo journalctl -b --grep "ordering cycle" -q; then
-  echo "STOP-ordering-cycle-warning"
-  false
-fi &&
+cyc=$(sudo journalctl -b --no-pager -q _PID=1 -o cat | grep -ci "ordering cycle" || true) &&
+if [ "$cyc" != "0" ]; then echo "STOP-ordering-cycle-warning count=$cyc"; false; fi &&
 if [ "$(sudo systemctl is-enabled johnny-capture-xdp.service 2>/dev/null || true)" != "disabled" ]; then
   echo "STOP-1c-unit-not-disabled"
   false
@@ -238,9 +236,11 @@ echo M1S2B-COLD-BOOT-VERIFY-DONE'
 
 Expect both units active, no ordering cycles, 1c disabled, verify and status clean, and **`M1S2B-COLD-BOOT-VERIFY-DONE`**.
 
+Note: The ordering-cycle gate searches only PID 1 systemd messages (`_PID=1`) with `--no-pager`; the old form matched sudo's own log line on 2026-11-12. Known limitation: without pipefail, a journalctl failure with empty stdout reads as cyc=0; stderr would still show; a future revision could capture journalctl output and STOP on its non-zero exit.
+
 ## Verify-fix reinstall (2b already live)
 
-Slice 2b is live on Johnny since 2026-11-12T04:05Z (`j_xdp_records` driver mode id 192 attached, reader active writing `/var/lib/johnny/m1s2b/run-*.bin`, 1c disabled). Paste 6 verify stopped at `STOP-no-traffic-verify` because the checker parsed per-CPU maps using an invalid JSON shape.
+Slice 2b is live on Johnny since 2026-11-12T04:05Z (`j_xdp_records` driver mode id 192 was the 04:05Z pre-reboot attach; live id after the 2026-11-12 ~05:54Z cold boot is 78; reader active writing `/var/lib/johnny/m1s2b/run-*.bin`, 1c disabled). Paste 6 verify stopped at `STOP-no-traffic-verify` because the checker parsed per-CPU maps using an invalid JSON shape.
 
 This procedure updates only the two changed files (`module1-slice2b-boot.sh` and `johnny-m1s2b-reader.py`) on Johnny, restarts only the reader service (leaving XDP driver attach untouched), runs status, and completes verify.
 
@@ -355,7 +355,7 @@ Expect slice 2b stopped/disabled, 2b pins removed, slice 1c enabled/active, obse
 | `STOP-xdp-foreign-attached` | A foreign XDP program is attached; helper refuses to touch it. |
 | `STOP-cfg-write-verify-failed` | Writing or verifying `m2_cfg` (8000/16000) failed; helper detaches and cleans up (fail-closed). |
 | `STOP-units-not-active` | One or both 2b units did not reach active within 120 s after boot. |
-| `STOP-ordering-cycle-warning` | Systemd ordering cycle detected in journal. |
+| `STOP-ordering-cycle-warning` | Systemd ordering cycle detected in PID 1 journal messages (`count=<n>`). |
 | `STOP-1c-unit-not-disabled` | Slice 1c unit remained enabled after reboot. |
 | `STOP-rollback-not-clean` | Rollback did not return Johnny to clean slice 1c observer state (requires one attached driver id with prog name `j_xdp_observe`, 1c enabled/active, and both 2b units disabled/inactive). |
 | reader exit 1 (`Restart=on-failure`) | Reader encountered a STOP condition (e.g. disk reserve or corrupt ring); after `StartLimitBurst=5`, systemd leaves the reader failed while XDP unit remains active. |
