@@ -1,0 +1,24 @@
+[Unit]
+Description=Attach Johnny Module 1 passive native-XDP records on eno1np0
+After=network-online.target johnny-capture-irq.service
+Wants=network-online.target johnny-capture-irq.service johnny-m1s2b-reader.service
+ConditionPathExists=/etc/johnny/capture-cores
+ConditionPathExists=/etc/johnny/irq-affinity.sh
+ConditionPathExists=/root/m1s2b/module1-slice2b-boot.sh
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash /root/m1s2b/module1-slice2b-boot.sh start
+ExecStop=/bin/bash /root/m1s2b/module1-slice2b-boot.sh stop
+# Ordered After=johnny-capture-irq.service so step 13 pins the 12 queue IRQs
+# before XDP attaches (irq-affinity.sh refuses with STOP-xdp-present if XDP is
+# already attached). Do NOT add After=johnny-capture-tuning.service: tuning has
+# After=multi-user.target while this unit is WantedBy=multi-user.target, which
+# would reintroduce the rev 89/90 ordering cycle.
+# 60s boot-ready wait + ~50s attach/observe window + slack.
+TimeoutStartSec=180
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target
