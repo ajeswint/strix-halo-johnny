@@ -1,4 +1,18 @@
-# Johnny — OS Handoff (rev 112, 2026-11-14 America/Chicago)
+# Johnny — OS Handoff (rev 113, 2026-11-14 America/Chicago)
+
+## Rev 113 (2026-11-14 America/Chicago): Module 1 slice 2b reader MemoryMax 128M -> 1G in retention draft, review2 nits
+- **Status:** **DRAFTED, NOT APPLIED.** Live Johnny remains on rev 111 verified settings (64 MiB / 3600 s per file, keep=6, dir cap 384 MiB, reserve 256 MiB, MemoryMax=128M).
+- **Target Changes (AJ approved):**
+  - Reader memory limit raised: `MemoryMax=1G` (1073741824 bytes, raised from 128M) in `etc/systemd/system/johnny-m1s2b-reader.service`, keeping `MemorySwapMax=0`.
+  - Retention raise parameters retained: 1 GiB / 3600 s rotation, keep=200, 200 GiB dir cap, 100 GiB reserve, `LimitFSIZE=1025M`.
+  - Paste B scp source path updated to `/home/aj/Projects/strix-halo-johnny-slice2b-reader-mem`.
+  - Paste C updated: added `-p MemoryMax` to `systemctl show` and asserted `MemoryMax=1073741824`.
+  - Review 2 nits addressed: N1 (STOP exit citation 674-675), N2 (pre-retention helper note at Pastes 6, 8, and 1c rollback), N3 (uncapped memory claim removed from rev 112 session note).
+- **New sha256 Pins:**
+  - `etc/systemd/system/johnny-m1s2b-reader.service`: `e5c16249c479a5f807c2c794b146ee81ec2ed2f937c445f65480088cfa0d529c`
+  - `docs/tool-install/module1-slice2b-boot.sh`: `0fb61363ddce962f0a645c340072fe5085b5ebeda0794230fa6dbc492dd2388f` (pins the new reader unit hash)
+  - Unchanged: `docs/tool-install/johnny-m1s2b-reader.py` (`476cf867...`), `docs/tool-install/module1-xdp-records.o` (`a73c5bd2...`), `etc/systemd/system/johnny-capture-xdp-records.service` (`4e2e359d...`).
+- **Runbook & Self-Test:** Runbook and self-test updated with new pins and MemoryMax assertions (`PINS-OK`, `SHELLCHECK-OK`, `STATIC-CHECKS-OK`, `READER-TESTS-OK`, `E2E-OK scenarios=11`, `RUNBOOK-OK blocks=17`, `SELF-TEST-OK`).
 
 ## Rev 112 (2026-11-14 America/Chicago): Module 1 slice 2b reader retention raise DRAFTED, NOT APPLIED
 - **Status:** **DRAFTED, NOT APPLIED.** Live Johnny remains on rev 111 verified settings (64 MiB / 3600 s per file, keep=6, dir cap 384 MiB, reserve 256 MiB).

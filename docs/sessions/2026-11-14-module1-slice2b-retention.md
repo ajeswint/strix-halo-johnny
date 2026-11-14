@@ -32,7 +32,7 @@ AJ approved raising Module 1 slice 2b reader retention limits on Johnny ("we hav
    - Bounded `dir_cap_bytes` to `MAX_DIR_CAP_BYTES = 16 << 40` (16 TiB) with `floor=file_max_bytes` (ensuring directory cap is always >= file max size).
    - Bounded `reserve_bytes` to `MAX_RESERVE_BYTES = 16 << 40` (16 TiB) with default `floor=1`.
    - Python defaults (`DEF_*`) left intact for standalone runs without CLI flags.
-   - Streamed writing pattern confirmed memory-bounded (`MemoryMax=128M` untied to file size).
+   - Streamed write buffer is capped in code (not tied to file size); the cgroup memory check after the first large file is still AJ's to do.
 
 3. **Boot Helper (`docs/tool-install/module1-slice2b-boot.sh`)**:
    - Updated pinned `READER_SHA256` and `R_UNIT_SHA256` to match new hashes.

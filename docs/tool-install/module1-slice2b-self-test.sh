@@ -26,10 +26,10 @@ CORES="etc/johnny/capture-cores"
 IRQ_HELPER="etc/johnny/irq-affinity.sh"
 
 WANT_OBJ_SHA="a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481"
-WANT_BOOT_SHA="ea799ee6a42e08dec3d15b1c8c7f9dad28ab81e73fda6a6ee5d9c7956873ab3f"
+WANT_BOOT_SHA="0fb61363ddce962f0a645c340072fe5085b5ebeda0794230fa6dbc492dd2388f"
 WANT_UNIT_SHA="4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a"
 WANT_READER_SHA="476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37"
-WANT_RUNIT_SHA="e986073148d5bb617c1f8608034fe8a0bf787ea9620595e03c41ce5924e01903"
+WANT_RUNIT_SHA="e5c16249c479a5f807c2c794b146ee81ec2ed2f937c445f65480088cfa0d529c"
 WANT_CORES_SHA="16fbd7d1f18d2fedb247d73edc3bc6aa040f5ab99bd3b48c35b79e543d22179b"
 WANT_IRQ_SHA="db58d7c72b5a58cbd0c2533caa819d397e4c205242e30e5defb0eae0f4ab59e4"
 
@@ -72,6 +72,8 @@ grep -q -- "--file-max-seconds 3600" "$RUNIT" || fail "RUNIT missing --file-max-
 grep -q -- "--keep 200" "$RUNIT" || fail "RUNIT missing --keep 200"
 grep -q -- "--dir-cap-bytes 214748364800" "$RUNIT" || fail "RUNIT missing --dir-cap-bytes 214748364800"
 grep -q -- "--reserve-bytes 107374182400" "$RUNIT" || fail "RUNIT missing --reserve-bytes 107374182400"
+grep -q "^MemoryMax=1G$" "$RUNIT" || fail "RUNIT missing MemoryMax=1G"
+grep -q "^MemorySwapMax=0$" "$RUNIT" || fail "RUNIT missing MemorySwapMax=0"
 
 fsize_str=$(grep "^LimitFSIZE=" "$RUNIT" | cut -d= -f2)
 [ -n "$fsize_str" ] || fail "RUNIT missing LimitFSIZE"
@@ -788,7 +790,11 @@ def die(msg):
     sys.stderr.write("RUNBOOK-FAIL: " + msg + "\n")
     sys.exit(1)
 
-new_draft_hashes = {boot_new, rdr_new, runit_new}
+new_draft_hashes = {
+    boot_new, rdr_new, runit_new,
+    "ea799ee6a42e08dec3d15b1c8c7f9dad28ab81e73fda6a6ee5d9c7956873ab3f",
+    "e986073148d5bb617c1f8608034fe8a0bf787ea9620595e03c41ce5924e01903",
+}
 live_hashes = {
     "module1-xdp-records.o": obj,
     "module1-slice2b-boot.sh": boot_live,
@@ -914,6 +920,8 @@ for idx, (lab, sec, body) in enumerate(blocks, 1):
             if pairs != expected_pairs:
                 die(f"block #{idx} (Paste B): sha256 gates mismatch: got {pairs} want {expected_pairs}")
         elif block_token == "M1S2B-RET-VERIFY-DONE":
+            if 'grep -q -- "MemoryMax=1073741824"' not in body:
+                die(f"block #{idx} (Paste C): missing MemoryMax=1073741824 grep")
             for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
                 name = path.rsplit("/", 1)[-1]
                 if name == "module1-slice2b-boot.sh" and h != boot_new:
