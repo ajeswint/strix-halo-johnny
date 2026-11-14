@@ -8,7 +8,7 @@
 # Unit:      etc/systemd/system/johnny-capture-xdp-records.service
 # Reader:    docs/tool-install/johnny-m1s2b-reader.py -> /usr/local/libexec/johnny/johnny-m1s2b-reader.py
 #
-# Commands: start | stop | verify | status
+# Commands: start | stop | verify | status | apply-cfg | window [SECS]
 
 set -euo pipefail
 
@@ -42,6 +42,8 @@ OBS_NAME=j_xdp_observe
 REC_NAME=j_xdp_records
 PIN_NAMES="m1_rxq m1_stats m2_cfg m2_ctl m2_rb m2_state prog"
 CTL_NAMES="seen sampled_out rate_limited rb_full emitted discarded"
+CFG_WANT="ver=1 sample_every=1 rate=1000000 burst=100000"
+CFG_HEX="01 00 00 00 01 00 00 00 40 42 0f 00 a0 86 01 00"
 COMBINED_WANT=12
 IRQ_WANT=12
 WAIT_BOOT_TRIES=30
@@ -67,6 +69,7 @@ CTL=""
 
 obj_path() { echo "$STATE_DIR/module1-xdp-records.o"; }
 baseline_file() { echo "$STATE_DIR/irq-baseline.txt"; }
+no_ratecap_baseline_file() { echo "$STATE_DIR/no-ratecap-baseline.txt"; }
 boot_log_file() { echo "$STATE_DIR/boot.log"; }
 
 stop() {
@@ -284,9 +287,10 @@ print("ver=%d sample_every=%d rate=%d burst=%d" % tuple(vals))
 
 write_and_verify_cfg() {
   local cfg
-  bpftool map update pinned "$PIN_DIR/m2_cfg" key hex 00 00 00 00 value hex 01 00 00 00 01 00 00 00 40 1f 00 00 80 3e 00 00 || return 1
+  # shellcheck disable=SC2086
+  bpftool map update pinned "$PIN_DIR/m2_cfg" key hex 00 00 00 00 value hex $CFG_HEX || return 1
   cfg=$(cfg_line) || return 1
-  [ "$cfg" = "ver=1 sample_every=1 rate=8000 burst=16000" ] || return 1
+  [ "$cfg" = "$CFG_WANT" ] || return 1
   echo "OK-cfg $cfg"
 }
 
@@ -477,7 +481,7 @@ verify_attached_invariants() {
     *) stop "not-records-attached-$tag: $st" ;;
   esac
   [ "$(pins_list)" = "$PIN_NAMES" ] || stop "pins-$tag: $(pins_list)"
-  [ "$(cfg_line)" = "ver=1 sample_every=1 rate=8000 burst=16000" ] || stop "cfg-$tag: $(cfg_line)"
+  [ "$(cfg_line)" = "$CFG_WANT" ] || stop "cfg-$tag: $(cfg_line)"
   eno1_ready_now || stop "eno1-not-ready-$tag"
   [ "$(combined_now)" = "$COMBINED_WANT" ] || stop "queues-$tag"
   eno3_ok || stop "eno3-not-ok-$tag"
@@ -489,7 +493,7 @@ verify_attached_invariants() {
     [ "$cur" = "$base" ] || stop "irq-baseline-diff-$tag"
   fi
   echo "OK-xdp-mode driver id=$REC_ID ($tag)"
-  echo "OK-cfg ver=1 sample_every=1 rate=8000 burst=16000 ($tag)"
+  echo "OK-cfg $CFG_WANT ($tag)"
   echo "OK-irq-pins-unchanged ($tag)"
 }
 
@@ -679,6 +683,7 @@ tcpdump_verify_counts() {
 
 do_verify() {
   local u_en u_ac r_en r_ac es0 es1 tc cap kd p0 p1 b0 b1 dp db pct s0 s1 seen_delta
+  local CTL0 CTL1 rl0 rl1 rb0 rb1 disc0 disc1 rl_delta rb_delta disc_delta
   echo "M1S2B-VERIFY-BEGIN DATE-UTC $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   gate_host
   need_tools
@@ -702,8 +707,11 @@ do_verify() {
   st0=$(dump_stats || true)
   p0=$(kv "$st0" pkts || echo 0)
   b0=$(kv "$st0" bytes || echo 0)
-  CTL=$(ctl_rows || true)
-  s0=$(ctl_val seen || echo 0)
+  CTL0=$(ctl_rows || true)
+  s0=$(awk '$1=="seen"{print $2}' <<<"$CTL0")
+  rl0=$(awk '$1=="rate_limited"{print $2}' <<<"$CTL0")
+  rb0=$(awk '$1=="rb_full"{print $2}' <<<"$CTL0")
+  disc0=$(awk '$1=="discarded"{print $2}' <<<"$CTL0")
   es0=$(ethtool -S "$IFACE" 2>/dev/null || true)
 
   tc=$(tcpdump_verify_counts "$VERIFY_SECS") || stop "tcpdump-verify-failed"
@@ -714,13 +722,19 @@ do_verify() {
   st1=$(dump_stats || true)
   p1=$(kv "$st1" pkts || echo 0)
   b1=$(kv "$st1" bytes || echo 0)
-  CTL=$(ctl_rows || true)
-  s1=$(ctl_val seen || echo 0)
+  CTL1=$(ctl_rows || true)
+  s1=$(awk '$1=="seen"{print $2}' <<<"$CTL1")
+  rl1=$(awk '$1=="rate_limited"{print $2}' <<<"$CTL1")
+  rb1=$(awk '$1=="rb_full"{print $2}' <<<"$CTL1")
+  disc1=$(awk '$1=="discarded"{print $2}' <<<"$CTL1")
   es1=$(ethtool -S "$IFACE" 2>/dev/null || true)
 
   dp=$((p1 - p0))
   db=$((b1 - b0))
   seen_delta=$((s1 - s0))
+  rl_delta=$((rl1 - rl0))
+  rb_delta=$((rb1 - rb0))
+  disc_delta=$((disc1 - disc0))
 
   echo "VERIFY-WINDOW secs=$VERIFY_SECS xdp-pkts-delta=$dp xdp-bytes-delta=$db ctl-seen-delta=$seen_delta tcpdump-captured=$cap tcpdump-kernel-drops=$kd"
   if [ "$dp" -le 0 ]; then
@@ -733,9 +747,114 @@ do_verify() {
   echo "PASS-RATIO tcpdump=$cap xdp=$dp pct=$pct"
   [ "$pct" -ge 80 ] || echo "NOTE-pass-ratio-low pct=$pct"
 
+  echo "VERIFY-DROPS rate_limited=$rl_delta rb_full=$rb_delta discarded=$disc_delta"
+  if [ "$rl_delta" -gt 0 ] || [ "$rb_delta" -gt 0 ] || [ "$disc_delta" -gt 0 ]; then
+    stop "drops-in-verify-window rate_limited=$rl_delta rb_full=$rb_delta discarded=$disc_delta"
+  fi
+  echo OK-no-drops-verify
+
   emit_ethtool_drop_deltas "$es0" "$es1"
   echo OK-xdp-pass-tcpdump-sees-traffic
   echo M1S2B-VERIFY-DONE
+}
+
+do_apply_cfg() {
+  local st base tmp b_id st_line ctl_dump
+  echo "M1S2B-APPLY-CFG-BEGIN DATE-UTC $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  gate_host
+  need_tools
+  need_files
+
+  scan
+  st=$(attach_state)
+  case "$st" in
+    "records "*) REC_ID=${st#records } ;;
+    *) stop "not-records-attached: $st" ;;
+  esac
+  if [ -z "$REC_PIN_ID" ] || [ "$REC_ID" != "$REC_PIN_ID" ]; then
+    stop "prog-id-mismatch id=$REC_ID pinned=${REC_PIN_ID:-none}"
+  fi
+  [ "$(pins_list)" = "$PIN_NAMES" ] || stop "pins: $(pins_list)"
+
+  write_and_verify_cfg || stop "write-cfg-failed"
+
+  base=$(no_ratecap_baseline_file)
+  if [ ! -f "$base" ]; then
+    b_id=$(tr -d '\n\r ' < /proc/sys/kernel/random/boot_id 2>/dev/null || echo "unknown")
+    st_line=$(dump_stats) || stop "stats-unreadable-for-baseline"
+    ctl_dump=$(ctl_rows) || stop "ctl-unreadable-for-baseline"
+    tmp=$(mktemp "$STATE_DIR/no-ratecap-baseline.XXXXXX") || stop "mktemp-baseline-failed"
+    chmod 0600 "$tmp"
+    {
+      echo "DATE-UTC $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      echo "boot_id $b_id"
+      echo "STATS $st_line"
+      awk '{ print "CTL " $0 }' <<<"$ctl_dump"
+    } > "$tmp"
+    mv "$tmp" "$base"
+    echo "BASELINE-WRITTEN $base"
+  else
+    echo "BASELINE-EXISTS $base"
+  fi
+
+  echo M1S2B-APPLY-CFG-DONE
+}
+
+do_window() {
+  local secs=${1:-60}
+  local CTL0 CTL1 ST0 ST1
+  local seen0 seen1 rl0 rl1 rb0 rb1 disc0 disc1 emit0 emit1 p0 p1
+  local seen_delta rl_delta rb_delta disc_delta emit_delta pkts_delta
+
+  if [[ ! "$secs" =~ ^[0-9]+$ ]] || [ "$secs" -lt 10 ] || [ "$secs" -gt 3600 ]; then
+    stop "window-secs-out-of-range: $secs (must be 10..3600)"
+  fi
+
+  gate_host
+  need_tools
+
+  [ -d "$PIN_DIR" ] || stop "pins-dir-missing"
+  [ -e "$PIN_DIR/m2_ctl" ] || stop "m2_ctl-missing"
+  [ -e "$PIN_DIR/m1_stats" ] || stop "m1_stats-missing"
+
+  CTL0=$(ctl_rows || true)
+  ST0=$(dump_stats || true)
+  [ -n "$CTL0" ] || stop "ctl-unreadable-before-window"
+  [ -n "$ST0" ] || stop "stats-unreadable-before-window"
+
+  sleep "$secs"
+
+  CTL1=$(ctl_rows || true)
+  ST1=$(dump_stats || true)
+  [ -n "$CTL1" ] || stop "ctl-unreadable-after-window"
+  [ -n "$ST1" ] || stop "stats-unreadable-after-window"
+
+  seen0=$(awk '$1=="seen"{print $2}' <<<"$CTL0")
+  seen1=$(awk '$1=="seen"{print $2}' <<<"$CTL1")
+  rl0=$(awk '$1=="rate_limited"{print $2}' <<<"$CTL0")
+  rl1=$(awk '$1=="rate_limited"{print $2}' <<<"$CTL1")
+  rb0=$(awk '$1=="rb_full"{print $2}' <<<"$CTL0")
+  rb1=$(awk '$1=="rb_full"{print $2}' <<<"$CTL1")
+  disc0=$(awk '$1=="discarded"{print $2}' <<<"$CTL0")
+  disc1=$(awk '$1=="discarded"{print $2}' <<<"$CTL1")
+  emit0=$(awk '$1=="emitted"{print $2}' <<<"$CTL0")
+  emit1=$(awk '$1=="emitted"{print $2}' <<<"$CTL1")
+  p0=$(kv "$ST0" pkts || echo 0)
+  p1=$(kv "$ST1" pkts || echo 0)
+
+  seen_delta=$((seen1 - seen0))
+  rl_delta=$((rl1 - rl0))
+  rb_delta=$((rb1 - rb0))
+  disc_delta=$((disc1 - disc0))
+  emit_delta=$((emit1 - emit0))
+  pkts_delta=$((p1 - p0))
+
+  echo "WINDOW secs=$secs seen-delta=$seen_delta rate_limited-delta=$rl_delta rb_full-delta=$rb_delta discarded-delta=$disc_delta emitted-delta=$emit_delta pkts-delta=$pkts_delta"
+  if [ "$rl_delta" -gt 0 ] || [ "$rb_delta" -gt 0 ] || [ "$disc_delta" -gt 0 ]; then
+    stop "drops-in-window rate_limited=$rl_delta rb_full=$rb_delta discarded=$disc_delta"
+  fi
+  echo OK-no-drops-window
+  echo M1S2B-WINDOW-DONE
 }
 
 do_status() {
@@ -768,12 +887,18 @@ main() {
   trap '' HUP PIPE
   ACTION=${1:-}
   case "$ACTION" in
-    start | stop | verify | status) ;;
+    start | stop | verify | status | apply-cfg)
+      [ "$#" -eq 1 ] || stop args
+      ;;
+    window)
+      if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+        stop args
+      fi
+      ;;
     *) stop args ;;
   esac
-  [ "$#" -eq 1 ] || stop args
 
-  if [ "$ACTION" != status ]; then
+  if [ "$ACTION" != status ] && [ "$ACTION" != window ]; then
     mkdir -p "$(dirname "$LOCK_FILE")"
     exec 9>"$LOCK_FILE"
     flock -n 9 || stop locked
@@ -784,6 +909,8 @@ main() {
     stop) do_stop ;;
     verify) do_verify ;;
     status) do_status ;;
+    apply-cfg) do_apply_cfg ;;
+    window) do_window "${2:-60}" ;;
   esac
 }
 

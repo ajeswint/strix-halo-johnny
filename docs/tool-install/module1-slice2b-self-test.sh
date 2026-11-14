@@ -26,7 +26,7 @@ CORES="etc/johnny/capture-cores"
 IRQ_HELPER="etc/johnny/irq-affinity.sh"
 
 WANT_OBJ_SHA="a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481"
-WANT_BOOT_SHA="0fb61363ddce962f0a645c340072fe5085b5ebeda0794230fa6dbc492dd2388f"
+WANT_BOOT_SHA="1f449f12a0975f05005e16703f96dc21a5a133b10608c3506dbe49e670f3989d"
 WANT_UNIT_SHA="4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a"
 WANT_READER_SHA="476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37"
 WANT_RUNIT_SHA="e5c16249c479a5f807c2c794b146ee81ec2ed2f937c445f65480088cfa0d529c"
@@ -89,6 +89,19 @@ print(val * scales[mult])
 [ "$fsize_bytes" -ge 1073741824 ] || fail "LimitFSIZE $fsize_str ($fsize_bytes B) does not cover 1 GiB file cap (header included)"
 
 python3 -m py_compile "$READER" || fail "python compile failed on $READER"
+
+# Verify cfg hex decodes to the new cfg
+python3 -I -c '
+import struct
+hex_bytes = bytes.fromhex("01 00 00 00 01 00 00 00 40 42 0f 00 a0 86 01 00")
+ver, every, rate, burst = struct.unpack("<IIII", hex_bytes)
+assert (ver, every, rate, burst) == (1, 1, 1000000, 100000), (ver, every, rate, burst)
+' || fail "cfg hex failed to decode to ver=1 sample_every=1 rate=1000000 burst=100000"
+
+grep -q "01 00 00 00 01 00 00 00 40 42 0f 00 a0 86 01 00" "$BOOT_SH" || fail "BOOT_SH missing new cfg hex"
+grep -q "apply-cfg" "$BOOT_SH" || fail "BOOT_SH missing apply-cfg"
+grep -q "window" "$BOOT_SH" || fail "BOOT_SH missing window"
+
 echo STATIC-CHECKS-OK
 
 # ---------------------------------------------------------------- 4. reader tests
@@ -361,6 +374,28 @@ with open(dst, "w") as f:
     json.dump(doc, f)
 PY
 
+# Prepare ctl_after variations for drops verification
+python3 -I - "$FIXTURES_DIR/m2_ctl.json" "$FIXTURES_DIR" <<'PY'
+import copy, json, sys
+src, dst_dir = sys.argv[1], sys.argv[2]
+with open(src) as f:
+    doc = json.load(f)
+
+def bump(d, k_idx, delta):
+    out = copy.deepcopy(d)
+    out[k_idx]["formatted"]["values"][1]["value"] += delta
+    v = out[k_idx]["formatted"]["values"][1]["value"]
+    out[k_idx]["values"][1]["value"] = ["0x%02x" % ((v >> (8 * b)) & 0xFF) for b in range(8)]
+    return out
+
+with open(f"{dst_dir}/ctl_after_rl.json", "w") as f:
+    json.dump(bump(doc, 2, 5), f)
+with open(f"{dst_dir}/ctl_after_rb.json", "w") as f:
+    json.dump(bump(doc, 3, 3), f)
+with open(f"{dst_dir}/ctl_after_disc.json", "w") as f:
+    json.dump(bump(doc, 5, 2), f)
+PY
+
 # Copy deployables into fake root
 cp "$OBJ" "$E2E_DIR/root/m1s2b/module1-xdp-records.o"
 cp "$READER" "$E2E_DIR/bin/johnny-m1s2b-reader.py"
@@ -427,15 +462,29 @@ case "\$*" in
     exit 0
     ;;
   *"map update pinned"*"m2_cfg"*)
-    echo "ver=1 sample_every=1 rate=8000 burst=16000" > "\$MOCK_DIR/cfg_val"
+    echo "ver=1 sample_every=1 rate=1000000 burst=100000" > "\$MOCK_DIR/cfg_val"
     exit 0
     ;;
   *"-j map dump pinned"*"m2_cfg"*)
-    cat "\$FIXTURES_DIR/m2_cfg.json"
+    if [ -f "\$MOCK_DIR/cfg_val" ]; then
+      cat <<JSON
+[{"key": 0, "value": ["0x01", "0x00", "0x00", "0x00", "0x01", "0x00", "0x00", "0x00", "0x40", "0x42", "0x0f", "0x00", "0xa0", "0x86", "0x01", "0x00"], "formatted": {"key": 0, "value": {"ver": 1, "sample_every": 1, "rate": 1000000, "burst": 100000}}}]
+JSON
+    else
+      cat "\$FIXTURES_DIR/m2_cfg.json"
+    fi
     exit 0
     ;;
   *"-j map dump pinned"*"m2_ctl"*)
-    cat "\$FIXTURES_DIR/m2_ctl.json"
+    if [ -f "\$MOCK_DIR/ctl_drop_rl" ]; then
+      cat "\$FIXTURES_DIR/ctl_after_rl.json"
+    elif [ -f "\$MOCK_DIR/ctl_drop_rb" ]; then
+      cat "\$FIXTURES_DIR/ctl_after_rb.json"
+    elif [ -f "\$MOCK_DIR/ctl_drop_disc" ]; then
+      cat "\$FIXTURES_DIR/ctl_after_disc.json"
+    else
+      cat "\$FIXTURES_DIR/m2_ctl.json"
+    fi
     exit 0
     ;;
   *"-j map dump pinned"*"m1_stats"*)
@@ -479,7 +528,14 @@ chmod +x "$E2E_DIR/bin/ethtool"
 
 cat > "$E2E_DIR/bin/tcpdump" <<EOF
 #!/bin/bash
-touch "$MOCK_DIR/stats_delta"
+MOCK_DIR="$MOCK_DIR"
+touch "\$MOCK_DIR/stats_delta"
+if [ -f "\$MOCK_DIR/ctl_drop_rl_on_tcpdump" ]; then
+  touch "\$MOCK_DIR/ctl_drop_rl"
+fi
+if [ -f "\$MOCK_DIR/ctl_drop_rb_on_tcpdump" ]; then
+  touch "\$MOCK_DIR/ctl_drop_rb"
+fi
 echo "100 packets captured" >&2
 echo "0 packets dropped by kernel" >&2
 exit 0
@@ -554,6 +610,8 @@ export PATH="$E2E_DIR/bin:$PATH"
 
 # Run helper in a subshell with mocked functions for tests
 run_sub() {
+  local sub="$1"
+  shift || true
   bash -c '
     export PATH="'"$E2E_DIR"'/bin:$PATH"
     source '"$E2E_DIR/test-helper.sh"'
@@ -569,12 +627,18 @@ run_sub() {
       done
     }
     irq_in_cores() { return 0; }
-    if declare -f "do_'"$1"'" >/dev/null; then
-      do_'"$1"'
+    sub="'"$sub"'"
+    sub_fn="do_${sub//-/_}"
+    if declare -f "$sub_fn" >/dev/null; then
+      "$sub_fn" "$@"
+    elif declare -f "do_$sub" >/dev/null; then
+      "do_$sub" "$@"
+    elif declare -f "$sub" >/dev/null; then
+      "$sub" "$@"
     else
-      '"$1"'
+      main "$sub" "$@"
     fi
-  '
+  ' _ "$@"
 }
 
 # Ensure pin directory and map dummy files exist for fixture tests
@@ -644,9 +708,25 @@ touch "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m1_rxq" "$E2E_DIR/sys/fs/bpf/johnny_m1s2
 out=$(run_sub status 2>&1)
 grep -q "M1S2B-STATUS-DONE" <<<"$out" || fail "Scenario 7 failed: $out"
 
-# Test 8: verify output
+# Test 8: verify output and drops handling
+rm -f "$MOCK_DIR"/ctl_drop_* "$MOCK_DIR/stats_delta"
 out=$(run_sub verify 2>&1)
-grep -q "M1S2B-VERIFY-DONE" <<<"$out" || fail "Scenario 8 failed: $out"
+grep -q "VERIFY-DROPS rate_limited=0 rb_full=0 discarded=0" <<<"$out" || fail "Scenario 8 failed (clean verify drops): $out"
+grep -q "M1S2B-VERIFY-DONE" <<<"$out" || fail "Scenario 8 failed (clean verify done): $out"
+
+# Test 8b: verify STOPs on rate_limited delta > 0
+rm -f "$MOCK_DIR"/ctl_drop_* "$MOCK_DIR/stats_delta"
+touch "$MOCK_DIR/ctl_drop_rl_on_tcpdump"
+out=$(run_sub verify 2>&1 || true)
+grep -q "STOP-drops-in-verify-window rate_limited=5 rb_full=0 discarded=0" <<<"$out" || fail "Scenario 8b failed (rate_limited drop should stop): $out"
+rm -f "$MOCK_DIR/ctl_drop_rl_on_tcpdump" "$MOCK_DIR/ctl_drop_rl" "$MOCK_DIR/stats_delta"
+
+# Test 8c: verify STOPs on rb_full delta > 0
+rm -f "$MOCK_DIR"/ctl_drop_* "$MOCK_DIR/stats_delta"
+touch "$MOCK_DIR/ctl_drop_rb_on_tcpdump"
+out=$(run_sub verify 2>&1 || true)
+grep -q "STOP-drops-in-verify-window rate_limited=0 rb_full=3 discarded=0" <<<"$out" || fail "Scenario 8c failed (rb_full drop should stop): $out"
+rm -f "$MOCK_DIR/ctl_drop_rb_on_tcpdump" "$MOCK_DIR/ctl_drop_rb" "$MOCK_DIR/stats_delta"
 
 # Test 9: boot wait timeout
 out=$(bash -c '
@@ -749,7 +829,80 @@ grep -q "STOP-rollback-not-clean" <<<"$out" || fail "Scenario 11 failed (unclean
 # Clean mock files
 rm -f "$MOCK_DIR"/*
 
-echo "E2E-OK scenarios=11"
+# Test 12: apply-cfg (happy path, baseline creation mode 0600, idempotency, and refuse when not attached)
+rm -f "$E2E_DIR/root/m1s2b/no-ratecap-baseline.txt"
+echo '[{"xdp": [{"mode": "driver", "id": 200}]}]' > "$MOCK_DIR/net_attach"
+echo '[{"id": 200, "name": "j_xdp_records", "type": "xdp"}]' > "$MOCK_DIR/prog_show"
+echo '{"id": 200, "name": "j_xdp_records"}' > "$MOCK_DIR/prog_pinned"
+mkdir -p "$E2E_DIR/sys/fs/bpf/johnny_m1s2b"
+touch "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m1_rxq" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m1_stats" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m2_cfg" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m2_ctl" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m2_rb" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/m2_state" "$E2E_DIR/sys/fs/bpf/johnny_m1s2b/prog"
+out=$(run_sub apply-cfg 2>&1)
+grep -q "M1S2B-APPLY-CFG-DONE" <<<"$out" || fail "Scenario 12 failed (apply-cfg): $out"
+[ -f "$E2E_DIR/root/m1s2b/no-ratecap-baseline.txt" ] || fail "Scenario 12 failed (baseline missing)"
+grep -q "DATE-UTC" "$E2E_DIR/root/m1s2b/no-ratecap-baseline.txt" || fail "Scenario 12 failed (baseline missing DATE-UTC)"
+grep -q "boot_id" "$E2E_DIR/root/m1s2b/no-ratecap-baseline.txt" || fail "Scenario 12 failed (baseline missing boot_id)"
+grep -q "STATS" "$E2E_DIR/root/m1s2b/no-ratecap-baseline.txt" || fail "Scenario 12 failed (baseline missing STATS)"
+grep -q "CTL seen" "$E2E_DIR/root/m1s2b/no-ratecap-baseline.txt" || fail "Scenario 12 failed (baseline missing CTL seen)"
+base_mode=$(stat -c '%a' "$E2E_DIR/root/m1s2b/no-ratecap-baseline.txt")
+[ "$base_mode" = "600" ] || fail "Scenario 12 failed (baseline mode got $base_mode want 600)"
+
+# Idempotency: re-running with cfg already set prints BASELINE-EXISTS and doesn't rewrite
+out2=$(run_sub apply-cfg 2>&1)
+grep -q "BASELINE-EXISTS" <<<"$out2" || fail "Scenario 12 failed (apply-cfg idempotency): $out2"
+grep -q "M1S2B-APPLY-CFG-DONE" <<<"$out2" || fail "Scenario 12 failed (apply-cfg idempotency done): $out2"
+
+# Refuses when not attached
+echo '[]' > "$MOCK_DIR/net_attach"
+out3=$(run_sub apply-cfg 2>&1 || true)
+grep -q "STOP-not-records-attached" <<<"$out3" || fail "Scenario 12 failed (apply-cfg not attached should stop): $out3"
+
+# Test 13: window (zero deltas passes, stops on rate_limited>0, rb_full>0, discarded>0)
+echo '[{"xdp": [{"mode": "driver", "id": 200}]}]' > "$MOCK_DIR/net_attach"
+echo '[{"id": 200, "name": "j_xdp_records", "type": "xdp"}]' > "$MOCK_DIR/prog_show"
+echo '{"id": 200, "name": "j_xdp_records"}' > "$MOCK_DIR/prog_pinned"
+rm -f "$MOCK_DIR"/ctl_drop_*
+out=$(run_sub window 10 2>&1)
+grep -q "WINDOW secs=10 seen-delta=.* rate_limited-delta=0 rb_full-delta=0 discarded-delta=0" <<<"$out" || fail "Scenario 13 failed (window zero deltas): $out"
+grep -q "OK-no-drops-window" <<<"$out" || fail "Scenario 13 failed (window no drops): $out"
+grep -q "M1S2B-WINDOW-DONE" <<<"$out" || fail "Scenario 13 failed (window done): $out"
+
+# Window STOPs on rate_limited > 0
+out_rl=$(bash -c '
+  source '"$E2E_DIR/test-helper.sh"'
+  gate_host() { return 0; }
+  need_tools() { return 0; }
+  sleep() { touch "'"$MOCK_DIR"'/ctl_drop_rl"; }
+  do_window 10
+' 2>&1 || true)
+grep -q "STOP-drops-in-window rate_limited=5 rb_full=0 discarded=0" <<<"$out_rl" || fail "Scenario 13 failed (window rate_limited drop should stop): $out_rl"
+rm -f "$MOCK_DIR/ctl_drop_rl"
+
+# Window STOPs on rb_full > 0
+out_rb=$(bash -c '
+  source '"$E2E_DIR/test-helper.sh"'
+  gate_host() { return 0; }
+  need_tools() { return 0; }
+  sleep() { touch "'"$MOCK_DIR"'/ctl_drop_rb"; }
+  do_window 10
+' 2>&1 || true)
+grep -q "STOP-drops-in-window rate_limited=0 rb_full=3 discarded=0" <<<"$out_rb" || fail "Scenario 13 failed (window rb_full drop should stop): $out_rb"
+rm -f "$MOCK_DIR/ctl_drop_rb"
+
+# Window STOPs on discarded > 0
+out_disc=$(bash -c '
+  source '"$E2E_DIR/test-helper.sh"'
+  gate_host() { return 0; }
+  need_tools() { return 0; }
+  sleep() { touch "'"$MOCK_DIR"'/ctl_drop_disc"; }
+  do_window 10
+' 2>&1 || true)
+grep -q "STOP-drops-in-window rate_limited=0 rb_full=0 discarded=2" <<<"$out_disc" || fail "Scenario 13 failed (window discarded drop should stop): $out_disc"
+rm -f "$MOCK_DIR/ctl_drop_disc"
+
+# Clean mock files
+rm -f "$MOCK_DIR"/*
+
+echo "E2E-OK scenarios=13"
 
 # ---------------------------------------------------------------- 6. runbook validation
 
@@ -757,9 +910,10 @@ echo "E2E-OK scenarios=11"
 python3 -I - "$DOC" "$WANT_OBJ_SHA" "$WANT_BOOT_SHA" "$WANT_UNIT_SHA" "$WANT_READER_SHA" "$WANT_RUNIT_SHA" \
   "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55" \
   "fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573" \
-  "5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c" <<'PY'
+  "5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c" \
+  "0fb61363ddce962f0a645c340072fe5085b5ebeda0794230fa6dbc492dd2388f" <<'PY'
 import re, shlex, sys
-doc_path, obj, boot_new, unit, rdr_new, runit_new, boot_live, rdr_live, runit_live = sys.argv[1:10]
+doc_path, obj, boot_new, unit, rdr_new, runit_new, boot_live, rdr_live, runit_live, boot_ret = sys.argv[1:11]
 text = open(doc_path).read()
 lines = text.splitlines()
 
@@ -791,7 +945,7 @@ def die(msg):
     sys.exit(1)
 
 new_draft_hashes = {
-    boot_new, rdr_new, runit_new,
+    boot_new,
     "ea799ee6a42e08dec3d15b1c8c7f9dad28ab81e73fda6a6ee5d9c7956873ab3f",
     "e986073148d5bb617c1f8608034fe8a0bf787ea9620595e03c41ce5924e01903",
 }
@@ -826,6 +980,8 @@ tokens = [
     "M1S2B-VERIFY-DONE",
     "M1S2B-RET-PREFLIGHT-DONE", "M1S2B-RET-APPLY-DONE", "M1S2B-RET-VERIFY-DONE",
     "M1S2B-RET-ROLLBACK-DONE",
+    "M1S2B-NORC-PREFLIGHT-DONE", "M1S2B-NORC-APPLY-DONE", "M1S2B-NORC-VERIFY-DONE",
+    "M1S2B-NORC-WEEK-DONE", "M1S2B-NORC-ROLLBACK-DONE",
     "M1S2B-ROLLBACK-DONE"
 ]
 
@@ -879,7 +1035,8 @@ for idx, (lab, sec, body) in enumerate(blocks, 1):
         die(f"block #{idx} did not emit any expected token")
 
     is_retention = sec and sec.startswith("Retention raise")
-    if not is_retention:
+    is_norc = sec and sec.startswith("Rate cap removal")
+    if not is_retention and not is_norc:
         # Every block outside the retention section must contain only the live (old) hashes
         # and must FAIL if it contains ea799ee6…, 476cf867… or e9860731…
         for dh in new_draft_hashes:
@@ -893,9 +1050,11 @@ for idx, (lab, sec, body) in enumerate(blocks, 1):
                         pass
                     else:
                         die(f"block #{idx}: wrong hash for {name}: {h} (expected live {live_hashes[name]})")
-    else:
+    elif is_retention:
         # Blocks in the retention section:
         # Carry new hashes as post-install/copy gates and old ones as pre-install/rollback gates
+        if boot_new in body:
+            die(f"block #{idx} (retention section) contains rate-cap draft hash: {boot_new}")
         if block_token == "M1S2B-RET-PREFLIGHT-DONE":
             for dh in new_draft_hashes:
                 if dh in body:
@@ -907,13 +1066,13 @@ for idx, (lab, sec, body) in enumerate(blocks, 1):
         elif block_token == "M1S2B-RET-APPLY-DONE":
             pairs = re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body)
             expected_pairs = [
-                (boot_new, "module1-slice2b-boot.sh"),
+                (boot_ret, "module1-slice2b-boot.sh"),
                 (rdr_new, "johnny-m1s2b-reader.py"),
                 (runit_new, "johnny-m1s2b-reader.service"),
                 (boot_live, "/root/m1s2b/module1-slice2b-boot.sh"),
                 (rdr_live, "/usr/local/libexec/johnny/johnny-m1s2b-reader.py"),
                 (runit_live, "/etc/systemd/system/johnny-m1s2b-reader.service"),
-                (boot_new, "/root/m1s2b/module1-slice2b-boot.sh"),
+                (boot_ret, "/root/m1s2b/module1-slice2b-boot.sh"),
                 (rdr_new, "/usr/local/libexec/johnny/johnny-m1s2b-reader.py"),
                 (runit_new, "/etc/systemd/system/johnny-m1s2b-reader.service"),
             ]
@@ -924,7 +1083,7 @@ for idx, (lab, sec, body) in enumerate(blocks, 1):
                 die(f"block #{idx} (Paste C): missing MemoryMax=1073741824 grep")
             for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
                 name = path.rsplit("/", 1)[-1]
-                if name == "module1-slice2b-boot.sh" and h != boot_new:
+                if name == "module1-slice2b-boot.sh" and h != boot_ret:
                     die(f"block #{idx} (Paste C): wrong post-install hash for {name}: {h}")
         elif block_token == "M1S2B-RET-ROLLBACK-DONE":
             for dh in new_draft_hashes:
@@ -934,6 +1093,79 @@ for idx, (lab, sec, body) in enumerate(blocks, 1):
                 name = path.rsplit("/", 1)[-1]
                 if name in live_hashes and h != live_hashes[name]:
                     die(f"block #{idx} (retention rollback): wrong restore hash for {name}: {h}")
+    else:
+        # Blocks in Rate cap removal section (is_norc)
+        if block_token == "M1S2B-NORC-PREFLIGHT-DONE":
+            if boot_new in body:
+                die(f"block #{idx} (Rate cap Paste A) contains new draft hash before apply: {boot_new}")
+            pairs = re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body)
+            expected_pairs = [
+                (boot_ret, "/root/m1s2b/module1-slice2b-boot.sh"),
+                (rdr_new, "/usr/local/libexec/johnny/johnny-m1s2b-reader.py"),
+                (runit_new, "/etc/systemd/system/johnny-m1s2b-reader.service"),
+                (unit, "/etc/systemd/system/johnny-capture-xdp-records.service"),
+                (obj, "/root/m1s2b/module1-xdp-records.o"),
+            ]
+            if pairs != expected_pairs:
+                die(f"block #{idx} (Rate cap Paste A): live five hash mismatch: got {pairs} want {expected_pairs}")
+            if 'grep -q "^CFG ver=1 sample_every=1 rate=8000 burst=16000$"' not in body:
+                die(f"block #{idx} (Rate cap Paste A): missing old CFG grep")
+        elif block_token == "M1S2B-NORC-APPLY-DONE":
+            pairs = re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body)
+            expected_pairs = [
+                (boot_new, "module1-slice2b-boot.sh"),
+                (boot_ret, "/root/m1s2b/module1-slice2b-boot.sh"),
+                (rdr_new, "/usr/local/libexec/johnny/johnny-m1s2b-reader.py"),
+                (runit_new, "/etc/systemd/system/johnny-m1s2b-reader.service"),
+                (unit, "/etc/systemd/system/johnny-capture-xdp-records.service"),
+                (obj, "/root/m1s2b/module1-xdp-records.o"),
+                (boot_new, "/root/m1s2b/module1-slice2b-boot.sh"),
+            ]
+            if pairs != expected_pairs:
+                die(f"block #{idx} (Rate cap Paste B): sha256 gates mismatch: got {pairs} want {expected_pairs}")
+            if "apply-cfg" not in body:
+                die(f"block #{idx} (Rate cap Paste B): missing apply-cfg call")
+            if "restart johnny-m1s2b-reader.service" not in body:
+                die(f"block #{idx} (Rate cap Paste B): missing reader service restart")
+            if "restart johnny-capture-xdp-records.service" in body:
+                die(f"block #{idx} (Rate cap Paste B): XDP unit must not be restarted")
+            if 'grep -q "^CFG ver=1 sample_every=1 rate=1000000 burst=100000$"' not in body:
+                die(f"block #{idx} (Rate cap Paste B): missing new CFG grep")
+        elif block_token == "M1S2B-NORC-VERIFY-DONE":
+            for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
+                name = path.rsplit("/", 1)[-1]
+                if name == "module1-slice2b-boot.sh" and h != boot_new:
+                    die(f"block #{idx} (Rate cap Paste C): wrong post-install hash for {name}: {h}")
+            if "boot.sh verify" not in body:
+                die(f"block #{idx} (Rate cap Paste C): missing boot.sh verify call")
+            if "boot.sh window 60" not in body:
+                die(f"block #{idx} (Rate cap Paste C): missing boot.sh window 60 call")
+            if 'grep -q "^CFG ver=1 sample_every=1 rate=1000000 burst=100000$"' not in body:
+                die(f"block #{idx} (Rate cap Paste C): missing new CFG grep")
+            if 'grep -q -- "cfg=ver:1,every:1,rate:1000000,burst:100000"' not in body:
+                die(f"block #{idx} (Rate cap Paste C): missing reader journal cfg verification")
+        elif block_token == "M1S2B-NORC-WEEK-DONE":
+            if "BOOT-SAME" not in body:
+                die(f"block #{idx} (Rate cap Paste W): missing BOOT-SAME check")
+            if "CTL-DELTAS" not in body:
+                die(f"block #{idx} (Rate cap Paste W): missing CTL-DELTAS check")
+            if "STOP-drops-since-baseline" not in body:
+                die(f"block #{idx} (Rate cap Paste W): missing STOP-drops-since-baseline check")
+            if "COVERAGE" not in body:
+                die(f"block #{idx} (Rate cap Paste W): missing COVERAGE check")
+            if "STOP-coverage-short" not in body:
+                die(f"block #{idx} (Rate cap Paste W): missing STOP-coverage-short check")
+            if "STOP-gap-detected" not in body:
+                die(f"block #{idx} (Rate cap Paste W): missing STOP-gap-detected check")
+        elif block_token == "M1S2B-NORC-ROLLBACK-DONE":
+            for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
+                name = path.rsplit("/", 1)[-1]
+                if name == "module1-slice2b-boot.sh" and h != boot_ret:
+                    die(f"block #{idx} (Rate cap rollback): wrong restore hash for {name}: {h}")
+            if "bpftool map update pinned /sys/fs/bpf/johnny_m1s2b/m2_cfg key hex 00 00 00 00 value hex 01 00 00 00 01 00 00 00 40 1f 00 00 80 3e 00 00" not in body:
+                die(f"block #{idx} (Rate cap rollback): missing old cfg bpftool map update")
+            if 'grep -q "^CFG ver=1 sample_every=1 rate=8000 burst=16000$"' not in body:
+                die(f"block #{idx} (Rate cap rollback): missing old CFG grep")
 
 if seen != tokens:
     die(f"paste order/tokens: got {seen} want {tokens}")

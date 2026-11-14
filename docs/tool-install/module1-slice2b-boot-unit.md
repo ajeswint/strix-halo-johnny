@@ -42,22 +42,20 @@ A 4× increase to 8,000 rec/s and burst 16,000 gives an exact 2.0 s burst window
 
 ## Final sha256 Pins
 
-Live on Johnny (applied 2026-11-12):
+Live on Johnny (rev 113 retention applied and verified 2026-11-14 19:18Z):
 
 ```
 a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  docs/tool-install/module1-xdp-records.o
-b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  docs/tool-install/module1-slice2b-boot.sh
-4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a  etc/systemd/system/johnny-capture-xdp-records.service
-fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573  docs/tool-install/johnny-m1s2b-reader.py
-5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  etc/systemd/system/johnny-m1s2b-reader.service
-```
-
-Retention raise draft (this PR, NOT APPLIED; apply via the Retention raise section):
-
-```
 0fb61363ddce962f0a645c340072fe5085b5ebeda0794230fa6dbc492dd2388f  docs/tool-install/module1-slice2b-boot.sh
+4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a  etc/systemd/system/johnny-capture-xdp-records.service
 476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37  docs/tool-install/johnny-m1s2b-reader.py
 e5c16249c479a5f807c2c794b146ee81ec2ed2f937c445f65480088cfa0d529c  etc/systemd/system/johnny-m1s2b-reader.service
+```
+
+Rate cap removal draft (this PR, NOT APPLIED; apply via the Rate cap removal section):
+
+```
+1f449f12a0975f05005e16703f96dc21a5a133b10608c3506dbe49e670f3989d  docs/tool-install/module1-slice2b-boot.sh
 ```
 
 Unchanged system dependencies:
@@ -445,6 +443,286 @@ echo M1S2B-RET-ROLLBACK-DONE'
 
 Expect three `OK` hash lines verifying backup files, three `OK` hash lines verifying restored installed files, clean restart of `johnny-m1s2b-reader.service`, clean status, and **`M1S2B-RET-ROLLBACK-DONE`**.
 
+## Rate cap removal (2b already live)
+
+AJ approved (2026-11-14): Record ALL mirrored traffic — a week of uninterrupted header records, validated after a week.
+
+### Rate-Limit Reasoning and Removal
+
+- **Admit Path Facts (`module1_xdp_records.c` `admit()`):**
+  - `rate == 0` means records are OFF (fails closed, not unlimited).
+  - There is no bypass flag in the BPF kernel code.
+  - Rate is clamped in kernel C to `M2_RATE_MAX = 1000000` records/s per CPU.
+  - Burst is clamped to `M2_BURST_MAX = 100000`.
+  - Token bucket state is per-CPU (`m2_state` percpu array).
+- **Decision (no BPF rebuild, `.o` stays `a73c5bd2…`):**
+  - Set `m2_cfg` to `ver=1 sample_every=1 rate=1000000 burst=100000` (the compiled maxima; value hex `01 00 00 00 01 00 00 00 40 42 0f 00 a0 86 01 00`).
+  - Across 12 queues spread over 4 CPUs, 1M rec/s per CPU is far above 1 Gbps line rate (max ~1.488M pps total min-size 64 B frames, 81.25k pps at 1500 B MTU) except for a pathological single-flow min-size flood all on one queue.
+- **Capacity Note:**
+  - Pinned ring buffer size is 4 MiB (4,194,304 bytes). Each slot takes 88 bytes (80 B record + 8 B header), yielding 47,662 slots.
+  - Time-to-fill with no drain:
+    - At 83,000 pps (~1500 B wire frames): ~0.574 s (574 ms).
+    - At 1,488,000 pps (64 B line rate): ~0.032 s (32 ms).
+    - At current LAN average (~300 pps): ~158.8 s (~2.6 minutes).
+  - Reader drain micro-benchmark: Measured on Rock Box (Ryzen 9 9900X, Python 3.12, ctypes copy + bounds + seq gap tracking + buffer write + statvfs flush): ~1,480,000 records/s.
+  - Sustained packet rates above the reader's measured drain would show as `rb_full` (now a fatal STOP condition in `verify` and `window`).
+  - The per-CPU 1,000,000 rec/s clamp in `module1_xdp_records.c` is the only remaining cap.
+  - No BPF rebuild, no ring change.
+- **Reader Restart Behavior:**
+  - The reader mmap consumer position (`self.cons.value`) is mapped to page 0 of the pinned ring buffer (`/sys/fs/bpf/johnny_m1s2b/m2_rb`).
+  - Because `/sys/fs/bpf/johnny_m1s2b/m2_rb` is pinned in the kernel, the consumer position persists across reader service restarts.
+  - During the few-second reader restart gap, records emitted by XDP sit in the pinned ring buffer between consumer and producer. When the restarted reader begins draining, it resumes reading from `cons.value`. No records are skipped. If traffic during the restart gap exceeds 4 MiB, `bpf_ringbuf_reserve` fails and `rb_full` increments.
+  - Reader restarts are necessary after `apply-cfg` because the reader snapshots `m2_cfg` into memory at startup to write into the 96-byte header of newly opened run files.
+- **Notes Outside Fences:**
+  - After Paste B, every older paste that pins `module1-slice2b-boot.sh` hash `0fb61363…` (retention Pastes A/B/C, Paste 6, Paste 8, R-pastes, retention rollback, slice-1c rollback) will fail closed until the rate-cap rollback is executed.
+  - Remaining drop risks:
+    1. Pathological single-queue flood >1M pps on a single CPU.
+    2. Reader drain backlog leading to `rb_full`.
+    3. Host reboot or extended reader downtime causing buffer overflow or counter reset.
+    4. Mirrored traffic dropped upstream by switch (e.g. oversubscribed mirror port: bidirectional 1 Gbps traffic can total up to 2 Gbps, exceeding the 1 Gbps mirror destination port). These drops are invisible to Johnny.
+    5. NIC-level ring drops show in `ethtool -S eno1np0` drop deltas.
+  - Week-long storage estimate from real data:
+    - Live data since Nov 12 cold boot: ~300 pps average.
+    - ~300 pps * 86,400 s * 7 days ≈ 181.4M records/week.
+    - 181.4M records * 80 B ≈ 14.5 GB/week, well below the 200 GiB directory cap and 100 GiB reserve.
+    - 200 hourly files = 200 hours = 8.33 days of retention before pruning, so >= 7 days of continuous hourly captures fit without being pruned.
+
+Deployable hashes on Johnny before this change (rev 113 applied):
+- `module1-slice2b-boot.sh`: `0fb61363ddce962f0a645c340072fe5085b5ebeda0794230fa6dbc492dd2388f`
+- `johnny-m1s2b-reader.py`: `476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37`
+- `johnny-m1s2b-reader.service`: `e5c16249c479a5f807c2c794b146ee81ec2ed2f937c445f65480088cfa0d529c`
+- `johnny-capture-xdp-records.service`: `4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a`
+- `module1-xdp-records.o`: `a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481`
+
+New deployable hash for this change:
+- `module1-slice2b-boot.sh`: `1f449f12a0975f05005e16703f96dc21a5a133b10608c3506dbe49e670f3989d`
+
+### Paste A: Read-only preflight
+
+***<u>Run on Rock Box</u>***
+
+```bash
+ssh -t aj@192.168.50.152 'sudo -v &&
+echo "0fb61363ddce962f0a645c340072fe5085b5ebeda0794230fa6dbc492dd2388f  /root/m1s2b/module1-slice2b-boot.sh
+476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
+e5c16249c479a5f807c2c794b146ee81ec2ed2f937c445f65480088cfa0d529c  /etc/systemd/system/johnny-m1s2b-reader.service
+4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a  /etc/systemd/system/johnny-capture-xdp-records.service
+a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  /root/m1s2b/module1-xdp-records.o" | sudo sha256sum -c - &&
+st_xdp=$(sudo systemctl is-active johnny-capture-xdp-records.service 2>/dev/null || true) &&
+st_rdr=$(sudo systemctl is-active johnny-m1s2b-reader.service 2>/dev/null || true) &&
+if [ "$st_xdp" != "active" ] || [ "$st_rdr" != "active" ]; then
+  echo "STOP-units-not-active xdp=$st_xdp reader=$st_rdr" >&2
+  exit 1
+fi &&
+status_out=$(sudo bash /root/m1s2b/module1-slice2b-boot.sh status) &&
+echo "$status_out" &&
+echo "$status_out" | grep -q "^CFG ver=1 sample_every=1 rate=8000 burst=16000$" &&
+echo "$status_out" | grep "^CTL " &&
+echo M1S2B-NORC-PREFLIGHT-DONE'
+```
+
+Expect five `OK` hash lines, units active, status showing old CFG (8000/16000), CTL rows printed, and **`M1S2B-NORC-PREFLIGHT-DONE`**.
+
+### Paste B: Apply new rate-limit configuration
+
+***<u>Run on Rock Box</u>***
+
+```bash
+ssh aj@192.168.50.152 'mkdir -p -m 0700 /home/aj/cis-audit/m1s2b-no-ratecap' &&
+scp /home/aj/Projects/strix-halo-johnny-slice2b-no-ratecap/docs/tool-install/module1-slice2b-boot.sh aj@192.168.50.152:/home/aj/cis-audit/m1s2b-no-ratecap/ &&
+ssh -t aj@192.168.50.152 'sudo -v &&
+cd /home/aj/cis-audit/m1s2b-no-ratecap &&
+echo "1f449f12a0975f05005e16703f96dc21a5a133b10608c3506dbe49e670f3989d  module1-slice2b-boot.sh" | sha256sum -c - &&
+echo "0fb61363ddce962f0a645c340072fe5085b5ebeda0794230fa6dbc492dd2388f  /root/m1s2b/module1-slice2b-boot.sh
+476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
+e5c16249c479a5f807c2c794b146ee81ec2ed2f937c445f65480088cfa0d529c  /etc/systemd/system/johnny-m1s2b-reader.service
+4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a  /etc/systemd/system/johnny-capture-xdp-records.service
+a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  /root/m1s2b/module1-xdp-records.o" | sudo sha256sum -c - &&
+sudo install -d -m 0700 -o root -g root /root/m1s2b/backup-pre-no-ratecap &&
+sudo cp -p /root/m1s2b/module1-slice2b-boot.sh /root/m1s2b/backup-pre-no-ratecap/ &&
+sudo install -m 0700 -o root -g root module1-slice2b-boot.sh /root/m1s2b/module1-slice2b-boot.sh &&
+echo "1f449f12a0975f05005e16703f96dc21a5a133b10608c3506dbe49e670f3989d  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
+sudo bash /root/m1s2b/module1-slice2b-boot.sh apply-cfg &&
+sudo systemctl restart johnny-m1s2b-reader.service &&
+status_out=$(sudo bash /root/m1s2b/module1-slice2b-boot.sh status) &&
+echo "$status_out" &&
+echo "$status_out" | grep -q "^CFG ver=1 sample_every=1 rate=1000000 burst=100000$" &&
+echo M1S2B-NORC-APPLY-DONE'
+```
+
+Expect one `OK` staged hash line, five `OK` live hash lines, one `OK` post-install hash line, `M1S2B-APPLY-CFG-DONE`, clean restart of `johnny-m1s2b-reader.service` (XDP unit NOT restarted), status showing CFG `ver=1 sample_every=1 rate=1000000 burst=100000`, and **`M1S2B-NORC-APPLY-DONE`**.
+
+### Paste C: Verify rate-limit configuration and zero drops
+
+***<u>Run on Rock Box</u>***
+
+```bash
+ssh -t aj@192.168.50.152 'sudo -v &&
+st_xdp=$(sudo systemctl is-active johnny-capture-xdp-records.service 2>/dev/null || true) &&
+st_rdr=$(sudo systemctl is-active johnny-m1s2b-reader.service 2>/dev/null || true) &&
+if [ "$st_xdp" != "active" ] || [ "$st_rdr" != "active" ]; then
+  echo "STOP-units-not-active xdp=$st_xdp reader=$st_rdr" >&2
+  exit 1
+fi &&
+echo "1f449f12a0975f05005e16703f96dc21a5a133b10608c3506dbe49e670f3989d  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
+sudo bash /root/m1s2b/module1-slice2b-boot.sh verify &&
+sudo bash /root/m1s2b/module1-slice2b-boot.sh window 60 &&
+status_out=$(sudo bash /root/m1s2b/module1-slice2b-boot.sh status) &&
+echo "$status_out" &&
+echo "$status_out" | grep -q "^CFG ver=1 sample_every=1 rate=1000000 burst=100000$" &&
+last_start=$(sudo journalctl -u johnny-m1s2b-reader.service -b --no-pager -o cat | grep "M1S2B-READER-BEGIN" | tail -n1) &&
+echo "$last_start" &&
+echo "$last_start" | grep -q -- "cfg=ver:1,every:1,rate:1000000,burst:100000" &&
+echo "$last_start" | grep -q -- "file_max_bytes=1073741824 file_max_seconds=3600 keep=200 dir_cap=214748364800 reserve=107374182400" &&
+echo M1S2B-NORC-VERIFY-DONE'
+```
+
+Expect both units active, boot.sh hash verified, `verify` passing with zero drops (`VERIFY-DROPS rate_limited=0 rb_full=0 discarded=0`), `window 60` passing with zero drops (`OK-no-drops-window`), status showing new CFG, reader journal startup showing new cfg snapshot alongside 1 GiB / 200 GiB / 100 GiB retention settings, and **`M1S2B-NORC-VERIFY-DONE`**.
+
+### Paste W: One-week validation (read-only, run >= 7 days after Paste B)
+
+***<u>Run on Rock Box</u>***
+
+```bash
+ssh -t aj@192.168.50.152 'sudo -v &&
+st_xdp=$(sudo systemctl is-active johnny-capture-xdp-records.service 2>/dev/null || true) &&
+st_rdr=$(sudo systemctl is-active johnny-m1s2b-reader.service 2>/dev/null || true) &&
+if [ "$st_xdp" != "active" ] || [ "$st_rdr" != "active" ]; then
+  echo "STOP-units-not-active xdp=$st_xdp reader=$st_rdr" >&2
+  exit 1
+fi &&
+sudo systemctl show -p NRestarts -p Result -p ActiveEnterTimestamp -p ExecMainStartTimestamp johnny-m1s2b-reader.service &&
+sudo systemctl show -p ActiveEnterTimestamp johnny-capture-xdp-records.service &&
+base_file="/root/m1s2b/no-ratecap-baseline.txt" &&
+if [ ! -f "$base_file" ]; then echo "STOP-baseline-missing $base_file" >&2; exit 1; fi &&
+cur_boot_id=$(tr -d "\n\r " < /proc/sys/kernel/random/boot_id) &&
+base_boot_id="" &&
+base_seen=0 && base_rl=0 && base_rb=0 && base_disc=0 && base_emit=0 && base_date="" &&
+while read -r c1 c2 c3; do
+  if [ "$c1" = "boot_id" ]; then
+    base_boot_id="$c2"
+  elif [ "$c1" = "DATE-UTC" ]; then
+    base_date="$c2"
+  elif [ "$c1" = "CTL" ]; then
+    case "$c2" in
+      seen) base_seen="$c3" ;;
+      rate_limited) base_rl="$c3" ;;
+      rb_full) base_rb="$c3" ;;
+      discarded) base_disc="$c3" ;;
+      emitted) base_emit="$c3" ;;
+    esac
+  fi
+done < "$base_file" &&
+if [ "$cur_boot_id" = "$base_boot_id" ]; then
+  echo "BOOT-SAME id=$cur_boot_id"
+else
+  echo "STOP-rebooted-since-apply cur=$cur_boot_id base=$base_boot_id (counters reset by reboot)" >&2
+  exit 1
+fi &&
+status_out=$(sudo bash /root/m1s2b/module1-slice2b-boot.sh status) &&
+echo "$status_out" &&
+cur_seen=0 && cur_rl=0 && cur_rb=0 && cur_disc=0 && cur_emit=0 &&
+while read -r c1 c2 c3; do
+  if [ "$c1" = "CTL" ]; then
+    case "$c2" in
+      seen) cur_seen="$c3" ;;
+      rate_limited) cur_rl="$c3" ;;
+      rb_full) cur_rb="$c3" ;;
+      discarded) cur_disc="$c3" ;;
+      emitted) cur_emit="$c3" ;;
+    esac
+  fi
+done <<<"$status_out" &&
+delta_seen=$((cur_seen - base_seen)) &&
+delta_rl=$((cur_rl - base_rl)) &&
+delta_rb=$((cur_rb - base_rb)) &&
+delta_disc=$((cur_disc - base_disc)) &&
+delta_emit=$((cur_emit - base_emit)) &&
+echo "CTL-DELTAS seen=$delta_seen rate_limited=$delta_rl rb_full=$delta_rb discarded=$delta_disc emitted=$delta_emit" &&
+if [ "$delta_rl" -gt 0 ] || [ "$delta_rb" -gt 0 ] || [ "$delta_disc" -gt 0 ]; then
+  echo "STOP-drops-since-baseline rate_limited=$delta_rl rb_full=$delta_rb discarded=$delta_disc" >&2
+  exit 1
+fi &&
+files=($(find /var/lib/johnny/m1s2b -maxdepth 1 -name "run-*.bin" | sort)) &&
+count="${#files[@]}" &&
+if [ "$count" -lt 1 ]; then echo "STOP-no-run-files" >&2; exit 1; fi &&
+oldest="${files[0]}" &&
+newest="${files[-1]}" &&
+old_fn=$(basename "$oldest") &&
+new_fn=$(basename "$newest") &&
+old_ts=${old_fn#run-} && old_ts=${old_ts%.bin} && old_ts=${old_ts%-*} &&
+old_fmt="${old_ts:0:4}-${old_ts:4:2}-${old_ts:6:2} ${old_ts:9:2}:${old_ts:11:2}:${old_ts:13:2} UTC" &&
+old_start=$(date -u -d "$old_fmt" +%s) &&
+old_mtime=$(stat -c %Y "$oldest") &&
+old_mtime_utc=$(date -u -d "@$old_mtime" "+%Y-%m-%dT%H:%M:%SZ") &&
+new_mtime=$(stat -c %Y "$newest") &&
+new_mtime_utc=$(date -u -d "@$new_mtime" "+%Y-%m-%dT%H:%M:%SZ") &&
+echo "FILES count=$count oldest=$old_fn (mtime=$old_mtime_utc start=$old_fmt) newest=$new_fn (mtime=$new_mtime_utc)" &&
+cov_s=$((new_mtime - old_start)) &&
+cov_d=$((cov_s / 86400)) &&
+echo "COVERAGE secs=$cov_s days=$cov_d" &&
+if [ "$cov_s" -lt 604800 ]; then
+  echo "STOP-coverage-short secs=$cov_s (want >= 604800 / 7 days)" >&2
+  exit 1
+fi &&
+gaps_found=0 &&
+prev_start=0 &&
+prev_file="" &&
+for f in "${files[@]}"; do
+  fn=$(basename "$f")
+  ts=${fn#run-}
+  ts=${ts%.bin}
+  ts=${ts%-*}
+  fmt="${ts:0:4}-${ts:4:2}-${ts:6:2} ${ts:9:2}:${ts:11:2}:${ts:13:2} UTC"
+  cur_start=$(date -u -d "$fmt" +%s)
+  if [ "$prev_start" -gt 0 ]; then
+    gap=$((cur_start - prev_start))
+    if [ "$gap" -gt 3700 ]; then
+      echo "GAP-DETECTED prev=$prev_file cur=$fn gap_secs=$gap"
+      gaps_found=$((gaps_found + 1))
+    fi
+  fi
+  prev_start=$cur_start
+  prev_file=$fn
+done &&
+echo "GAP-COUNT $gaps_found" &&
+if [ "$gaps_found" -gt 0 ]; then
+  echo "STOP-gap-detected count=$gaps_found" >&2
+  exit 1
+fi &&
+sudo du -sb /var/lib/johnny/m1s2b &&
+sudo df -h /var/lib/johnny/m1s2b &&
+journal_stops=$(sudo journalctl -u johnny-m1s2b-reader.service --since "$base_date" --no-pager -o cat | grep -c -E "STOP|Traceback" || true) &&
+echo "READER-JOURNAL-ERRORS count=$journal_stops (since $base_date)" &&
+if [ "$journal_stops" -gt 0 ]; then
+  echo "STOP-reader-journal-errors count=$journal_stops" >&2
+  exit 1
+fi &&
+echo M1S2B-NORC-WEEK-DONE'
+```
+
+Expect units active, reader restart and enter timestamps clean (NRestarts=0, Result=success), current boot_id matching baseline (`BOOT-SAME`), zero drop deltas since apply (`rate_limited=0 rb_full=0 discarded=0`), `boot.sh status` clean, run file count >= 168, coverage >= 7 days (604800 s), zero file start gaps > 3700 s, `du -sb` and `df -h` within bounds, zero reader journal errors since apply, and **`M1S2B-NORC-WEEK-DONE`**.
+
+### Rate cap rollback: restore previous configuration (not part of the paste sequence)
+
+***<u>Run on Rock Box</u>***
+
+```bash
+ssh -t aj@192.168.50.152 'sudo -v &&
+echo "0fb61363ddce962f0a645c340072fe5085b5ebeda0794230fa6dbc492dd2388f  /root/m1s2b/backup-pre-no-ratecap/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
+sudo cp -p /root/m1s2b/backup-pre-no-ratecap/module1-slice2b-boot.sh /root/m1s2b/module1-slice2b-boot.sh &&
+echo "0fb61363ddce962f0a645c340072fe5085b5ebeda0794230fa6dbc492dd2388f  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
+sudo bpftool map update pinned /sys/fs/bpf/johnny_m1s2b/m2_cfg key hex 00 00 00 00 value hex 01 00 00 00 01 00 00 00 40 1f 00 00 80 3e 00 00 &&
+status_out=$(sudo bash /root/m1s2b/module1-slice2b-boot.sh status) &&
+echo "$status_out" &&
+echo "$status_out" | grep -q "^CFG ver=1 sample_every=1 rate=8000 burst=16000$" &&
+sudo systemctl restart johnny-m1s2b-reader.service &&
+sudo bash /root/m1s2b/module1-slice2b-boot.sh verify &&
+echo M1S2B-NORC-ROLLBACK-DONE'
+```
+
+Expect backup helper verified (`0fb61363...`), restored helper verified, `m2_cfg` restored to old 8000/16000 via bpftool map update, status confirming old CFG, reader restarted, old verify passing (note: old verify does not STOP on drops), and **`M1S2B-NORC-ROLLBACK-DONE`**.
+
 ## Rollback (not part of the paste sequence above)
 
 Run this block to revert Johnny back to slice 1c (`j_xdp_observe` attached, `johnny-capture-xdp.service` enabled and active). Slice 2b files remain on disk for inspection.
@@ -499,6 +777,14 @@ Expect slice 2b stopped/disabled, 2b pins removed, slice 1c enabled/active, obse
 | `STOP-1c-unit-not-disabled` | Slice 1c unit remained enabled after reboot. |
 | `STOP-low-disk free=<bytes>` | Preflight available disk space check failed on `/var/lib/johnny/m1s2b` (< 300 GiB / 322122547200 bytes available). |
 | `STOP-rollback-not-clean` | Rollback did not return Johnny to clean slice 1c observer state (requires one attached driver id with prog name `j_xdp_observe`, 1c enabled/active, and both 2b units disabled/inactive). |
+| `STOP-drops-in-verify-window rate_limited=.. rb_full=.. discarded=..` | Verify detected packet drops in the sampling window; fails closed. |
+| `STOP-drops-in-window rate_limited=.. rb_full=.. discarded=..` | Window command detected packet drops in the sampling window; fails closed. |
+| `STOP-baseline-missing <file>` | Baseline file `/root/m1s2b/no-ratecap-baseline.txt` missing during week validation. |
+| `STOP-rebooted-since-apply` | Host rebooted since rate cap removal; counters were reset. |
+| `STOP-drops-since-baseline rate_limited=.. rb_full=.. discarded=..` | Week validation detected drops since baseline was taken. |
+| `STOP-coverage-short secs=..` | Output file timespan is less than 7 days (604,800 s). |
+| `STOP-gap-detected count=..` | Detected consecutive run file start interval > 3700 s. |
+| `STOP-reader-journal-errors count=..` | Journal shows STOP or Traceback in reader service since apply. |
 | reader exit 1 (`Restart=on-failure`) | Reader encountered a STOP condition (e.g. disk reserve or corrupt ring); after `StartLimitBurst=5`, systemd leaves the reader failed while XDP unit remains active. |
 
 ## Tokens AJ Sends Back
@@ -515,11 +801,16 @@ Expect slice 2b stopped/disabled, 2b pins removed, slice 1c enabled/active, obse
 10. Paste R2: **`M1S2B-FIX-COPY-DONE`**
 11. Paste R3: **`M1S2B-FIX-INSTALL-DONE`**
 12. Paste R4: **`M1S2B-VERIFY-DONE`**
-13. Paste A: **`M1S2B-RET-PREFLIGHT-DONE`**
-14. Paste B: **`M1S2B-RET-APPLY-DONE`**
-15. Paste C: **`M1S2B-RET-VERIFY-DONE`**
+13. Retention Paste A: **`M1S2B-RET-PREFLIGHT-DONE`**
+14. Retention Paste B: **`M1S2B-RET-APPLY-DONE`**
+15. Retention Paste C: **`M1S2B-RET-VERIFY-DONE`**
 16. Rollback (retention): **`M1S2B-RET-ROLLBACK-DONE`**
-17. Rollback (full 1c): **`M1S2B-ROLLBACK-DONE`**
+17. Rate cap Paste A: **`M1S2B-NORC-PREFLIGHT-DONE`**
+18. Rate cap Paste B: **`M1S2B-NORC-APPLY-DONE`**
+19. Rate cap Paste C: **`M1S2B-NORC-VERIFY-DONE`**
+20. Rate cap Paste W: **`M1S2B-NORC-WEEK-DONE`**
+21. Rollback (rate cap): **`M1S2B-NORC-ROLLBACK-DONE`**
+22. Rollback (full 1c): **`M1S2B-ROLLBACK-DONE`**
 
 ## Assumptions
 
