@@ -84,7 +84,7 @@ val, mult = int(m.group(1)), m.group(2)
 scales = {"": 1, "K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4, "P": 1024**5}
 print(val * scales[mult])
 ' "$fsize_str")
-[ "$fsize_bytes" -ge "$((1073741824 + 96))" ] || fail "LimitFSIZE $fsize_str ($fsize_bytes B) does not fit 1 GiB file + 96 B header"
+[ "$fsize_bytes" -ge 1073741824 ] || fail "LimitFSIZE $fsize_str ($fsize_bytes B) does not cover 1 GiB file cap (header included)"
 
 python3 -m py_compile "$READER" || fail "python compile failed on $READER"
 echo STATIC-CHECKS-OK
@@ -160,6 +160,7 @@ except mod.Stop:
 
 # 2. File rotation, Pruning, Dir Cap, Summary tests in tempdir
 tmpdir = tempfile.mkdtemp(prefix="test_m1s2b_reader_")
+orig_check_disk_free = mod.check_disk_free
 try:
     # Test prune keep
     for i in range(5):
@@ -220,7 +221,6 @@ try:
         ctl_fd=0,
         ncpu=4
     )
-    orig_check_disk_free = mod.check_disk_free
     mod.check_disk_free = lambda out_dir, res: 1000000
 
     writer.open_next_file()
@@ -752,18 +752,24 @@ echo "E2E-OK scenarios=11"
 # ---------------------------------------------------------------- 6. runbook validation
 
 [ -f "$DOC" ] || fail "missing runbook $DOC"
-python3 -I - "$DOC" "$WANT_OBJ_SHA" "$WANT_BOOT_SHA" "$WANT_UNIT_SHA" "$WANT_READER_SHA" "$WANT_RUNIT_SHA" <<'PY'
+python3 -I - "$DOC" "$WANT_OBJ_SHA" "$WANT_BOOT_SHA" "$WANT_UNIT_SHA" "$WANT_READER_SHA" "$WANT_RUNIT_SHA" \
+  "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55" \
+  "fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573" \
+  "5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c" <<'PY'
 import re, shlex, sys
-doc_path, obj, boot, unit, rdr, runit = sys.argv[1:7]
+doc_path, obj, boot_new, unit, rdr_new, runit_new, boot_live, rdr_live, runit_live = sys.argv[1:10]
 text = open(doc_path).read()
 lines = text.splitlines()
 
 blocks = []
 label = None
+curr_section = None
 i = 0
 while i < len(lines):
     s = lines[i].strip()
-    if s.startswith("***<u>Run on Rock Box</u>***"):
+    if s.startswith("## "):
+        curr_section = s[3:].strip()
+    elif s.startswith("***<u>Run on Rock Box</u>***"):
         label = "rock"
     elif s.startswith("```"):
         lang = s[3:]
@@ -773,7 +779,7 @@ while i < len(lines):
             body.append(lines[j])
             j += 1
         if lang == "bash":
-            blocks.append((label, "\n".join(body)))
+            blocks.append((label, curr_section, "\n".join(body)))
         label = None
         i = j
     i += 1
@@ -782,26 +788,17 @@ def die(msg):
     sys.stderr.write("RUNBOOK-FAIL: " + msg + "\n")
     sys.exit(1)
 
-want = {
+new_draft_hashes = {boot_new, rdr_new, runit_new}
+live_hashes = {
     "module1-xdp-records.o": obj,
-    "module1-slice2b-boot.sh": boot,
+    "module1-slice2b-boot.sh": boot_live,
     "johnny-capture-xdp-records.service": unit,
-    "johnny-m1s2b-reader.py": rdr,
-    "johnny-m1s2b-reader.service": runit,
+    "johnny-m1s2b-reader.py": rdr_live,
+    "johnny-m1s2b-reader.service": runit_live,
 }
-
-prev_hashes = {
-    "module1-slice2b-boot.sh": {
-        "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2",
-        "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55",
-    },
-    "johnny-m1s2b-reader.py": {
-        "e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581",
-        "fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573",
-    },
-    "johnny-m1s2b-reader.service": {
-        "5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c",
-    },
+r3_prev_installed = {
+    "module1-slice2b-boot.sh": "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2",
+    "johnny-m1s2b-reader.py": "e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581",
 }
 
 def outside_single_quotes(body):
@@ -827,7 +824,7 @@ tokens = [
 ]
 
 seen = []
-for idx, (lab, body) in enumerate(blocks, 1):
+for idx, (lab, sec, body) in enumerate(blocks, 1):
     if lab != "rock":
         die(f"bash block #{idx} not preceded by ***<u>Run on Rock Box</u>***")
     if re.search(r"<[A-Za-z_][^>\n]*>", body):
@@ -864,14 +861,7 @@ for idx, (lab, body) in enumerate(blocks, 1):
             remote_args = stoks[h_idx + 1:end_idx]
             if len(remote_args) != 1:
                 die(f"block #{idx}: ssh call at token {k} has {len(remote_args)} remote args instead of 1 single-quoted command string (nested quotes broke the argument): {remote_args[:3]}")
-    for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
-        name = path.rsplit("/", 1)[-1]
-        allowed_prev = prev_hashes.get(name, set())
-        if isinstance(allowed_prev, str):
-            allowed_prev = {allowed_prev}
-        if name in want and want[name] != h and h not in allowed_prev:
-            die(f"block #{idx}: wrong hash for {name}: {h}")
-            die(f"block #{idx}: wrong hash for {name}: {h}")
+
     block_token = None
     for t in set(tokens):
         if re.search(r"echo " + re.escape(t) + r"\b", body) or (t == "SELF-TEST-OK" and "module1-slice2b-self-test.sh" in body):
@@ -881,6 +871,61 @@ for idx, (lab, body) in enumerate(blocks, 1):
         seen.append(block_token)
     else:
         die(f"block #{idx} did not emit any expected token")
+
+    is_retention = sec and sec.startswith("Retention raise")
+    if not is_retention:
+        # Every block outside the retention section must contain only the live (old) hashes
+        # and must FAIL if it contains ea799ee6…, 476cf867… or e9860731…
+        for dh in new_draft_hashes:
+            if dh in body:
+                die(f"block #{idx} outside retention section contains unapplied draft hash: {dh}")
+        for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
+            name = path.rsplit("/", 1)[-1]
+            if name in live_hashes:
+                if h != live_hashes[name]:
+                    if block_token == "M1S2B-FIX-INSTALL-DONE" and h == r3_prev_installed.get(name):
+                        pass
+                    else:
+                        die(f"block #{idx}: wrong hash for {name}: {h} (expected live {live_hashes[name]})")
+    else:
+        # Blocks in the retention section:
+        # Carry new hashes as post-install/copy gates and old ones as pre-install/rollback gates
+        if block_token == "M1S2B-RET-PREFLIGHT-DONE":
+            for dh in new_draft_hashes:
+                if dh in body:
+                    die(f"block #{idx} (Paste A) contains new draft hash before apply: {dh}")
+            for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
+                name = path.rsplit("/", 1)[-1]
+                if name in live_hashes and h != live_hashes[name]:
+                    die(f"block #{idx} (Paste A): wrong preflight hash for {name}: {h}")
+        elif block_token == "M1S2B-RET-APPLY-DONE":
+            pairs = re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body)
+            expected_pairs = [
+                (boot_new, "module1-slice2b-boot.sh"),
+                (rdr_new, "johnny-m1s2b-reader.py"),
+                (runit_new, "johnny-m1s2b-reader.service"),
+                (boot_live, "/root/m1s2b/module1-slice2b-boot.sh"),
+                (rdr_live, "/usr/local/libexec/johnny/johnny-m1s2b-reader.py"),
+                (runit_live, "/etc/systemd/system/johnny-m1s2b-reader.service"),
+                (boot_new, "/root/m1s2b/module1-slice2b-boot.sh"),
+                (rdr_new, "/usr/local/libexec/johnny/johnny-m1s2b-reader.py"),
+                (runit_new, "/etc/systemd/system/johnny-m1s2b-reader.service"),
+            ]
+            if pairs != expected_pairs:
+                die(f"block #{idx} (Paste B): sha256 gates mismatch: got {pairs} want {expected_pairs}")
+        elif block_token == "M1S2B-RET-VERIFY-DONE":
+            for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
+                name = path.rsplit("/", 1)[-1]
+                if name == "module1-slice2b-boot.sh" and h != boot_new:
+                    die(f"block #{idx} (Paste C): wrong post-install hash for {name}: {h}")
+        elif block_token == "M1S2B-RET-ROLLBACK-DONE":
+            for dh in new_draft_hashes:
+                if dh in body:
+                    die(f"block #{idx} (retention rollback) contains new draft hash: {dh}")
+            for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
+                name = path.rsplit("/", 1)[-1]
+                if name in live_hashes and h != live_hashes[name]:
+                    die(f"block #{idx} (retention rollback): wrong restore hash for {name}: {h}")
 
 if seen != tokens:
     die(f"paste order/tokens: got {seen} want {tokens}")

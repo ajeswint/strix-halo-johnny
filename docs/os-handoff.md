@@ -6,7 +6,7 @@
   - Per-file rotate at 1 GiB (1073741824 bytes) or 3600 s, whichever first.
   - Directory cap 200 GiB (214748364800 bytes), oldest file deleted first. Keep count 200 files (`--keep 200`).
   - Free-space reserve 100 GiB (107374182400 bytes): reader prunes oldest / stops writing rather than dip below reserve.
-  - Unit `LimitFSIZE=1025M` (raised from 257M) in `etc/systemd/system/johnny-m1s2b-reader.service` to fit a 1 GiB file plus 96-byte header without triggering SIGXFSZ.
+  - Unit `LimitFSIZE=1025M` (raised from 257M) in `etc/systemd/system/johnny-m1s2b-reader.service`; the 96-byte header is included in the 1 GiB file cap (max file 1073741776 bytes; `LimitFSIZE=1025M` = 1074790400 bytes covers it without triggering SIGXFSZ).
   - ExecStart updated with explicit arguments: `--file-max-bytes 1073741824 --file-max-seconds 3600 --keep 200 --dir-cap-bytes 214748364800 --reserve-bytes 107374182400`.
   - Ceilings updated in `docs/tool-install/johnny-m1s2b-reader.py`: `MAX_FILE_BYTES` raised to 2 GiB (`2 << 30`), `MAX_KEEP` raised to 1000, `MAX_DIR_CAP_BYTES` and `MAX_RESERVE_BYTES` bounded to 16 TiB (`16 << 40`) with `floor=file_max_bytes` on `dir-cap-bytes`.
 - **New sha256 Pins:**

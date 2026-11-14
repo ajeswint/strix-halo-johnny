@@ -1,11 +1,12 @@
-# 2026-11-14 UTC: Module 1 Slice 2b Retention Raise
+# 2026-11-14 UTC: Module 1 Slice 2b Retention Raise (DRAFTED, NOT APPLIED)
 
 - **Date:** 2026-11-14 America/Chicago
+- **Status:** **DRAFTED, NOT APPLIED**
 - **Branch:** `claude/module1-slice2b-retention`
 - **Revision:** rev 112
 - **Seats:**
   - Code-writer: Antigravity Gemini 3.8 Flash high
-  - Adversarial-reviewer: Sonnet medium effort (pending review)
+  - Adversarial-reviewer: Sonnet medium effort (review1 completed, fixes applied)
 - **Constraints Maintained:** No SSH to Johnny; no sudo executed; no secrets in repo; BPF object (`module1-xdp-records.o`) and XDP unit (`johnny-capture-xdp-records.service`) unchanged.
 
 ## Goal & AJ Decisions
@@ -14,15 +15,15 @@ AJ approved raising Module 1 slice 2b reader retention limits on Johnny ("we hav
 - **Per-file rotation:** 1 GiB (1073741824 bytes) or 3600 s, whichever first.
 - **Directory cap:** 200 GiB (214748364800 bytes), oldest file deleted first. Keep count 200 files (`--keep 200`).
 - **Free-space reserve:** 100 GiB (107374182400 bytes): reader prunes oldest / stops writing rather than dip below reserve.
-- **File size limit:** `LimitFSIZE=1025M` (raised from 257M) in `etc/systemd/system/johnny-m1s2b-reader.service` to fit 1 GiB file plus 96-byte header without triggering SIGXFSZ.
-- **Tradeoff note:** At low traffic, hourly rotation means `keep=200` bounds retention to ~200 hours (~8.3 days) before the 200 GiB byte cap is reached; at high traffic, 1 GiB per-file rotation reaches the 200 GiB cap and retains 200 GiB of packet captures.
+- **File size limit:** `LimitFSIZE=1025M` (raised from 257M) in `etc/systemd/system/johnny-m1s2b-reader.service`; the 96-byte header is included in the 1 GiB file cap (max file 1073741776 bytes; `LimitFSIZE=1025M` = 1074790400 bytes covers it without triggering SIGXFSZ).
+- **Tradeoff note:** At low traffic, hourly rotation means `keep=200` bounds retention to ~200 hours (~8.3 days) before the 200 GiB byte cap is reached; at high traffic, 1 GiB per-file rotation reaches the 200 GiB cap and retains 200 GiB of packet captures. Cap + reserve = 300 GiB exactly, so a disk that only just passes preflight may stop recording (low-disk, ~100 GiB still free) once the cap fills.
 
 ## Changes Implemented
 
 1. **Systemd Unit (`etc/systemd/system/johnny-m1s2b-reader.service`)**:
    - Added explicit CLI arguments to `ExecStart`:
      `--file-max-bytes 1073741824 --file-max-seconds 3600 --keep 200 --dir-cap-bytes 214748364800 --reserve-bytes 107374182400`.
-   - Raised `LimitFSIZE` to `1025M` (1,074,790,400 bytes, fitting 1 GiB file + 96-byte header with ~1 MiB headroom).
+   - Raised `LimitFSIZE` to `1025M` (1,074,790,400 bytes; the 96-byte header is included in the 1 GiB file cap [max file 1073741776 bytes], providing ~1 MiB of headroom).
    - Verified with `systemd-analyze verify`.
 
 2. **Reader Python Script (`docs/tool-install/johnny-m1s2b-reader.py`)**:
@@ -39,7 +40,7 @@ AJ approved raising Module 1 slice 2b reader retention limits on Johnny ("we hav
 
 4. **Self-Test (`docs/tool-install/module1-slice2b-self-test.sh`)**:
    - Updated pinned hashes (`WANT_BOOT_SHA`, `WANT_READER_SHA`, `WANT_RUNIT_SHA`).
-   - Added static check verifying unit `ExecStart` carries all new retention arguments and `LimitFSIZE` fits 1 GiB file + header.
+   - Added static check verifying unit `ExecStart` carries all new retention arguments and `LimitFSIZE` covers 1 GiB file cap (header included).
    - Added unit tests verifying `bounded()` accepts target retention arguments and rejects floor/ceiling violations.
    - Added prune test verifying byte cap (not keep count) forces oldest-first file deletion.
    - Added disk free reserve check test.
