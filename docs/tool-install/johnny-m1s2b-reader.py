@@ -12,10 +12,13 @@ Usage:
   --summary FILE   read a run file and print counts (no BPF, no ring)
 
 Bounds & Rotation:
-- Rotate rather than exit: 64 MiB per file or 3600 s, whichever first.
-- Keep: 6 files (dir cap 384 MiB).
-- Free space reserve: 256 MiB reserve. Refuses to start or stops writing if
-  free space is below 256 MiB or the directory cap would be exceeded.
+- Rotate rather than exit: default 64 MiB (max 2 GiB) per file or 3600 s (max 86400 s),
+  whichever first. Overridable via --file-max-bytes and --file-max-seconds.
+- Keep: default 6 files (max 1000). Overridable via --keep.
+- Dir cap: default 384 MiB (max 16 TiB; must be >= file-max-bytes). Overridable via --dir-cap-bytes.
+- Free space reserve: default 256 MiB reserve (max 16 TiB). Overridable via --reserve-bytes.
+  Refuses to start or stops writing if free space is below reserve or the directory cap
+  would be exceeded.
 - Pruning: oldest first.
 - Ring corrupt: stops immediately on corrupt ring; never skips ahead.
 """
@@ -59,11 +62,11 @@ MAGIC = b"JM1S2RB\0"
 HDR_VERSION = 1
 HDR = struct.Struct("<8sHHBxxxqQIIII6Q")
 
-DEF_FILE_BYTES, MAX_FILE_BYTES = 64 << 20, 256 << 20    # 64 MiB default
+DEF_FILE_BYTES, MAX_FILE_BYTES = 64 << 20, 2 << 30       # 64 MiB default, 2 GiB ceiling
 DEF_FILE_SECONDS, MAX_FILE_SECONDS = 3600, 86400         # 3600 s default
-DEF_KEEP, MAX_KEEP = 6, 20                               # keep=6 default
-DEF_DIR_CAP_BYTES = 384 << 20                            # 384 MiB dir cap
-FREE_MARGIN = 256 << 20                                  # 256 MiB reserve
+DEF_KEEP, MAX_KEEP = 6, 1000                             # keep=6 default, 1000 ceiling
+DEF_DIR_CAP_BYTES, MAX_DIR_CAP_BYTES = 384 << 20, 16 << 40  # 384 MiB default, 16 TiB ceiling
+FREE_MARGIN, MAX_RESERVE_BYTES = 256 << 20, 16 << 40        # 256 MiB reserve default, 16 TiB ceiling
 POLL_MS = 200
 BATCH = 4096
 
@@ -484,8 +487,8 @@ def do_run(args):
     file_max_bytes = bounded("file-max-bytes", args.file_max_bytes, MAX_FILE_BYTES, HDR.size + REC_SIZE)
     file_max_seconds = bounded("file-max-seconds", args.file_max_seconds, MAX_FILE_SECONDS)
     keep = bounded("keep", args.keep, MAX_KEEP)
-    dir_cap_bytes = args.dir_cap_bytes
-    reserve_bytes = args.reserve_bytes
+    dir_cap_bytes = bounded("dir-cap-bytes", args.dir_cap_bytes, MAX_DIR_CAP_BYTES, floor=file_max_bytes)
+    reserve_bytes = bounded("reserve-bytes", args.reserve_bytes, MAX_RESERVE_BYTES)
     pin_dir = args.pin_dir
     out_dir = args.out_dir
 

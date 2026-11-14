@@ -9,7 +9,7 @@ StartLimitBurst=5
 [Service]
 Type=exec
 User=root
-ExecStart=/usr/bin/python3 -I -B /usr/local/libexec/johnny/johnny-m1s2b-reader.py
+ExecStart=/usr/bin/python3 -I -B /usr/local/libexec/johnny/johnny-m1s2b-reader.py --file-max-bytes 1073741824 --file-max-seconds 3600 --keep 200 --dir-cap-bytes 214748364800 --reserve-bytes 107374182400
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=20
@@ -24,7 +24,7 @@ CPUQuota=50%
 CPUAffinity=0
 TasksMax=4
 LimitNOFILE=64
-LimitFSIZE=257M
+LimitFSIZE=1025M
 LimitCORE=0
 Nice=10
 IOSchedulingClass=idle

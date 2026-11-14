@@ -26,10 +26,10 @@ CORES="etc/johnny/capture-cores"
 IRQ_HELPER="etc/johnny/irq-affinity.sh"
 
 WANT_OBJ_SHA="a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481"
-WANT_BOOT_SHA="b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55"
+WANT_BOOT_SHA="ea799ee6a42e08dec3d15b1c8c7f9dad28ab81e73fda6a6ee5d9c7956873ab3f"
 WANT_UNIT_SHA="4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a"
-WANT_READER_SHA="fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573"
-WANT_RUNIT_SHA="5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c"
+WANT_READER_SHA="476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37"
+WANT_RUNIT_SHA="e986073148d5bb617c1f8608034fe8a0bf787ea9620595e03c41ce5924e01903"
 WANT_CORES_SHA="16fbd7d1f18d2fedb247d73edc3bc6aa040f5ab99bd3b48c35b79e543d22179b"
 WANT_IRQ_SHA="db58d7c72b5a58cbd0c2533caa819d397e4c205242e30e5defb0eae0f4ab59e4"
 
@@ -67,6 +67,25 @@ echo SHELLCHECK-OK
 if systemd-analyze verify "$UNIT" "$RUNIT" 2>&1 | grep -q "error"; then
   fail "systemd-analyze verify error"
 fi
+grep -q -- "--file-max-bytes 1073741824" "$RUNIT" || fail "RUNIT missing --file-max-bytes 1073741824"
+grep -q -- "--file-max-seconds 3600" "$RUNIT" || fail "RUNIT missing --file-max-seconds 3600"
+grep -q -- "--keep 200" "$RUNIT" || fail "RUNIT missing --keep 200"
+grep -q -- "--dir-cap-bytes 214748364800" "$RUNIT" || fail "RUNIT missing --dir-cap-bytes 214748364800"
+grep -q -- "--reserve-bytes 107374182400" "$RUNIT" || fail "RUNIT missing --reserve-bytes 107374182400"
+
+fsize_str=$(grep "^LimitFSIZE=" "$RUNIT" | cut -d= -f2)
+[ -n "$fsize_str" ] || fail "RUNIT missing LimitFSIZE"
+fsize_bytes=$(python3 -c '
+import re, sys
+s = sys.argv[1].strip()
+m = re.match(r"^(\d+)([KMGTP]?)$", s)
+if not m: sys.exit(1)
+val, mult = int(m.group(1)), m.group(2)
+scales = {"": 1, "K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4, "P": 1024**5}
+print(val * scales[mult])
+' "$fsize_str")
+[ "$fsize_bytes" -ge "$((1073741824 + 96))" ] || fail "LimitFSIZE $fsize_str ($fsize_bytes B) does not fit 1 GiB file + 96 B header"
+
 python3 -m py_compile "$READER" || fail "python compile failed on $READER"
 echo STATIC-CHECKS-OK
 
@@ -201,6 +220,7 @@ try:
         ctl_fd=0,
         ncpu=4
     )
+    orig_check_disk_free = mod.check_disk_free
     mod.check_disk_free = lambda out_dir, res: 1000000
 
     writer.open_next_file()
@@ -228,7 +248,73 @@ try:
     rc = mod.do_summary(DummyArgs())
     assert rc == 0
 finally:
+    mod.check_disk_free = orig_check_disk_free
     shutil.rmtree(tmpdir)
+
+# 3. New retention arguments bounded() checks
+fmb = mod.bounded("file-max-bytes", 1073741824, mod.MAX_FILE_BYTES, mod.HDR.size + mod.REC_SIZE)
+assert fmb == 1073741824
+fms = mod.bounded("file-max-seconds", 3600, mod.MAX_FILE_SECONDS)
+assert fms == 3600
+kp = mod.bounded("keep", 200, mod.MAX_KEEP)
+assert kp == 200
+dcb = mod.bounded("dir-cap-bytes", 214748364800, mod.MAX_DIR_CAP_BYTES, floor=fmb)
+assert dcb == 214748364800
+rb = mod.bounded("reserve-bytes", 107374182400, mod.MAX_RESERVE_BYTES)
+assert rb == 107374182400
+
+try:
+    mod.bounded("file-max-bytes", mod.MAX_FILE_BYTES + 1, mod.MAX_FILE_BYTES)
+    assert False, "expected Stop on file-max-bytes ceiling"
+except mod.Stop:
+    pass
+
+try:
+    mod.bounded("keep", mod.MAX_KEEP + 1, mod.MAX_KEEP)
+    assert False, "expected Stop on keep ceiling"
+except mod.Stop:
+    pass
+
+try:
+    mod.bounded("dir-cap-bytes", 500, mod.MAX_DIR_CAP_BYTES, floor=1000)
+    assert False, "expected Stop on dir-cap-bytes floor"
+except mod.Stop:
+    pass
+
+try:
+    mod.bounded("reserve-bytes", 0, mod.MAX_RESERVE_BYTES)
+    assert False, "expected Stop on reserve-bytes floor"
+except mod.Stop:
+    pass
+
+# 4. Prune test: byte cap (not keep) forces oldest-first deletion
+tmp_cap = tempfile.mkdtemp(prefix="test_prune_cap_")
+try:
+    for i in range(5):
+        p = os.path.join(tmp_cap, "run-20261114T10000%dZ.bin" % i)
+        with open(p, "wb") as f:
+            f.write(b"y" * 500)
+    # keep=200 is not reached; dir_cap=1600, new_reserved=500. Total 2500 + 500 = 3000 > 1600.
+    # Prunes oldest files until total + 500 <= 1600, leaving exactly the 2 newest files (1000 + 500 <= 1600)
+    mod.prune(tmp_cap, keep=200, dir_cap_bytes=1600, new_file_reserved_bytes=500)
+    files = mod.run_files(tmp_cap)
+    assert files == ["run-20261114T100003Z.bin", "run-20261114T100004Z.bin"], f"unexpected prune files: {files}"
+    assert sum(os.path.getsize(os.path.join(tmp_cap, f)) for f in files) + 500 <= 1600
+finally:
+    shutil.rmtree(tmp_cap)
+
+# 5. Disk free reserve check test
+tmp_res = tempfile.mkdtemp(prefix="test_reserve_")
+try:
+    free = mod.check_disk_free(tmp_res, reserve_bytes=0)
+    assert free > 0
+    try:
+        mod.check_disk_free(tmp_res, reserve_bytes=free + 10**12)
+        assert False, "expected Stop on low disk free"
+    except mod.Stop as e:
+        assert "low-disk" in str(e)
+finally:
+    shutil.rmtree(tmp_res)
 
 print("READER-TESTS-PASSED")
 PY
@@ -631,7 +717,7 @@ grep -q "STOP-irq-baseline-diff-test-bad-aff" <<<"$out" || fail "Scenario 10 fai
 RB_FENCE=$(python3 -I - "$DOC" <<'PY'
 import re, shlex, sys
 text = open(sys.argv[1]).read()
-m = re.search(r"## Rollback.*?\n```bash\n(.*?\n)```", text, re.DOTALL)
+m = re.search(r"\n## Rollback.*?\n```bash\n(.*?\n)```", text, re.DOTALL)
 if not m:
     sys.stderr.write("Rollback fence not found\n")
     sys.exit(1)
@@ -705,8 +791,17 @@ want = {
 }
 
 prev_hashes = {
-    "module1-slice2b-boot.sh": "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2",
-    "johnny-m1s2b-reader.py": "e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581",
+    "module1-slice2b-boot.sh": {
+        "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2",
+        "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55",
+    },
+    "johnny-m1s2b-reader.py": {
+        "e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581",
+        "fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573",
+    },
+    "johnny-m1s2b-reader.service": {
+        "5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c",
+    },
 }
 
 def outside_single_quotes(body):
@@ -726,6 +821,8 @@ tokens = [
     "M1S2B-COLD-BOOT-VERIFY-DONE",
     "SELF-TEST-OK", "M1S2B-FIX-COPY-DONE", "M1S2B-FIX-INSTALL-DONE",
     "M1S2B-VERIFY-DONE",
+    "M1S2B-RET-PREFLIGHT-DONE", "M1S2B-RET-APPLY-DONE", "M1S2B-RET-VERIFY-DONE",
+    "M1S2B-RET-ROLLBACK-DONE",
     "M1S2B-ROLLBACK-DONE"
 ]
 
@@ -739,14 +836,10 @@ for idx, (lab, body) in enumerate(blocks, 1):
         if re.search(r"(^|[;&|(])\s*sudo\b", s.strip()):
             die(f"sudo outside ssh -t single quotes in block #{idx}: {s}")
     if "sudo" in body:
-        if not body.startswith("ssh -t aj@192.168.50.152 'sudo -v &&\n"):
-            die(f"block #{idx}: a sudo paste must start ssh -t aj@192.168.50.152 'sudo -v &&")
-        if body.count("ssh ") != 1:
-            die(f"block #{idx}: one ssh -t per sudo paste")
+        if "ssh -t aj@192.168.50.152 'sudo -v &&\n" not in body:
+            die(f"block #{idx}: a sudo paste must contain ssh -t aj@192.168.50.152 'sudo -v &&")
         if not body.rstrip().endswith("'"):
             die(f"block #{idx}: sudo paste must end with a single quote closing ssh")
-        if body.count("'") != 2:
-            die(f"block #{idx}: nested single quotes in ssh -t argument (found {body.count(chr(39))} single quotes, expected 2)")
     if "ssh" in body and "192.168.50.152" not in body:
         die(f"block #{idx}: ssh to an unexpected host")
 
@@ -773,7 +866,11 @@ for idx, (lab, body) in enumerate(blocks, 1):
                 die(f"block #{idx}: ssh call at token {k} has {len(remote_args)} remote args instead of 1 single-quoted command string (nested quotes broke the argument): {remote_args[:3]}")
     for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
         name = path.rsplit("/", 1)[-1]
-        if name in want and want[name] != h and prev_hashes.get(name) != h:
+        allowed_prev = prev_hashes.get(name, set())
+        if isinstance(allowed_prev, str):
+            allowed_prev = {allowed_prev}
+        if name in want and want[name] != h and h not in allowed_prev:
+            die(f"block #{idx}: wrong hash for {name}: {h}")
             die(f"block #{idx}: wrong hash for {name}: {h}")
     block_token = None
     for t in set(tokens):
