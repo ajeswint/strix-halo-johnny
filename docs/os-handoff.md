@@ -3,17 +3,17 @@
 ## Rev 115 (2026-11-14 America/Chicago): Rate cap raise APPLIED and VERIFIED; 1-week capture test running; architecture pass started
 - **Status:** **APPLIED AND VERIFIED on Johnny (2026-11-14 21:32Z). One-week capture test running to 2026-11-21 15:33 CT.**
 - **Applied & Verified State on Johnny:**
-  - Rev 114 rate-cap raise APPLIED and VERIFIED on Johnny 2026-11-14 21:32Z.
-  - Paste A preflight OK: cfg 8000/16000 before, rate_limited 18217138 historical.
+  - Rev 114 rate-cap raise APPLIED and VERIFIED on Johnny 2026-11-14 21:32Z (apply transcript: [`docs/findings/module1-slice2b-no-ratecap/2026-11-14-apply-output.md`](findings/module1-slice2b-no-ratecap/2026-11-14-apply-output.md)).
+  - Paste A preflight OK: cfg 8000/16000 before, `rate_limited 18217138` (historical, unchanged between Paste A and C; `docs/findings/module1-slice2b-no-ratecap/2026-11-14-apply-output.md:23, 78, 90`).
   - Paste B apply-cfg + reader restart + mark-reader, baseline 21:32:11Z boot_id `e9476f51-151b-4593-aa88-811e397794d1`, records prog id 78, reader InvocationID `502eed3ad10a42abab7c05ce28607223`, NRestarts 0.
-  - Paste C verify: PASS-RATIO 83%, VERIFY-DROPS 0/0/0, ETHTOOL-DROP-DELTAS none, WINDOW secs=60 seen-delta=32812 emitted-delta=32812 all drop deltas 0 (`M1S2B-NORC-VERIFY-DONE`).
+  - Paste C verify: `PASS-RATIO tcpdump=486 xdp=582 pct=83`, VERIFY-DROPS rate_limited=0 rb_full=0 discarded=0, `ETHTOOL-DROP-DELTAS none (checked=16)`, WINDOW secs=60 seen-delta=32812 emitted-delta=32812 all drop deltas 0 (`M1S2B-NORC-VERIFY-DONE`; `docs/findings/module1-slice2b-no-ratecap/2026-11-14-apply-output.md:59, 62, 65`).
   - Week test running: run Paste W (`boot.sh week`) only after 2026-11-21 15:33 CT (21:33Z); no reboot of Johnny or commands on Johnny before.
   - Runbook N2 fixed in `docs/tool-install/module1-slice2b-boot-unit.md` (prose only outside bash fences).
   - Architecture pass STARTED (docs only, `docs/architecture/architecture-pass.md`), every decision AJ pending.
   - Deferred nits: N1, N3, N4, N5 from PR #38 review2 (code/self-test) stay deferred.
   - Pins unchanged: `docs/tool-install/module1-slice2b-boot.sh` (`a4d4dfa4c7d6ba3c9ffb64810a54952f4e7ce652889a2fe6f628adadef1bf9eb`), `docs/tool-install/johnny-m1s2b-reader.py` (`476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37`), `etc/systemd/system/johnny-m1s2b-reader.service` (`e5c16249c479a5f807c2c794b146ee81ec2ed2f937c445f65480088cfa0d529c`), `etc/systemd/system/johnny-capture-xdp-records.service` (`4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a`), `docs/tool-install/module1-xdp-records.o` (`a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481`).
 
-## Rev 114 (2026-11-14 America/Chicago): Module 1 slice 2b XDP rate cap removal DRAFTED, NOT APPLIED (Review 1 fixes: week subcommand, mark-reader, fail-closed validation)
+## Rev 114 (2026-11-14 America/Chicago): Module 1 slice 2b XDP rate cap removal APPLIED (applied 2026-11-14 21:32Z, see rev 115; original draft title was DRAFTED, NOT APPLIED; Review 1 fixes: week subcommand, mark-reader, fail-closed validation)
 - **Status:** **APPLIED AND VERIFIED on Johnny (2026-11-14 21:32Z, see rev 115).** Live Johnny runs rev 113 retention settings (1 GiB / 3600 s rotation, keep=200, 200 GiB dir cap, 100 GiB reserve, MemoryMax=1G, LimitFSIZE=1025M), applied and verified on Johnny on 2026-11-14 19:18Z (`M1S2B-RET-VERIFY-DONE`, df 439G free of 460G).
 - **Target Changes (AJ approved: record ALL mirrored traffic, a week of uninterrupted header records, validated after a week):**
   - Rate cap removal: in `module1_xdp_records.c`, `rate==0` turns records OFF (no bypass flag); rate and burst are clamped to `M2_RATE_MAX=1000000` records/s/CPU and `M2_BURST_MAX=100000`. Config map `m2_cfg` updated to compiled maxima `ver=1 sample_every=1 rate=1000000 burst=100000` (hex `01 00 00 00 01 00 00 00 40 42 0f 00 a0 86 01 00`). No BPF rebuild; `module1-xdp-records.o` remains byte-identical.
