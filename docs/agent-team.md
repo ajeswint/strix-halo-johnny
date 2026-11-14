@@ -260,6 +260,7 @@ Resolved (AJ, 2026-10-31):
 2. **SLM limits: full function for now.** The BEGIN doc lets the SLM relax thresholds; the architecture summary §4 says tighten-only, schema-bound risk scores, never run commands. AJ: models have full function for now; any limits come with the architecture pass. README and AGENTS.md say so.
 
 Deferred to the architecture pass (AJ: don't work the architecture logic yet):
+Architecture pass started 2026-11-14 (AJ go); options in docs/architecture/architecture-pass.md; all items still AJ decision pending.
 3. **Tier 1** (global cloud, cross-tenant, MLS fleet keying). No agent until a fleet exists. Assumption: upstream stays the MAX over the LAN (README).
 4. **Endpoint vs network.** The summary's Module 1 is host-side (BPF-LSM exec, `vfs_write` entropy, CoW rollback); Johnny's first job is a passive SPAN sensor, and README Module 1 is "eBPF fast path". Fast Path holds both XDP and LSM skills, so the roster works either way.
 5. **CoW filesystem.** The summary's CoW example names a btrfs snapshot; Johnny's root is XFS (FICLONE works only within one filesystem).
@@ -306,4 +307,4 @@ PW.3 was deleted in v1.1 (merged into PW.4). Source: [NIST SP 800-218, SSDF v1.1
 1. ~~AJ and Grok agree on this roster.~~ Done 2026-10-31.
 2. ~~Wire it: one `.claude/agents/<agent>.md` per agent (mission, owned paths, skills, report format).~~ Done 2026-10-31. Skills are lines in each agent file; a skill gets its own `SKILL.md` once its procedure is stable. First: `.claude/skills/cis-audit/` (done 2026-10-31, preloaded by Governance). Next candidates as the work arrives: `ubuntu-2604-packages` (step 7), `throughput-soak` (step 8), `e810-capture-tuning` (step 11).
 3. Optional: a hook that blocks writes outside an agent's owned paths.
-4. Architecture pass: the deferred items in §7.
+4. Architecture pass: the deferred items in §7 (started 2026-11-14, options in docs/architecture/architecture-pass.md; all items AJ decision pending).

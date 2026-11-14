@@ -1,6 +1,6 @@
 # Module 1 Slice 2b: Boot-time j_xdp_records and Persistent Rotating Reader
 
-Rev 4, 2026-11-14 America/Chicago. Status: **2b APPLIED, VERIFIED, and COLD-BOOT PROVEN on Johnny (2026-11-12 ~05:54Z). Retention raise (1 GiB / 3600 s per file, keep=200, 200 GiB dir cap, 100 GiB reserve) DRAFTED, NOT APPLIED.**
+Rev 5, 2026-11-14 America/Chicago. Status: **2b applied/verified/cold-boot proven (2026-11-12 ~05:54Z); retention raise APPLIED and verified 2026-11-14 19:18Z (1 GiB / 3600 s files, keep=200, 200 GiB dir cap, 100 GiB reserve, MemoryMax=1G); rate cap raised to cfg ver=1 sample_every=1 rate=1000000 burst=100000 per CPU APPLIED and verified 2026-11-14 21:32Z (Paste A/B/C passed; 60 s window seen 32812 emitted 32812, rate_limited/rb_full/discarded deltas 0); one-week test running, Paste W due after 2026-11-21 15:33 CT (21:33Z).**
 
 ## Purpose and Scope
 
@@ -10,10 +10,10 @@ AJ chose slice 2b by name (2026-11-11) to make `j_xdp_records` the boot-time pro
 
 This runbook specifies:
 1. Reuse of the already-verified pinned slice 2 BPF object (`module1-xdp-records.o`).
-2. Boot-time configuration of `m2_cfg` (ver=1, sample_every=1, rate=8000, burst=16000) verified before attach.
+2. Boot-time configuration of `m2_cfg` (originally ver=1, sample_every=1, rate=8000, burst=16000; now ver=1, sample_every=1, rate=1000000, burst=100000 (see Retention / Rate cap removal sections)) verified before attach.
 3. New boot helper `/root/m1s2b/module1-slice2b-boot.sh`.
 4. New oneshot unit `johnny-capture-xdp-records.service` with identical ordering to 1c (`After=/Wants= network-online.target johnny-capture-irq.service`, NO `After=johnny-capture-tuning.service`).
-5. New persistent rotating reader `johnny-m1s2b-reader.py` and service `johnny-m1s2b-reader.service` outputting to `/var/lib/johnny/m1s2b` with rotation at 64 MiB or 3600 s, `keep=6` (dir cap 384 MiB), and 256 MiB free space reserve.
+5. New persistent rotating reader `johnny-m1s2b-reader.py` and service `johnny-m1s2b-reader.service` outputting to `/var/lib/johnny/m1s2b` with rotation originally at 64 MiB or 3600 s, `keep=6` (dir cap 384 MiB), and 256 MiB free space reserve; now 1 GiB / 3600 s files, `keep=200`, 200 GiB dir cap, 100 GiB reserve, and `MemoryMax=1G` (see Retention / Rate cap removal sections).
 6. Cutover path disabling (not uninstalling) slice 1c, keeping 1c deployables for instant rollback.
 7. Separate cold-reboot verification paste.
 
