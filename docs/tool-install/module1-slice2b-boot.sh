@@ -8,7 +8,7 @@
 # Unit:      etc/systemd/system/johnny-capture-xdp-records.service
 # Reader:    docs/tool-install/johnny-m1s2b-reader.py -> /usr/local/libexec/johnny/johnny-m1s2b-reader.py
 #
-# Commands: start | stop | verify | status
+# Commands: start | stop | verify | status | apply-cfg | mark-reader | window [SECS] | week [--precheck]
 
 set -euo pipefail
 
@@ -42,6 +42,8 @@ OBS_NAME=j_xdp_observe
 REC_NAME=j_xdp_records
 PIN_NAMES="m1_rxq m1_stats m2_cfg m2_ctl m2_rb m2_state prog"
 CTL_NAMES="seen sampled_out rate_limited rb_full emitted discarded"
+CFG_WANT="ver=1 sample_every=1 rate=1000000 burst=100000"
+CFG_HEX="01 00 00 00 01 00 00 00 40 42 0f 00 a0 86 01 00"
 COMBINED_WANT=12
 IRQ_WANT=12
 WAIT_BOOT_TRIES=30
@@ -67,6 +69,7 @@ CTL=""
 
 obj_path() { echo "$STATE_DIR/module1-xdp-records.o"; }
 baseline_file() { echo "$STATE_DIR/irq-baseline.txt"; }
+no_ratecap_baseline_file() { echo "$STATE_DIR/no-ratecap-baseline.txt"; }
 boot_log_file() { echo "$STATE_DIR/boot.log"; }
 
 stop() {
@@ -143,7 +146,7 @@ gate_host() {
 
 need_tools() {
   local t
-  for t in bpftool systemctl ip ethtool awk python3 sha256sum stat timeout tcpdump mktemp; do
+  for t in bpftool systemctl ip ethtool awk python3 sha256sum stat timeout tcpdump mktemp journalctl du df find sort date; do
     command -v "$t" >/dev/null 2>&1 || stop "tool-missing $t"
   done
 }
@@ -284,9 +287,10 @@ print("ver=%d sample_every=%d rate=%d burst=%d" % tuple(vals))
 
 write_and_verify_cfg() {
   local cfg
-  bpftool map update pinned "$PIN_DIR/m2_cfg" key hex 00 00 00 00 value hex 01 00 00 00 01 00 00 00 40 1f 00 00 80 3e 00 00 || return 1
+  # shellcheck disable=SC2086
+  bpftool map update pinned "$PIN_DIR/m2_cfg" key hex 00 00 00 00 value hex $CFG_HEX || return 1
   cfg=$(cfg_line) || return 1
-  [ "$cfg" = "ver=1 sample_every=1 rate=8000 burst=16000" ] || return 1
+  [ "$cfg" = "$CFG_WANT" ] || return 1
   echo "OK-cfg $cfg"
 }
 
@@ -477,7 +481,7 @@ verify_attached_invariants() {
     *) stop "not-records-attached-$tag: $st" ;;
   esac
   [ "$(pins_list)" = "$PIN_NAMES" ] || stop "pins-$tag: $(pins_list)"
-  [ "$(cfg_line)" = "ver=1 sample_every=1 rate=8000 burst=16000" ] || stop "cfg-$tag: $(cfg_line)"
+  [ "$(cfg_line)" = "$CFG_WANT" ] || stop "cfg-$tag: $(cfg_line)"
   eno1_ready_now || stop "eno1-not-ready-$tag"
   [ "$(combined_now)" = "$COMBINED_WANT" ] || stop "queues-$tag"
   eno3_ok || stop "eno3-not-ok-$tag"
@@ -489,7 +493,7 @@ verify_attached_invariants() {
     [ "$cur" = "$base" ] || stop "irq-baseline-diff-$tag"
   fi
   echo "OK-xdp-mode driver id=$REC_ID ($tag)"
-  echo "OK-cfg ver=1 sample_every=1 rate=8000 burst=16000 ($tag)"
+  echo "OK-cfg $CFG_WANT ($tag)"
   echo "OK-irq-pins-unchanged ($tag)"
 }
 
@@ -679,6 +683,7 @@ tcpdump_verify_counts() {
 
 do_verify() {
   local u_en u_ac r_en r_ac es0 es1 tc cap kd p0 p1 b0 b1 dp db pct s0 s1 seen_delta
+  local CTL0 CTL1 rl0 rl1 rb0 rb1 disc0 disc1 rl_delta rb_delta disc_delta
   echo "M1S2B-VERIFY-BEGIN DATE-UTC $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   gate_host
   need_tools
@@ -702,8 +707,11 @@ do_verify() {
   st0=$(dump_stats || true)
   p0=$(kv "$st0" pkts || echo 0)
   b0=$(kv "$st0" bytes || echo 0)
-  CTL=$(ctl_rows || true)
-  s0=$(ctl_val seen || echo 0)
+  CTL0=$(ctl_rows || true)
+  s0=$(awk '$1=="seen"{print $2}' <<<"$CTL0")
+  rl0=$(awk '$1=="rate_limited"{print $2}' <<<"$CTL0")
+  rb0=$(awk '$1=="rb_full"{print $2}' <<<"$CTL0")
+  disc0=$(awk '$1=="discarded"{print $2}' <<<"$CTL0")
   es0=$(ethtool -S "$IFACE" 2>/dev/null || true)
 
   tc=$(tcpdump_verify_counts "$VERIFY_SECS") || stop "tcpdump-verify-failed"
@@ -714,13 +722,19 @@ do_verify() {
   st1=$(dump_stats || true)
   p1=$(kv "$st1" pkts || echo 0)
   b1=$(kv "$st1" bytes || echo 0)
-  CTL=$(ctl_rows || true)
-  s1=$(ctl_val seen || echo 0)
+  CTL1=$(ctl_rows || true)
+  s1=$(awk '$1=="seen"{print $2}' <<<"$CTL1")
+  rl1=$(awk '$1=="rate_limited"{print $2}' <<<"$CTL1")
+  rb1=$(awk '$1=="rb_full"{print $2}' <<<"$CTL1")
+  disc1=$(awk '$1=="discarded"{print $2}' <<<"$CTL1")
   es1=$(ethtool -S "$IFACE" 2>/dev/null || true)
 
   dp=$((p1 - p0))
   db=$((b1 - b0))
   seen_delta=$((s1 - s0))
+  rl_delta=$((rl1 - rl0))
+  rb_delta=$((rb1 - rb0))
+  disc_delta=$((disc1 - disc0))
 
   echo "VERIFY-WINDOW secs=$VERIFY_SECS xdp-pkts-delta=$dp xdp-bytes-delta=$db ctl-seen-delta=$seen_delta tcpdump-captured=$cap tcpdump-kernel-drops=$kd"
   if [ "$dp" -le 0 ]; then
@@ -733,13 +747,350 @@ do_verify() {
   echo "PASS-RATIO tcpdump=$cap xdp=$dp pct=$pct"
   [ "$pct" -ge 80 ] || echo "NOTE-pass-ratio-low pct=$pct"
 
+  echo "VERIFY-DROPS rate_limited=$rl_delta rb_full=$rb_delta discarded=$disc_delta"
+  if [ "$rl_delta" -gt 0 ] || [ "$rb_delta" -gt 0 ] || [ "$disc_delta" -gt 0 ]; then
+    stop "drops-in-verify-window rate_limited=$rl_delta rb_full=$rb_delta discarded=$disc_delta"
+  fi
+  echo OK-no-drops-verify
+
   emit_ethtool_drop_deltas "$es0" "$es1"
   echo OK-xdp-pass-tcpdump-sees-traffic
   echo M1S2B-VERIFY-DONE
 }
 
+do_apply_cfg() {
+  local st base tmp b_id st_line ctl_dump
+  echo "M1S2B-APPLY-CFG-BEGIN DATE-UTC $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  gate_host
+  need_tools
+  need_files
+
+  scan
+  st=$(attach_state)
+  case "$st" in
+    "records "*) REC_ID=${st#records } ;;
+    *) stop "not-records-attached: $st" ;;
+  esac
+  if [ -z "$REC_PIN_ID" ] || [ "$REC_ID" != "$REC_PIN_ID" ]; then
+    stop "prog-id-mismatch id=$REC_ID pinned=${REC_PIN_ID:-none}"
+  fi
+  [ "$(pins_list)" = "$PIN_NAMES" ] || stop "pins: $(pins_list)"
+
+  write_and_verify_cfg || stop "write-cfg-failed"
+
+  base=$(no_ratecap_baseline_file)
+  if [ ! -f "$base" ]; then
+    b_id=$(tr -d '\n\r ' < /proc/sys/kernel/random/boot_id 2>/dev/null || echo "unknown")
+    st_line=$(dump_stats) || stop "stats-unreadable-for-baseline"
+    ctl_dump=$(ctl_rows) || stop "ctl-unreadable-for-baseline"
+    tmp=$(mktemp "$STATE_DIR/no-ratecap-baseline.XXXXXX") || stop "mktemp-baseline-failed"
+    chmod 0600 "$tmp"
+    {
+      echo "DATE-UTC $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      echo "boot_id $b_id"
+      echo "records_prog_id $REC_ID"
+      echo "STATS $st_line"
+      awk '{ print "CTL " $0 }' <<<"$ctl_dump"
+    } > "$tmp"
+    mv "$tmp" "$base"
+    echo "BASELINE-WRITTEN $base"
+  else
+    echo "BASELINE-EXISTS $base"
+  fi
+
+  echo M1S2B-APPLY-CFG-DONE
+}
+
+do_mark_reader() {
+  local base inv nrest mpid mdate
+  gate_host
+  need_tools
+  base=$(no_ratecap_baseline_file)
+  if [ ! -f "$base" ]; then
+    stop "baseline-missing $base"
+  fi
+  if grep -q "^READER-INVOCATION=" "$base" 2>/dev/null; then
+    echo "READER-MARK-EXISTS $base"
+    echo M1S2B-MARK-READER-DONE
+    return 0
+  fi
+  inv=$(systemctl show -p InvocationID --value "$R_UNIT" 2>/dev/null || true)
+  nrest=$(systemctl show -p NRestarts --value "$R_UNIT" 2>/dev/null || true)
+  mpid=$(systemctl show -p MainPID --value "$R_UNIT" 2>/dev/null || true)
+  mdate=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+  [ -n "$inv" ] || stop "reader-invocation-unreadable"
+  [ -n "$nrest" ] || stop "reader-nrestarts-unreadable"
+  [ -n "$mpid" ] || stop "reader-mainpid-unreadable"
+
+  {
+    echo "READER-INVOCATION=$inv"
+    echo "READER-NRESTARTS=$nrest"
+    echo "READER-MAINPID=$mpid"
+    echo "READER-MARK-DATE-UTC=$mdate"
+  } >> "$base"
+  echo "READER-MARKED $base inv=$inv nrestarts=$nrest mainpid=$mpid date=$mdate"
+  echo M1S2B-MARK-READER-DONE
+}
+
+do_window() {
+  local secs=${1:-60}
+  local CTL0 CTL1 ST0 ST1
+  local seen0 seen1 rl0 rl1 rb0 rb1 disc0 disc1 emit0 emit1 p0 p1
+  local seen_delta rl_delta rb_delta disc_delta emit_delta pkts_delta
+
+  if [[ ! "$secs" =~ ^[0-9]+$ ]] || [ "$secs" -lt 10 ] || [ "$secs" -gt 3600 ]; then
+    stop "window-secs-out-of-range: $secs (must be 10..3600)"
+  fi
+
+  gate_host
+  need_tools
+
+  [ -d "$PIN_DIR" ] || stop "pins-dir-missing"
+  [ -e "$PIN_DIR/m2_ctl" ] || stop "m2_ctl-missing"
+  [ -e "$PIN_DIR/m1_stats" ] || stop "m1_stats-missing"
+
+  CTL0=$(ctl_rows || true)
+  ST0=$(dump_stats || true)
+  [ -n "$CTL0" ] || stop "ctl-unreadable-before-window"
+  [ -n "$ST0" ] || stop "stats-unreadable-before-window"
+
+  sleep "$secs"
+
+  CTL1=$(ctl_rows || true)
+  ST1=$(dump_stats || true)
+  [ -n "$CTL1" ] || stop "ctl-unreadable-after-window"
+  [ -n "$ST1" ] || stop "stats-unreadable-after-window"
+
+  seen0=$(awk '$1=="seen"{print $2}' <<<"$CTL0")
+  seen1=$(awk '$1=="seen"{print $2}' <<<"$CTL1")
+  rl0=$(awk '$1=="rate_limited"{print $2}' <<<"$CTL0")
+  rl1=$(awk '$1=="rate_limited"{print $2}' <<<"$CTL1")
+  rb0=$(awk '$1=="rb_full"{print $2}' <<<"$CTL0")
+  rb1=$(awk '$1=="rb_full"{print $2}' <<<"$CTL1")
+  disc0=$(awk '$1=="discarded"{print $2}' <<<"$CTL0")
+  disc1=$(awk '$1=="discarded"{print $2}' <<<"$CTL1")
+  emit0=$(awk '$1=="emitted"{print $2}' <<<"$CTL0")
+  emit1=$(awk '$1=="emitted"{print $2}' <<<"$CTL1")
+  p0=$(kv "$ST0" pkts || echo 0)
+  p1=$(kv "$ST1" pkts || echo 0)
+
+  seen_delta=$((seen1 - seen0))
+  rl_delta=$((rl1 - rl0))
+  rb_delta=$((rb1 - rb0))
+  disc_delta=$((disc1 - disc0))
+  emit_delta=$((emit1 - emit0))
+  pkts_delta=$((p1 - p0))
+
+  echo "WINDOW secs=$secs seen-delta=$seen_delta rate_limited-delta=$rl_delta rb_full-delta=$rb_delta discarded-delta=$disc_delta emitted-delta=$emit_delta pkts-delta=$pkts_delta"
+  if [ "$rl_delta" -gt 0 ] || [ "$rb_delta" -gt 0 ] || [ "$disc_delta" -gt 0 ]; then
+    stop "drops-in-window rate_limited=$rl_delta rb_full=$rb_delta discarded=$disc_delta"
+  fi
+  echo OK-no-drops-window
+  echo M1S2B-WINDOW-DONE
+}
+
+do_week() {
+  local precheck=${1:-}
+  local base base_date base_boot_id base_prog_id base_stats
+  local base_seen base_so base_rl base_rb base_emit base_disc
+  local mark_inv mark_nrestarts mark_mainpid mark_date
+  local cur_boot_id st cur_prog_id cur_inv cur_nrestarts cur_result
+  local cur_ctl cur_seen cur_rl cur_rb cur_disc cur_emit
+  local delta_seen delta_rl delta_rb delta_disc delta_emit
+  local out_dir base_epoch now_epoch
+  local files=() starts=() mtimes=()
+  local f fn ts f_start f_mtime count span newest_mtime oldest_start
+  local gap i f_first_start first_delay
+  local j_out j_stops du_line df_line du_bytes df_free
+
+  echo "M1S2B-WEEK-BEGIN DATE-UTC $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  gate_host
+  need_tools
+
+  base=$(no_ratecap_baseline_file)
+  if [ ! -f "$base" ]; then
+    stop "baseline-missing $base"
+  fi
+
+  base_date=$(awk '$1=="DATE-UTC"{print $2}' "$base")
+  base_boot_id=$(awk '$1=="boot_id"{print $2}' "$base")
+  base_prog_id=$(awk '$1=="records_prog_id"{print $2}' "$base")
+  base_stats=$(grep "^STATS " "$base" | head -n1 || true)
+  base_seen=$(awk '$1=="CTL" && $2=="seen"{print $3}' "$base")
+  base_so=$(awk '$1=="CTL" && $2=="sampled_out"{print $3}' "$base")
+  base_rl=$(awk '$1=="CTL" && $2=="rate_limited"{print $3}' "$base")
+  base_rb=$(awk '$1=="CTL" && $2=="rb_full"{print $3}' "$base")
+  base_emit=$(awk '$1=="CTL" && $2=="emitted"{print $3}' "$base")
+  base_disc=$(awk '$1=="CTL" && $2=="discarded"{print $3}' "$base")
+
+  mark_inv=$(sed -n 's/^READER-INVOCATION=[[:space:]]*//p' "$base" | head -n1)
+  mark_nrestarts=$(sed -n 's/^READER-NRESTARTS=[[:space:]]*//p' "$base" | head -n1)
+  mark_mainpid=$(sed -n 's/^READER-MAINPID=[[:space:]]*//p' "$base" | head -n1)
+  mark_date=$(sed -n 's/^READER-MARK-DATE-UTC=[[:space:]]*//p' "$base" | head -n1)
+
+  if [ -z "$base_date" ] || [ -z "$base_boot_id" ] || [ -z "$base_prog_id" ] || \
+     [ -z "$base_stats" ] || [ -z "$base_seen" ] || [ -z "$base_so" ] || \
+     [ -z "$base_rl" ] || [ -z "$base_rb" ] || [ -z "$base_emit" ] || [ -z "$base_disc" ] || \
+     [ -z "$mark_inv" ] || [ -z "$mark_nrestarts" ] || [ -z "$mark_mainpid" ] || [ -z "$mark_date" ]; then
+    stop "baseline-incomplete: required key missing in $base"
+  fi
+
+  cur_boot_id=$(tr -d '\n\r ' < /proc/sys/kernel/random/boot_id 2>/dev/null || echo "")
+  if [ "$cur_boot_id" != "$base_boot_id" ]; then
+    stop "rebooted-since-apply cur=$cur_boot_id baseline=$base_boot_id"
+  fi
+  echo "OK-boot-id $cur_boot_id"
+
+  scan
+  st=$(attach_state)
+  case "$st" in
+    "records "*) cur_prog_id=${st#records } ;;
+    *) stop "xdp-reattached-since-apply: not records attached ($st)" ;;
+  esac
+  if [ "$cur_prog_id" != "$base_prog_id" ]; then
+    stop "xdp-reattached-since-apply cur=$cur_prog_id baseline=$base_prog_id"
+  fi
+  echo "OK-records-prog-id $cur_prog_id"
+
+  cur_inv=$(systemctl show -p InvocationID --value "$R_UNIT" 2>/dev/null || true)
+  cur_nrestarts=$(systemctl show -p NRestarts --value "$R_UNIT" 2>/dev/null || true)
+  cur_result=$(systemctl show -p Result --value "$R_UNIT" 2>/dev/null || true)
+
+  if [ "$cur_inv" != "$mark_inv" ] || [ "$cur_nrestarts" != "$mark_nrestarts" ] || [ "$cur_result" != "success" ]; then
+    stop "reader-restarted-since-apply inv=$cur_inv(base=$mark_inv) nrestarts=$cur_nrestarts(base=$mark_nrestarts) result=$cur_result"
+  fi
+  echo "OK-reader-state invocation=$cur_inv nrestarts=$cur_nrestarts result=$cur_result"
+
+  cur_ctl=$(ctl_rows || true)
+  [ -n "$cur_ctl" ] || stop "ctl-unreadable"
+  cur_seen=$(awk '$1=="seen"{print $2}' <<<"$cur_ctl")
+  cur_rl=$(awk '$1=="rate_limited"{print $2}' <<<"$cur_ctl")
+  cur_rb=$(awk '$1=="rb_full"{print $2}' <<<"$cur_ctl")
+  cur_disc=$(awk '$1=="discarded"{print $2}' <<<"$cur_ctl")
+  cur_emit=$(awk '$1=="emitted"{print $2}' <<<"$cur_ctl")
+
+  if [ -z "$cur_seen" ] || [ -z "$cur_rl" ] || [ -z "$cur_rb" ] || [ -z "$cur_disc" ] || [ -z "$cur_emit" ]; then
+    stop "ctl-incomplete"
+  fi
+
+  delta_seen=$((cur_seen - base_seen))
+  delta_rl=$((cur_rl - base_rl))
+  delta_rb=$((cur_rb - base_rb))
+  delta_disc=$((cur_disc - base_disc))
+  delta_emit=$((cur_emit - base_emit))
+
+  echo "CTL-DELTAS seen=$delta_seen rate_limited=$delta_rl rb_full=$delta_rb discarded=$delta_disc emitted=$delta_emit"
+
+  if [ "$delta_seen" -lt 0 ] || [ "$delta_rl" -lt 0 ] || [ "$delta_rb" -lt 0 ] || [ "$delta_disc" -lt 0 ] || [ "$delta_emit" -lt 0 ]; then
+    stop "counter-went-backwards seen=$delta_seen rl=$delta_rl rb=$delta_rb disc=$delta_disc emit=$delta_emit"
+  fi
+
+  if [ "$delta_rl" -gt 0 ] || [ "$delta_rb" -gt 0 ] || [ "$delta_disc" -gt 0 ]; then
+    stop "drops-since-apply rate_limited=$delta_rl rb_full=$delta_rb discarded=$delta_disc"
+  fi
+  echo OK-no-drops-since-apply
+
+  if [ "$precheck" = "--precheck" ]; then
+    echo OK-baseline-precheck
+    echo M1S2B-WEEK-PRECHECK-DONE
+    return 0
+  fi
+
+  out_dir="$OUT_DIR"
+  base_epoch=$(date -u -d "$base_date" +%s 2>/dev/null || echo 0)
+  [ "$base_epoch" -gt 0 ] || stop "baseline-date-invalid $base_date"
+
+  # Boundary note: keep only files with start timestamp >= baseline DATE-UTC.
+  # This includes the file opened immediately after apply-cfg when johnny-m1s2b-reader.service
+  # is restarted, while excluding any files opened prior to apply-cfg.
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    fn=$(basename "$f")
+    ts=${fn#run-}
+    ts=${ts%.bin}
+    ts=${ts%-*}
+    if [[ ! "$ts" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; then
+      continue
+    fi
+    f_start=$(date -u -d "${ts:0:4}-${ts:4:2}-${ts:6:2}T${ts:9:2}:${ts:11:2}:${ts:13:2}Z" +%s 2>/dev/null || echo 0)
+    if [ "$f_start" -ge "$base_epoch" ]; then
+      f_mtime=$(stat -c %Y "$f" 2>/dev/null || echo 0)
+      files+=("$fn")
+      starts+=("$f_start")
+      mtimes+=("$f_mtime")
+    fi
+  done < <(find "$out_dir" -maxdepth 1 -name "run-*.bin" -type f 2>/dev/null | sort)
+
+  count=${#files[@]}
+  if [ "$count" -lt 168 ]; then
+    stop "coverage-short count=$count (want >= 168)"
+  fi
+
+  f_first_start=${starts[0]}
+  first_delay=$((f_first_start - base_epoch))
+  if [ "$first_delay" -gt 3700 ] || [ "$first_delay" -lt 0 ]; then
+    stop "coverage-short first-file-delay=$first_delay (want 0..3700)"
+  fi
+
+  oldest_start=$f_first_start
+  newest_mtime=${mtimes[0]}
+  for ((i=0; i<count; i++)); do
+    if [ "${mtimes[i]}" -gt "$newest_mtime" ]; then
+      newest_mtime=${mtimes[i]}
+    fi
+    if [ "$i" -gt 0 ]; then
+      gap=$((starts[i] - starts[i-1]))
+      if [ "$gap" -gt 3700 ]; then
+        stop "gap-detected file1=${files[i-1]} file2=${files[i]} gap=$gap"
+      fi
+    fi
+  done
+
+  span=$((newest_mtime - oldest_start))
+  if [ "$span" -lt 604800 ]; then
+    stop "coverage-short span=$span (want >= 604800)"
+  fi
+
+  now_epoch=$(date +%s)
+  local mtime_age=$((now_epoch - newest_mtime))
+  if [ "$mtime_age" -gt 3700 ]; then
+    stop "reader-stale age=$mtime_age (want <= 3700)"
+  fi
+  echo "OK-run-files count=$count span=$span first_start=$oldest_start newest_mtime=$newest_mtime"
+
+  if ! j_out=$(journalctl -u "$R_UNIT" --since "$base_date" --no-pager 2>&1); then
+    stop "journal-unreadable"
+  fi
+  j_stops=$(grep -c -E "STOP|Traceback" <<<"$j_out" || true)
+  if [ "$j_stops" -gt 0 ]; then
+    stop "reader-journal-errors count=$j_stops"
+  fi
+  echo "OK-reader-journal errors=0"
+
+  du_line=$(du -sb "$out_dir" 2>/dev/null || true)
+  echo "STORAGE-DU $du_line"
+  df_line=$(df -h "$out_dir" 2>/dev/null | tail -n 1 || true)
+  echo "STORAGE-DF $df_line"
+
+  du_bytes=$(awk '{print $1}' <<<"$du_line")
+  df_free=$(df -B1 --output=avail "$out_dir" 2>/dev/null | tail -n 1 | tr -d ' ')
+  [[ "$df_free" =~ ^[0-9]+$ ]] || df_free=$(df -B1 "$out_dir" 2>/dev/null | awk 'NR==2 {print $4}')
+
+  if [ -n "$du_bytes" ] && [ "$du_bytes" -gt 214748364800 ]; then
+    stop "out-dir-bytes-exceeded bytes=$du_bytes (cap 214748364800)"
+  fi
+  if [ -n "$df_free" ] && [ "$df_free" -lt 107374182400 ]; then
+    stop "free-space-below-reserve free=$df_free (reserve 107374182400)"
+  fi
+  echo "OK-storage du_bytes=$du_bytes df_free=$df_free"
+
+  echo "WEEK-SUMMARY files=$count span=$span first_start=$oldest_start newest_mtime=$newest_mtime drops=0"
+  echo M1S2B-WEEK-DONE
+}
+
 do_status() {
-  local cfg st_pkts
+  local cfg st_pkts base
   gate_host
   scan
   echo "HOST $(hostname -s 2>/dev/null || hostname)"
@@ -756,6 +1107,13 @@ do_status() {
   else
     echo "PINS dir=absent"
   fi
+  base=$(no_ratecap_baseline_file)
+  if [ -f "$base" ]; then
+    echo "BASELINE-EXISTS $base"
+    sed 's/^/BASELINE /' "$base"
+  else
+    echo "BASELINE-NONE"
+  fi
   echo "LINK $IFACE speed=$(read_trim "$SYSFS_NET/$IFACE/speed" || echo none) carrier=$(read_trim "$SYSFS_NET/$IFACE/carrier" || echo none) oper=$(read_trim "$SYSFS_NET/$IFACE/operstate" || echo none)"
   echo "OUT-DIR $OUT_DIR"
   echo "IRQ-COUNT $(grep -c 'ice-eno1np0-TxRx-' /proc/interrupts || true)"
@@ -768,12 +1126,18 @@ main() {
   trap '' HUP PIPE
   ACTION=${1:-}
   case "$ACTION" in
-    start | stop | verify | status) ;;
+    start | stop | verify | status | apply-cfg | mark-reader)
+      [ "$#" -eq 1 ] || stop args
+      ;;
+    window | week)
+      if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+        stop args
+      fi
+      ;;
     *) stop args ;;
   esac
-  [ "$#" -eq 1 ] || stop args
 
-  if [ "$ACTION" != status ]; then
+  if [ "$ACTION" != status ] && [ "$ACTION" != window ] && [ "$ACTION" != week ]; then
     mkdir -p "$(dirname "$LOCK_FILE")"
     exec 9>"$LOCK_FILE"
     flock -n 9 || stop locked
@@ -784,6 +1148,10 @@ main() {
     stop) do_stop ;;
     verify) do_verify ;;
     status) do_status ;;
+    apply-cfg) do_apply_cfg ;;
+    mark-reader) do_mark_reader ;;
+    window) do_window "${2:-60}" ;;
+    week) do_week "${2:-}" ;;
   esac
 }
 
