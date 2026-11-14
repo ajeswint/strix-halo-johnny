@@ -1,6 +1,6 @@
 # Module 1 Slice 2b: Boot-time j_xdp_records and Persistent Rotating Reader
 
-Rev 3, 2026-11-12 America/Chicago. Status: **2b APPLIED, VERIFIED, and COLD-BOOT PROVEN on Johnny (2026-11-12 ~05:54Z). Module 1 port-mirror sniffing COMPLETE.**
+Rev 4, 2026-11-14 America/Chicago. Status: **2b APPLIED, VERIFIED, and COLD-BOOT PROVEN on Johnny (2026-11-12 ~05:54Z). Retention raise (1 GiB / 3600 s per file, keep=200, 200 GiB dir cap, 100 GiB reserve) DRAFTED, NOT APPLIED.**
 
 ## Purpose and Scope
 
@@ -42,7 +42,7 @@ A 4× increase to 8,000 rec/s and burst 16,000 gives an exact 2.0 s burst window
 
 ## Final sha256 Pins
 
-Deployables (copied to Johnny):
+Live on Johnny (applied 2026-11-12):
 
 ```
 a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  docs/tool-install/module1-xdp-records.o
@@ -52,13 +52,20 @@ fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573  docs/tool-inst
 5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  etc/systemd/system/johnny-m1s2b-reader.service
 ```
 
+Retention raise draft (this PR, NOT APPLIED; apply via the Retention raise section):
+
+```
+ea799ee6a42e08dec3d15b1c8c7f9dad28ab81e73fda6a6ee5d9c7956873ab3f  docs/tool-install/module1-slice2b-boot.sh
+476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37  docs/tool-install/johnny-m1s2b-reader.py
+e986073148d5bb617c1f8608034fe8a0bf787ea9620595e03c41ce5924e01903  etc/systemd/system/johnny-m1s2b-reader.service
+```
+
 Unchanged system dependencies:
 
 ```
 16fbd7d1f18d2fedb247d73edc3bc6aa040f5ab99bd3b48c35b79e543d22179b  etc/johnny/capture-cores
 db58d7c72b5a58cbd0c2533caa819d397e4c205242e30e5defb0eae0f4ab59e4  etc/johnny/irq-affinity.sh
 ```
-
 Installed layout on Johnny:
 
 | File | Path | Mode |
@@ -307,6 +314,132 @@ echo M1S2B-VERIFY-DONE'
 
 Expect one `OK` hash line, `VERIFY-WINDOW` with positive `xdp-pkts-delta` and `tcpdump-captured`, `PASS-RATIO`, `ETHTOOL-DROP-DELTAS none`, and **`M1S2B-VERIFY-DONE`**.
 
+## Retention raise (2b already live)
+
+Slice 2b is live on Johnny since 2026-11-12T04:05Z and cold-boot proven 2026-11-12 ~05:54Z (`j_xdp_records` native driver mode `prog_id=78`, both units active, slice 1c disabled). AJ approved raising reader retention limits ("we have plenty of room"):
+- Per-file rotate at 1 GiB (1073741824 bytes) or 3600 s, whichever first.
+- Total directory cap 200 GiB (214748364800 bytes), oldest file deleted first. Keep count raised to 200 files (`--keep 200`).
+- Free-space reserve 100 GiB (107374182400 bytes): reader stops writing/prunes rather than dip below reserve.
+- Unit `LimitFSIZE` raised to 1025M (1074790400 bytes); the 96-byte header is included in the 1 GiB file cap (max file 1073741776 bytes; `LimitFSIZE=1025M` covers it without triggering SIGXFSZ).
+- MemoryMax=128M unchanged; after the first file passes 128 MiB, check the reader was not oom-killed (`systemctl show -p NRestarts -p Result johnny-m1s2b-reader.service`).
+
+Tradeoff note: At low traffic, hourly rotation means `keep=200` bounds retention to ~200 hours (~8.3 days) before the 200 GiB directory byte cap is reached; at high traffic, 1 GiB per-file rotation reaches the 200 GiB cap and retains 200 GiB of packet captures. Cap + reserve = 300 GiB exactly, so a disk that only just passes preflight may stop recording (low-disk, ~100 GiB still free) once the cap fills.
+
+Previous installed deployable hashes on Johnny before this change:
+- `module1-slice2b-boot.sh`: `b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55`
+- `johnny-m1s2b-reader.py`: `fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573`
+- `johnny-m1s2b-reader.service`: `5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c`
+
+### Paste A: Read-only preflight
+
+Note: Directory cap (200 GiB) plus free-space reserve (100 GiB) equals 300 GiB exactly, so a disk that only just passes may stop recording (low-disk, ~100 GiB still free) once the cap fills.
+
+***<u>Run on Rock Box</u>***
+
+```bash
+ssh -t aj@192.168.50.152 'sudo -v &&
+sudo df -h /var/lib/johnny/m1s2b &&
+free_b=$(sudo df --output=avail -B1 /var/lib/johnny/m1s2b | tail -n1 | tr -d " ") &&
+if [ "$free_b" -lt 322122547200 ]; then echo "STOP-low-disk free=$free_b" >&2; exit 1; fi &&
+echo "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  /root/m1s2b/module1-slice2b-boot.sh
+fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
+5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  /etc/systemd/system/johnny-m1s2b-reader.service" | sudo sha256sum -c - &&
+sudo du -sb /var/lib/johnny/m1s2b &&
+echo M1S2B-RET-PREFLIGHT-DONE'
+```
+
+Expect df showing free space >= 300 GiB (322122547200 bytes), three `OK` hash lines for the currently installed deployables, directory usage in bytes, and **`M1S2B-RET-PREFLIGHT-DONE`**.
+
+### Paste B: Copy changed files, install, and restart reader service
+
+***<u>Run on Rock Box</u>***
+
+```bash
+ssh aj@192.168.50.152 'mkdir -p -m 0700 /home/aj/cis-audit/m1s2b-retention' &&
+scp /home/aj/Projects/strix-halo-johnny-slice2b-retention/docs/tool-install/module1-slice2b-boot.sh /home/aj/Projects/strix-halo-johnny-slice2b-retention/docs/tool-install/johnny-m1s2b-reader.py /home/aj/Projects/strix-halo-johnny-slice2b-retention/etc/systemd/system/johnny-m1s2b-reader.service aj@192.168.50.152:/home/aj/cis-audit/m1s2b-retention/ &&
+ssh -t aj@192.168.50.152 'sudo -v &&
+cd /home/aj/cis-audit/m1s2b-retention &&
+echo "ea799ee6a42e08dec3d15b1c8c7f9dad28ab81e73fda6a6ee5d9c7956873ab3f  module1-slice2b-boot.sh
+476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37  johnny-m1s2b-reader.py
+e986073148d5bb617c1f8608034fe8a0bf787ea9620595e03c41ce5924e01903  johnny-m1s2b-reader.service" | sha256sum -c - &&
+echo "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  /root/m1s2b/module1-slice2b-boot.sh
+fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
+5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  /etc/systemd/system/johnny-m1s2b-reader.service" | sudo sha256sum -c - &&
+sudo install -d -m 0700 -o root -g root /root/m1s2b/backup-pre-retention &&
+sudo cp -p /root/m1s2b/module1-slice2b-boot.sh /root/m1s2b/backup-pre-retention/ &&
+sudo cp -p /usr/local/libexec/johnny/johnny-m1s2b-reader.py /root/m1s2b/backup-pre-retention/ &&
+sudo cp -p /etc/systemd/system/johnny-m1s2b-reader.service /root/m1s2b/backup-pre-retention/ &&
+sudo install -m 0700 -o root -g root module1-slice2b-boot.sh /root/m1s2b/module1-slice2b-boot.sh &&
+sudo install -m 0644 -o root -g root johnny-m1s2b-reader.py /usr/local/libexec/johnny/johnny-m1s2b-reader.py &&
+sudo install -m 0644 -o root -g root johnny-m1s2b-reader.service /etc/systemd/system/johnny-m1s2b-reader.service &&
+echo "ea799ee6a42e08dec3d15b1c8c7f9dad28ab81e73fda6a6ee5d9c7956873ab3f  /root/m1s2b/module1-slice2b-boot.sh
+476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
+e986073148d5bb617c1f8608034fe8a0bf787ea9620595e03c41ce5924e01903  /etc/systemd/system/johnny-m1s2b-reader.service" | sudo sha256sum -c - &&
+sudo systemctl daemon-reload &&
+sudo systemctl restart johnny-m1s2b-reader.service &&
+sudo bash /root/m1s2b/module1-slice2b-boot.sh status &&
+echo M1S2B-RET-APPLY-DONE'
+```
+
+Expect three `OK` hash lines for copied staging files, three `OK` hash lines verifying the old installed files, three `OK` hash lines for newly installed files, clean restart of `johnny-m1s2b-reader.service` (XDP unit untouched), clean `status` output, and **`M1S2B-RET-APPLY-DONE`**.
+
+### Paste C: Verify retention settings and service operation
+
+***<u>Run on Rock Box</u>***
+
+```bash
+ssh -t aj@192.168.50.152 'sudo -v &&
+st_xdp=$(sudo systemctl is-active johnny-capture-xdp-records.service 2>/dev/null || true) &&
+st_rdr=$(sudo systemctl is-active johnny-m1s2b-reader.service 2>/dev/null || true) &&
+if [ "$st_xdp" != "active" ] || [ "$st_rdr" != "active" ]; then
+  echo "STOP-units-not-active xdp=$st_xdp reader=$st_rdr" >&2
+  exit 1
+fi &&
+echo "ea799ee6a42e08dec3d15b1c8c7f9dad28ab81e73fda6a6ee5d9c7956873ab3f  /root/m1s2b/module1-slice2b-boot.sh" | sudo sha256sum -c - &&
+sudo bash /root/m1s2b/module1-slice2b-boot.sh verify &&
+sudo bash /root/m1s2b/module1-slice2b-boot.sh status &&
+show_out=$(sudo systemctl show -p ExecStart -p LimitFSIZE johnny-m1s2b-reader.service) &&
+echo "$show_out" &&
+echo "$show_out" | grep -q -- "--file-max-bytes 1073741824" &&
+echo "$show_out" | grep -q -- "--file-max-seconds 3600" &&
+echo "$show_out" | grep -q -- "--keep 200" &&
+echo "$show_out" | grep -q -- "--dir-cap-bytes 214748364800" &&
+echo "$show_out" | grep -q -- "--reserve-bytes 107374182400" &&
+echo "$show_out" | grep -q -- "LimitFSIZE=1074790400" &&
+last_start=$(sudo journalctl -u johnny-m1s2b-reader.service -b --no-pager -o cat | grep "M1S2B-READER-BEGIN" | tail -n1) &&
+echo "$last_start" &&
+echo "$last_start" | grep -q -- "file_max_bytes=1073741824 file_max_seconds=3600 keep=200 dir_cap=214748364800 reserve=107374182400" &&
+echo M1S2B-RET-VERIFY-DONE'
+```
+
+Expect both units active, boot.sh verify and status clean, `systemctl show` displaying new args on ExecStart and LimitFSIZE=1074790400, latest reader startup line showing `file_max_bytes=1073741824 file_max_seconds=3600 keep=200 dir_cap=214748364800 reserve=107374182400`, and **`M1S2B-RET-VERIFY-DONE`**.
+
+### Retention rollback: restore previous configuration (not part of the paste sequence)
+
+> [!WARNING]
+> Restoring the previous reader configuration reinstates `keep=6` and the 384 MiB directory cap. When the restored reader starts, its initial `prune()` will delete older run files until at most 5 existing files remain and total directory usage is within 384 MiB. The restored 384 MiB cap means existing 1 GiB files are deleted by the byte prune, not kept as five files.
+
+***<u>Run on Rock Box</u>***
+
+```bash
+ssh -t aj@192.168.50.152 'sudo -v &&
+echo "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  /root/m1s2b/backup-pre-retention/module1-slice2b-boot.sh
+fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573  /root/m1s2b/backup-pre-retention/johnny-m1s2b-reader.py
+5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  /root/m1s2b/backup-pre-retention/johnny-m1s2b-reader.service" | sudo sha256sum -c - &&
+sudo cp -p /root/m1s2b/backup-pre-retention/module1-slice2b-boot.sh /root/m1s2b/module1-slice2b-boot.sh &&
+sudo cp -p /root/m1s2b/backup-pre-retention/johnny-m1s2b-reader.py /usr/local/libexec/johnny/johnny-m1s2b-reader.py &&
+sudo cp -p /root/m1s2b/backup-pre-retention/johnny-m1s2b-reader.service /etc/systemd/system/johnny-m1s2b-reader.service &&
+echo "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55  /root/m1s2b/module1-slice2b-boot.sh
+fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
+5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c  /etc/systemd/system/johnny-m1s2b-reader.service" | sudo sha256sum -c - &&
+sudo systemctl daemon-reload &&
+sudo systemctl restart johnny-m1s2b-reader.service &&
+sudo bash /root/m1s2b/module1-slice2b-boot.sh status &&
+echo M1S2B-RET-ROLLBACK-DONE'
+```
+
+Expect three `OK` hash lines verifying backup files, three `OK` hash lines verifying restored installed files, clean restart of `johnny-m1s2b-reader.service`, clean status, and **`M1S2B-RET-ROLLBACK-DONE`**.
+
 ## Rollback (not part of the paste sequence above)
 
 Run this block to revert Johnny back to slice 1c (`j_xdp_observe` attached, `johnny-capture-xdp.service` enabled and active). Slice 2b files remain on disk for inspection.
@@ -357,6 +490,7 @@ Expect slice 2b stopped/disabled, 2b pins removed, slice 1c enabled/active, obse
 | `STOP-units-not-active` | One or both 2b units did not reach active within 120 s after boot. |
 | `STOP-ordering-cycle-warning` | Systemd ordering cycle detected in PID 1 journal messages (`count=<n>`). |
 | `STOP-1c-unit-not-disabled` | Slice 1c unit remained enabled after reboot. |
+| `STOP-low-disk free=<bytes>` | Preflight available disk space check failed on `/var/lib/johnny/m1s2b` (< 300 GiB / 322122547200 bytes available). |
 | `STOP-rollback-not-clean` | Rollback did not return Johnny to clean slice 1c observer state (requires one attached driver id with prog name `j_xdp_observe`, 1c enabled/active, and both 2b units disabled/inactive). |
 | reader exit 1 (`Restart=on-failure`) | Reader encountered a STOP condition (e.g. disk reserve or corrupt ring); after `StartLimitBurst=5`, systemd leaves the reader failed while XDP unit remains active. |
 
@@ -374,7 +508,11 @@ Expect slice 2b stopped/disabled, 2b pins removed, slice 1c enabled/active, obse
 10. Paste R2: **`M1S2B-FIX-COPY-DONE`**
 11. Paste R3: **`M1S2B-FIX-INSTALL-DONE`**
 12. Paste R4: **`M1S2B-VERIFY-DONE`**
-13. Rollback: **`M1S2B-ROLLBACK-DONE`**
+13. Paste A: **`M1S2B-RET-PREFLIGHT-DONE`**
+14. Paste B: **`M1S2B-RET-APPLY-DONE`**
+15. Paste C: **`M1S2B-RET-VERIFY-DONE`**
+16. Rollback (retention): **`M1S2B-RET-ROLLBACK-DONE`**
+17. Rollback (full 1c): **`M1S2B-ROLLBACK-DONE`**
 
 ## Assumptions
 

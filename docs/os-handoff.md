@@ -1,4 +1,20 @@
-# Johnny — OS Handoff (rev 111, 2026-11-12 ~06:15Z; 2026-11-12 ~00:15 America/Chicago)
+# Johnny — OS Handoff (rev 112, 2026-11-14 America/Chicago)
+
+## Rev 112 (2026-11-14 America/Chicago): Module 1 slice 2b reader retention raise DRAFTED, NOT APPLIED
+- **Status:** **DRAFTED, NOT APPLIED.** Live Johnny remains on rev 111 verified settings (64 MiB / 3600 s per file, keep=6, dir cap 384 MiB, reserve 256 MiB).
+- **Target Changes (AJ approved: "we have plenty of room"):**
+  - Per-file rotate at 1 GiB (1073741824 bytes) or 3600 s, whichever first.
+  - Directory cap 200 GiB (214748364800 bytes), oldest file deleted first. Keep count 200 files (`--keep 200`).
+  - Free-space reserve 100 GiB (107374182400 bytes): reader prunes oldest / stops writing rather than dip below reserve.
+  - Unit `LimitFSIZE=1025M` (raised from 257M) in `etc/systemd/system/johnny-m1s2b-reader.service`; the 96-byte header is included in the 1 GiB file cap (max file 1073741776 bytes; `LimitFSIZE=1025M` = 1074790400 bytes covers it without triggering SIGXFSZ).
+  - ExecStart updated with explicit arguments: `--file-max-bytes 1073741824 --file-max-seconds 3600 --keep 200 --dir-cap-bytes 214748364800 --reserve-bytes 107374182400`.
+  - Ceilings updated in `docs/tool-install/johnny-m1s2b-reader.py`: `MAX_FILE_BYTES` raised to 2 GiB (`2 << 30`), `MAX_KEEP` raised to 1000, `MAX_DIR_CAP_BYTES` and `MAX_RESERVE_BYTES` bounded to 16 TiB (`16 << 40`) with `floor=file_max_bytes` on `dir-cap-bytes`.
+- **New sha256 Pins:**
+  - `docs/tool-install/johnny-m1s2b-reader.py`: `476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37`
+  - `etc/systemd/system/johnny-m1s2b-reader.service`: `e986073148d5bb617c1f8608034fe8a0bf787ea9620595e03c41ce5924e01903`
+  - `docs/tool-install/module1-slice2b-boot.sh`: `ea799ee6a42e08dec3d15b1c8c7f9dad28ab81e73fda6a6ee5d9c7956873ab3f` (pins the new reader and unit hashes)
+  - Unchanged: `docs/tool-install/module1-xdp-records.o` (`a73c5bd2...`), `etc/systemd/system/johnny-capture-xdp-records.service` (`4e2e359d...`).
+- **Runbook & Self-Test:** Runbook section "Retention raise (2b already live)" added to `docs/tool-install/module1-slice2b-boot-unit.md` with Pastes A–C and a dedicated retention rollback paste (warns that restoring old reader prunes down to keep=6 / 384 MiB). Self-test `docs/tool-install/module1-slice2b-self-test.sh` extended with static unit args and LimitFSIZE coverage, reader bounded() checks, and prune byte-cap / disk free reserve tests (`PINS-OK`, `SHELLCHECK-OK`, `STATIC-CHECKS-OK`, `READER-TESTS-OK`, `E2E-OK scenarios=11`, `RUNBOOK-OK blocks=17`, `SELF-TEST-OK`).
 
 ## Rev 111 (2026-11-12 America/Chicago): Module 1 slice 2b closeout — cold-boot proven, port-mirror sniffing COMPLETE
 - **Status:** Module 1 port-mirror sniffing **COMPLETE**. Slice 2b APPLIED on Johnny 2026-11-12T04:05Z, VERIFIED with verify-fix reinstall (PR #34, `6891fa3`), and COLD-BOOT PROVEN 2026-11-12 ~05:54Z. Both units (`johnny-capture-xdp-records.service`, `johnny-m1s2b-reader.service`) enabled and active; slice 1c `johnny-capture-xdp.service` disabled and inactive.

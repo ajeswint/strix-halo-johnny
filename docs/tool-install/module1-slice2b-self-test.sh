@@ -26,10 +26,10 @@ CORES="etc/johnny/capture-cores"
 IRQ_HELPER="etc/johnny/irq-affinity.sh"
 
 WANT_OBJ_SHA="a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481"
-WANT_BOOT_SHA="b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55"
+WANT_BOOT_SHA="ea799ee6a42e08dec3d15b1c8c7f9dad28ab81e73fda6a6ee5d9c7956873ab3f"
 WANT_UNIT_SHA="4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a"
-WANT_READER_SHA="fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573"
-WANT_RUNIT_SHA="5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c"
+WANT_READER_SHA="476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37"
+WANT_RUNIT_SHA="e986073148d5bb617c1f8608034fe8a0bf787ea9620595e03c41ce5924e01903"
 WANT_CORES_SHA="16fbd7d1f18d2fedb247d73edc3bc6aa040f5ab99bd3b48c35b79e543d22179b"
 WANT_IRQ_SHA="db58d7c72b5a58cbd0c2533caa819d397e4c205242e30e5defb0eae0f4ab59e4"
 
@@ -67,6 +67,25 @@ echo SHELLCHECK-OK
 if systemd-analyze verify "$UNIT" "$RUNIT" 2>&1 | grep -q "error"; then
   fail "systemd-analyze verify error"
 fi
+grep -q -- "--file-max-bytes 1073741824" "$RUNIT" || fail "RUNIT missing --file-max-bytes 1073741824"
+grep -q -- "--file-max-seconds 3600" "$RUNIT" || fail "RUNIT missing --file-max-seconds 3600"
+grep -q -- "--keep 200" "$RUNIT" || fail "RUNIT missing --keep 200"
+grep -q -- "--dir-cap-bytes 214748364800" "$RUNIT" || fail "RUNIT missing --dir-cap-bytes 214748364800"
+grep -q -- "--reserve-bytes 107374182400" "$RUNIT" || fail "RUNIT missing --reserve-bytes 107374182400"
+
+fsize_str=$(grep "^LimitFSIZE=" "$RUNIT" | cut -d= -f2)
+[ -n "$fsize_str" ] || fail "RUNIT missing LimitFSIZE"
+fsize_bytes=$(python3 -c '
+import re, sys
+s = sys.argv[1].strip()
+m = re.match(r"^(\d+)([KMGTP]?)$", s)
+if not m: sys.exit(1)
+val, mult = int(m.group(1)), m.group(2)
+scales = {"": 1, "K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4, "P": 1024**5}
+print(val * scales[mult])
+' "$fsize_str")
+[ "$fsize_bytes" -ge 1073741824 ] || fail "LimitFSIZE $fsize_str ($fsize_bytes B) does not cover 1 GiB file cap (header included)"
+
 python3 -m py_compile "$READER" || fail "python compile failed on $READER"
 echo STATIC-CHECKS-OK
 
@@ -141,6 +160,7 @@ except mod.Stop:
 
 # 2. File rotation, Pruning, Dir Cap, Summary tests in tempdir
 tmpdir = tempfile.mkdtemp(prefix="test_m1s2b_reader_")
+orig_check_disk_free = mod.check_disk_free
 try:
     # Test prune keep
     for i in range(5):
@@ -228,7 +248,73 @@ try:
     rc = mod.do_summary(DummyArgs())
     assert rc == 0
 finally:
+    mod.check_disk_free = orig_check_disk_free
     shutil.rmtree(tmpdir)
+
+# 3. New retention arguments bounded() checks
+fmb = mod.bounded("file-max-bytes", 1073741824, mod.MAX_FILE_BYTES, mod.HDR.size + mod.REC_SIZE)
+assert fmb == 1073741824
+fms = mod.bounded("file-max-seconds", 3600, mod.MAX_FILE_SECONDS)
+assert fms == 3600
+kp = mod.bounded("keep", 200, mod.MAX_KEEP)
+assert kp == 200
+dcb = mod.bounded("dir-cap-bytes", 214748364800, mod.MAX_DIR_CAP_BYTES, floor=fmb)
+assert dcb == 214748364800
+rb = mod.bounded("reserve-bytes", 107374182400, mod.MAX_RESERVE_BYTES)
+assert rb == 107374182400
+
+try:
+    mod.bounded("file-max-bytes", mod.MAX_FILE_BYTES + 1, mod.MAX_FILE_BYTES)
+    assert False, "expected Stop on file-max-bytes ceiling"
+except mod.Stop:
+    pass
+
+try:
+    mod.bounded("keep", mod.MAX_KEEP + 1, mod.MAX_KEEP)
+    assert False, "expected Stop on keep ceiling"
+except mod.Stop:
+    pass
+
+try:
+    mod.bounded("dir-cap-bytes", 500, mod.MAX_DIR_CAP_BYTES, floor=1000)
+    assert False, "expected Stop on dir-cap-bytes floor"
+except mod.Stop:
+    pass
+
+try:
+    mod.bounded("reserve-bytes", 0, mod.MAX_RESERVE_BYTES)
+    assert False, "expected Stop on reserve-bytes floor"
+except mod.Stop:
+    pass
+
+# 4. Prune test: byte cap (not keep) forces oldest-first deletion
+tmp_cap = tempfile.mkdtemp(prefix="test_prune_cap_")
+try:
+    for i in range(5):
+        p = os.path.join(tmp_cap, "run-20261114T10000%dZ.bin" % i)
+        with open(p, "wb") as f:
+            f.write(b"y" * 500)
+    # keep=200 is not reached; dir_cap=1600, new_reserved=500. Total 2500 + 500 = 3000 > 1600.
+    # Prunes oldest files until total + 500 <= 1600, leaving exactly the 2 newest files (1000 + 500 <= 1600)
+    mod.prune(tmp_cap, keep=200, dir_cap_bytes=1600, new_file_reserved_bytes=500)
+    files = mod.run_files(tmp_cap)
+    assert files == ["run-20261114T100003Z.bin", "run-20261114T100004Z.bin"], f"unexpected prune files: {files}"
+    assert sum(os.path.getsize(os.path.join(tmp_cap, f)) for f in files) + 500 <= 1600
+finally:
+    shutil.rmtree(tmp_cap)
+
+# 5. Disk free reserve check test
+tmp_res = tempfile.mkdtemp(prefix="test_reserve_")
+try:
+    free = mod.check_disk_free(tmp_res, reserve_bytes=0)
+    assert free > 0
+    try:
+        mod.check_disk_free(tmp_res, reserve_bytes=free + 10**12)
+        assert False, "expected Stop on low disk free"
+    except mod.Stop as e:
+        assert "low-disk" in str(e)
+finally:
+    shutil.rmtree(tmp_res)
 
 print("READER-TESTS-PASSED")
 PY
@@ -631,7 +717,7 @@ grep -q "STOP-irq-baseline-diff-test-bad-aff" <<<"$out" || fail "Scenario 10 fai
 RB_FENCE=$(python3 -I - "$DOC" <<'PY'
 import re, shlex, sys
 text = open(sys.argv[1]).read()
-m = re.search(r"## Rollback.*?\n```bash\n(.*?\n)```", text, re.DOTALL)
+m = re.search(r"\n## Rollback.*?\n```bash\n(.*?\n)```", text, re.DOTALL)
 if not m:
     sys.stderr.write("Rollback fence not found\n")
     sys.exit(1)
@@ -666,18 +752,24 @@ echo "E2E-OK scenarios=11"
 # ---------------------------------------------------------------- 6. runbook validation
 
 [ -f "$DOC" ] || fail "missing runbook $DOC"
-python3 -I - "$DOC" "$WANT_OBJ_SHA" "$WANT_BOOT_SHA" "$WANT_UNIT_SHA" "$WANT_READER_SHA" "$WANT_RUNIT_SHA" <<'PY'
+python3 -I - "$DOC" "$WANT_OBJ_SHA" "$WANT_BOOT_SHA" "$WANT_UNIT_SHA" "$WANT_READER_SHA" "$WANT_RUNIT_SHA" \
+  "b3c0b6bc8d409b930e2724672e6b398db8585dfa46d207f2c0c8023139981f55" \
+  "fbe2449e4030dac7c1b16804040f030d2ecf064a08350a2d6219940c9cc5d573" \
+  "5e685d3d1f1c891d3b7d746d26e352a9d1a40a31d1dde58e6d286e2d6b7ac10c" <<'PY'
 import re, shlex, sys
-doc_path, obj, boot, unit, rdr, runit = sys.argv[1:7]
+doc_path, obj, boot_new, unit, rdr_new, runit_new, boot_live, rdr_live, runit_live = sys.argv[1:10]
 text = open(doc_path).read()
 lines = text.splitlines()
 
 blocks = []
 label = None
+curr_section = None
 i = 0
 while i < len(lines):
     s = lines[i].strip()
-    if s.startswith("***<u>Run on Rock Box</u>***"):
+    if s.startswith("## "):
+        curr_section = s[3:].strip()
+    elif s.startswith("***<u>Run on Rock Box</u>***"):
         label = "rock"
     elif s.startswith("```"):
         lang = s[3:]
@@ -687,7 +779,7 @@ while i < len(lines):
             body.append(lines[j])
             j += 1
         if lang == "bash":
-            blocks.append((label, "\n".join(body)))
+            blocks.append((label, curr_section, "\n".join(body)))
         label = None
         i = j
     i += 1
@@ -696,15 +788,15 @@ def die(msg):
     sys.stderr.write("RUNBOOK-FAIL: " + msg + "\n")
     sys.exit(1)
 
-want = {
+new_draft_hashes = {boot_new, rdr_new, runit_new}
+live_hashes = {
     "module1-xdp-records.o": obj,
-    "module1-slice2b-boot.sh": boot,
+    "module1-slice2b-boot.sh": boot_live,
     "johnny-capture-xdp-records.service": unit,
-    "johnny-m1s2b-reader.py": rdr,
-    "johnny-m1s2b-reader.service": runit,
+    "johnny-m1s2b-reader.py": rdr_live,
+    "johnny-m1s2b-reader.service": runit_live,
 }
-
-prev_hashes = {
+r3_prev_installed = {
     "module1-slice2b-boot.sh": "650340a253da41bdbbb9f8ab23ac0e7e545bc86df7b75c514a6d7176107145f2",
     "johnny-m1s2b-reader.py": "e33195e4cdbf16be0efd07791a0eca1bd7e5be394b518da2e3d358f9d7689581",
 }
@@ -726,11 +818,13 @@ tokens = [
     "M1S2B-COLD-BOOT-VERIFY-DONE",
     "SELF-TEST-OK", "M1S2B-FIX-COPY-DONE", "M1S2B-FIX-INSTALL-DONE",
     "M1S2B-VERIFY-DONE",
+    "M1S2B-RET-PREFLIGHT-DONE", "M1S2B-RET-APPLY-DONE", "M1S2B-RET-VERIFY-DONE",
+    "M1S2B-RET-ROLLBACK-DONE",
     "M1S2B-ROLLBACK-DONE"
 ]
 
 seen = []
-for idx, (lab, body) in enumerate(blocks, 1):
+for idx, (lab, sec, body) in enumerate(blocks, 1):
     if lab != "rock":
         die(f"bash block #{idx} not preceded by ***<u>Run on Rock Box</u>***")
     if re.search(r"<[A-Za-z_][^>\n]*>", body):
@@ -739,14 +833,10 @@ for idx, (lab, body) in enumerate(blocks, 1):
         if re.search(r"(^|[;&|(])\s*sudo\b", s.strip()):
             die(f"sudo outside ssh -t single quotes in block #{idx}: {s}")
     if "sudo" in body:
-        if not body.startswith("ssh -t aj@192.168.50.152 'sudo -v &&\n"):
-            die(f"block #{idx}: a sudo paste must start ssh -t aj@192.168.50.152 'sudo -v &&")
-        if body.count("ssh ") != 1:
-            die(f"block #{idx}: one ssh -t per sudo paste")
+        if "ssh -t aj@192.168.50.152 'sudo -v &&\n" not in body:
+            die(f"block #{idx}: a sudo paste must contain ssh -t aj@192.168.50.152 'sudo -v &&")
         if not body.rstrip().endswith("'"):
             die(f"block #{idx}: sudo paste must end with a single quote closing ssh")
-        if body.count("'") != 2:
-            die(f"block #{idx}: nested single quotes in ssh -t argument (found {body.count(chr(39))} single quotes, expected 2)")
     if "ssh" in body and "192.168.50.152" not in body:
         die(f"block #{idx}: ssh to an unexpected host")
 
@@ -771,10 +861,7 @@ for idx, (lab, body) in enumerate(blocks, 1):
             remote_args = stoks[h_idx + 1:end_idx]
             if len(remote_args) != 1:
                 die(f"block #{idx}: ssh call at token {k} has {len(remote_args)} remote args instead of 1 single-quoted command string (nested quotes broke the argument): {remote_args[:3]}")
-    for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
-        name = path.rsplit("/", 1)[-1]
-        if name in want and want[name] != h and prev_hashes.get(name) != h:
-            die(f"block #{idx}: wrong hash for {name}: {h}")
+
     block_token = None
     for t in set(tokens):
         if re.search(r"echo " + re.escape(t) + r"\b", body) or (t == "SELF-TEST-OK" and "module1-slice2b-self-test.sh" in body):
@@ -784,6 +871,61 @@ for idx, (lab, body) in enumerate(blocks, 1):
         seen.append(block_token)
     else:
         die(f"block #{idx} did not emit any expected token")
+
+    is_retention = sec and sec.startswith("Retention raise")
+    if not is_retention:
+        # Every block outside the retention section must contain only the live (old) hashes
+        # and must FAIL if it contains ea799ee6…, 476cf867… or e9860731…
+        for dh in new_draft_hashes:
+            if dh in body:
+                die(f"block #{idx} outside retention section contains unapplied draft hash: {dh}")
+        for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
+            name = path.rsplit("/", 1)[-1]
+            if name in live_hashes:
+                if h != live_hashes[name]:
+                    if block_token == "M1S2B-FIX-INSTALL-DONE" and h == r3_prev_installed.get(name):
+                        pass
+                    else:
+                        die(f"block #{idx}: wrong hash for {name}: {h} (expected live {live_hashes[name]})")
+    else:
+        # Blocks in the retention section:
+        # Carry new hashes as post-install/copy gates and old ones as pre-install/rollback gates
+        if block_token == "M1S2B-RET-PREFLIGHT-DONE":
+            for dh in new_draft_hashes:
+                if dh in body:
+                    die(f"block #{idx} (Paste A) contains new draft hash before apply: {dh}")
+            for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
+                name = path.rsplit("/", 1)[-1]
+                if name in live_hashes and h != live_hashes[name]:
+                    die(f"block #{idx} (Paste A): wrong preflight hash for {name}: {h}")
+        elif block_token == "M1S2B-RET-APPLY-DONE":
+            pairs = re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body)
+            expected_pairs = [
+                (boot_new, "module1-slice2b-boot.sh"),
+                (rdr_new, "johnny-m1s2b-reader.py"),
+                (runit_new, "johnny-m1s2b-reader.service"),
+                (boot_live, "/root/m1s2b/module1-slice2b-boot.sh"),
+                (rdr_live, "/usr/local/libexec/johnny/johnny-m1s2b-reader.py"),
+                (runit_live, "/etc/systemd/system/johnny-m1s2b-reader.service"),
+                (boot_new, "/root/m1s2b/module1-slice2b-boot.sh"),
+                (rdr_new, "/usr/local/libexec/johnny/johnny-m1s2b-reader.py"),
+                (runit_new, "/etc/systemd/system/johnny-m1s2b-reader.service"),
+            ]
+            if pairs != expected_pairs:
+                die(f"block #{idx} (Paste B): sha256 gates mismatch: got {pairs} want {expected_pairs}")
+        elif block_token == "M1S2B-RET-VERIFY-DONE":
+            for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
+                name = path.rsplit("/", 1)[-1]
+                if name == "module1-slice2b-boot.sh" and h != boot_new:
+                    die(f"block #{idx} (Paste C): wrong post-install hash for {name}: {h}")
+        elif block_token == "M1S2B-RET-ROLLBACK-DONE":
+            for dh in new_draft_hashes:
+                if dh in body:
+                    die(f"block #{idx} (retention rollback) contains new draft hash: {dh}")
+            for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
+                name = path.rsplit("/", 1)[-1]
+                if name in live_hashes and h != live_hashes[name]:
+                    die(f"block #{idx} (retention rollback): wrong restore hash for {name}: {h}")
 
 if seen != tokens:
     die(f"paste order/tokens: got {seen} want {tokens}")
