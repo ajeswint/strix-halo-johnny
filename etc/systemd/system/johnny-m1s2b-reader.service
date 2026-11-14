@@ -18,7 +18,7 @@ StateDirectory=johnny/m1s2b
 StateDirectoryMode=0700
 UMask=0077
 # Resource bounds.
-MemoryMax=128M
+MemoryMax=1G
 MemorySwapMax=0
 CPUQuota=50%
 CPUAffinity=0
