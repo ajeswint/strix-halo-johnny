@@ -1,0 +1,11 @@
+Adversarial review-only of PR #37 (ajeswint/strix-halo-johnny), branch claude/module1-slice2b-reader-mem vs base claude/practical-ritchie-4c6vvf (a77dae8). Review `git diff a77dae8..HEAD` in this worktree. Do NOT edit repo files, commit, push, ssh anywhere, use sudo, or touch other agy/cursor-agent processes.
+
+Change: in the not-yet-applied slice 2b retention draft, raise johnny-m1s2b-reader.service MemoryMax 128M -> 1G; update unit + boot.sh pins (reader .py must be unchanged at 476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37); Paste B scp path -> /home/aj/Projects/strix-halo-johnny-slice2b-reader-mem; Paste C checks MemoryMax=1073741824; fix PR #36 review2 nits N1 (citation 674-675), N2 (notes that Pastes 6/8 and slice-1c rollback won't match after retention Paste B), N3 (remove unmeasured memory claim). Johnny live is still the old trio b3c0b6bc… / fbe2449e… / 5e685d3d….
+Check hard:
+1. Unit change correct (systemd syntax, MemoryMax=1G = 1073741824 as systemctl show prints it, MemorySwapMax=0, no other memory directives inconsistent); systemd-analyze verify if available.
+2. All sha256 pins: compute sha256 of reader, unit, boot.sh and compare to every pinned place (boot.sh constants, runbook draft pin list, Paste B staging/post-install gates, Paste C, self-test, handoff rev 113, session note). Old trio stays in Paste A, Paste B pre-install gate, retention rollback. No stale PR #36 draft hashes (e9860731…, ea799ee6…) in any current gate.
+3. Every bash block outside "## Retention raise" is byte-identical to a77dae8 (N2 notes outside fences only). Retention Pastes A/B/C/rollback: bash correct inside single-quoted ssh -t strings with && (no nested single quotes, grep exit codes), labels exactly ***<u>Run on Rock Box</u>***.
+4. Self-test asserts MemoryMax=1G and the Paste C grep, still rejects draft hashes in live blocks, and passes: run `bash docs/tool-install/module1-slice2b-self-test.sh` (no sudo).
+5. N1/N2/N3 resolved; docs say DRAFTED, NOT APPLIED; no secrets.
+
+Write your full review to /tmp/johnny-seats/module1-slice2b-reader-mem-review/review.done. Line 1 must be exactly one of: APPROVE / APPROVE-WITH-NITS / REQUEST-CHANGES. Then findings with file:line, blocking ones B1.., nits N1...
