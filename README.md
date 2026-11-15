@@ -23,7 +23,7 @@ Host `johnny`, 192.168.50.152 (DHCP on `eno3`, reserved on the router), Ubuntu S
 - Passive (SPAN) first, inline later. Sensor sits LAN-side of the RT-BE88U (WireGuard encrypts at the router, which can't mirror).
 - CRS309 ports, as cabled (audit 2026-10-29, [docs/network-map.md](docs/network-map.md)): ether1 OOB switch mgmt (laptop only), SFP+1 uplink to RT-BE88U, SFP+2 Johnny `eno3`, SFP+3 bedroom drop (unmanaged switch), SFP+4 rock-box (Ubuntu workstation), SFP+5 Framework, SFP+6 vPro/AMT `eno4` OOB (isolated to SFP+4, never quarantinable), SFP+7 E810 DAC to `eno1np0` (mirror target), SFP+8 E810 DAC (disabled, Johnny end out). The 2026-10-20 port plan was superseded by the physical layout.
 - Stack fits 32 GB: Suricata + Zeek + own daemon + ClickHouse or Postgres/Timescale. No Elastic/OpenSearch. On-box SLM not yet budgeted.
-- On-box SLM: yes, full function for now (AJ, 2026-10-31; replaces "No LLM on the box", whose 2026-10-20 planning source isn't in the repo). Limits, if any, come with the architecture pass. LLM triage over the LAN to the MAX: unchanged.
+- On-box SLM: yes (AJ, 2026-10-31; replaces "No LLM on the box", whose 2026-10-20 planning source isn't in the repo). AJ decision 2026-11-14: the AI only tightens or suggests; loosening only via AJ-signed rules ([docs/architecture/architecture-rev2.md](docs/architecture/architecture-rev2.md)). This replaces "full function for now" (AJ, 2026-10-31). LLM triage over the LAN to the MAX: unchanged.
 - Logs on their own LVM volume. TLC NVMe only when full PCAP starts.
 - Devices keyed by MAC/IP; quarantine by MAC ACL/VLAN, not port shutdown.
 - Open: Wi-Fi clients are invisible unless an AP hangs off the CRS309.

@@ -1,5 +1,5 @@
 # Johnny Architecture Pass: Decision Brief
-
+Superseded for decided items by docs/architecture/architecture-rev2.md (AJ decisions 2026-11-14); open items there remain AJ decides.  
 Rev 3, 2026-11-14 America/Chicago (Rev 3: review 2 fixes; Decision 1 note).  
 Status: **DRAFT — options only, every item AJ decision pending; nothing applied; nothing runs on Johnny.**
 
@@ -119,7 +119,7 @@ Module 1 passive SPAN sniffing is complete and verified on Johnny (verified at t
     - *Cost:* Extremely high.
     - *Blocks:* Delays operational network monitoring and analysis while building endpoint software.
 - **Recommendation:** **Option 1 (Pure Network Sensor).** Johnny's physical role and hardware investment (Minisforum MS-02 Ultra with Intel E810 25G capture NIC on SPAN mirror) is a network sensor. Trying to force host-level storage and process hooks onto a network appliance creates conceptual confusion and wasted effort.
-- Note: a network-only sensor cannot reach Webroot or CrowdStrike class, because those products are host agents (see §5 gap row 1 and §7 Decision 1 note). Option C is the real path to that level; Option B is a cheap first step. AJ decides.
+- Note: a network-only sensor cannot reach Webroot or CrowdStrike class, because those products are host agents (see §5 gap row 1 and §7 Decision 1 note). Decision 1 Option C is the real path to that level; Decision 1 Option B is a cheap first step. AJ decides.
 - **AJ decision pending.** **AJ decides.**
 
 ---

@@ -17,6 +17,6 @@
 - Files under `etc/` are copies of live files on Johnny and mirror their real paths. Update the copy in the same commit as the change.
 - At session end only: bump the handoff revision in `docs/os-handoff.md` and add that session's CSV to `docs/sessions/`. Do not bump them on every edit. Git log is the record between session ends.
 - Never `pci=noaer`; never disable ACS Source Validation; no snaps.
-- The on-box SLM is part of the architecture and has full function for now (AJ, 2026-10-31). Any limits are set in the later architecture pass.
+- The on-box SLM is part of the architecture (AJ, 2026-10-31). AJ decision 2026-11-14: the AI only tightens or suggests; loosening only via AJ-signed rules (docs/architecture/architecture-rev2.md). This replaces "full function for now" (AJ, 2026-10-31).
 - Johnny work stays here, not in strix-halo-lab. Flag before drifting into other projects.
 - After presenting options, stop and wait for AJ's choice.
