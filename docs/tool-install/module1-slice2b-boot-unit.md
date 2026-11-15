@@ -55,7 +55,7 @@ e5c16249c479a5f807c2c794b146ee81ec2ed2f937c445f65480088cfa0d529c  etc/systemd/sy
 Pre-change helper kept as backup at `/root/m1s2b/backup-pre-no-ratecap/`:
 
 ```
-0fb61363ddce962f0a645c340072fe5085b5ebeda0794230fa6dbc492dd2388f  docs/tool-install/module1-slice2b-boot.sh
+0fb61363ddce962f0a645c340072fe5085b5ebeda0794230fa6dbc492dd2388f  /root/m1s2b/backup-pre-no-ratecap/module1-slice2b-boot.sh
 ```
 
 Unchanged system dependencies:

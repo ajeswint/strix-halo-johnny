@@ -258,14 +258,21 @@ Every agent inherits `AGENTS.md`: terse, one recoverable sudo script per batch, 
 Resolved (AJ, 2026-10-31):
 1. **On-box LLM: yes.** README and AGENTS.md said "No LLM on the box" from the first repo commit (`4eef916`, 2026-10-29), credited to a 2026-10-20 planning session that isn't in the repo. The architecture summary puts an SLM in Tier 2. Rule removed.
 2. **SLM limits: full function for now.** The BEGIN doc lets the SLM relax thresholds; the architecture summary §4 says tighten-only, schema-bound risk scores, never run commands. AJ: models have full function for now; any limits come with the architecture pass. README and AGENTS.md say so.
+   - Decided by AJ 2026-11-14 (see `docs/architecture/architecture-rev2.md` §1.5 fix 1): the AI only tightens or suggests; loosening only via AJ-signed rules. This replaces "full function for now". Still open: signature scheme, and whether a model runs on Johnny itself.
 
 Deferred to the architecture pass (AJ: don't work the architecture logic yet):
 Architecture pass started 2026-11-14 (AJ go); options in docs/architecture/architecture-pass.md; all items still AJ decision pending.
+AJ decisions recorded 2026-11-14 in `docs/architecture/architecture-rev2.md`; the line under each item says decided or still open.
 3. **Tier 1** (global cloud, cross-tenant, MLS fleet keying). No agent until a fleet exists. Assumption: upstream stays the MAX over the LAN (README).
+   - Partly decided by AJ 2026-11-14 (see `docs/architecture/architecture-rev2.md` §1.1, §1.2): the backend runs on the MAX and logs stream to it over TLS 1.3. Still open: fleet keying (MLS), client authentication, any cloud or cross-tenant scope.
 4. **Endpoint vs network.** The summary's Module 1 is host-side (BPF-LSM exec, `vfs_write` entropy, CoW rollback); Johnny's first job is a passive SPAN sensor, and README Module 1 is "eBPF fast path". Fast Path holds both XDP and LSM skills, so the roster works either way.
+   - Decided by AJ 2026-11-14 (see `docs/architecture/architecture-rev2.md` §1.1, §1.4): hybrid. Johnny stays the network sensor; lightweight endpoint agents, Linux first, Windows (ABLETON_BOX) in Stage 4. Still open: host LSM on Johnny itself.
 5. **CoW filesystem.** The summary's CoW example names a btrfs snapshot; Johnny's root is XFS (FICLONE works only within one filesystem).
+   - Partly decided by AJ 2026-11-14 (see `docs/architecture/architecture-rev2.md` §1.5 fix 2): rollback on Rock Box depends on Rock Box's filesystem, which is UNVERIFIED (read-only check in §3 there). Still open: file rollback on Johnny itself, and which stage builds rollback.
 6. **Automated quarantine path.** OpenC2 `contain` → MAC ACL/VLAN needs a way to reach the switch; the CRS309 is managed only from the laptop on ether1.
+   - Still open (see `docs/architecture/architecture-rev2.md` §2). AJ decides.
 7. **Verdict model.** The K3 states and transitions are a draft (Architect `verdict-model`).
+   - Still open (see `docs/architecture/architecture-rev2.md` §2). One limit is decided (fix 1): the AI cannot loosen. AJ decides the rest.
 
 ## 8. Review checklist
 
@@ -307,4 +314,4 @@ PW.3 was deleted in v1.1 (merged into PW.4). Source: [NIST SP 800-218, SSDF v1.1
 1. ~~AJ and Grok agree on this roster.~~ Done 2026-10-31.
 2. ~~Wire it: one `.claude/agents/<agent>.md` per agent (mission, owned paths, skills, report format).~~ Done 2026-10-31. Skills are lines in each agent file; a skill gets its own `SKILL.md` once its procedure is stable. First: `.claude/skills/cis-audit/` (done 2026-10-31, preloaded by Governance). Next candidates as the work arrives: `ubuntu-2604-packages` (step 7), `throughput-soak` (step 8), `e810-capture-tuning` (step 11).
 3. Optional: a hook that blocks writes outside an agent's owned paths.
-4. Architecture pass: the deferred items in §7 (started 2026-11-14, options in docs/architecture/architecture-pass.md; all items AJ decision pending).
+4. Architecture pass: the deferred items in §7 (started 2026-11-14, options in docs/architecture/architecture-pass.md; all items AJ decision pending). AJ decisions recorded 2026-11-14 in `docs/architecture/architecture-rev2.md` (stages 1-4 defined; open items listed there).
