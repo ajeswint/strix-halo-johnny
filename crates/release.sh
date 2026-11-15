@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Build the Stage 1 johnny-daemon release binary, emit its SHA-256 digest,
-# and emit a CycloneDX 1.5 JSON SBOM from Cargo.lock + cargo metadata (or
-# cargo-cyclonedx when installed). Runs on Rock Box with no sudo and no
-# network (--locked --offline).
+# and emit a deterministic CycloneDX 1.5 JSON SBOM from Cargo.lock +
+# cargo metadata (cargo-cyclonedx is not installed on Rock Box). Runs on
+# Rock Box with no sudo and no network (--locked --offline).
 
 set -euo pipefail
 
@@ -26,11 +26,10 @@ BIN_SHA=$(sha256sum dist/johnny-daemon | awk '{print $1}')
 printf '%s  dist/johnny-daemon\n' "$BIN_SHA" > dist/johnny-daemon.sha256
 sha256sum -c dist/johnny-daemon.sha256 >/dev/null
 
+# cargo-cyclonedx is not installed on Rock Box (cargo --list). Keep the
+# deterministic cargo-metadata-lockfile document and tool name rather than
+# mixing two generators.
 SBOM_TOOL="cargo-metadata-lockfile"
-if cargo --list | awk '{print $1}' | grep -qx "cyclonedx"; then
-  cargo cyclonedx --format json --all
-  SBOM_TOOL="cargo-cyclonedx"
-fi
 
 METADATA_JSON=$(cargo metadata --format-version 1 --locked --offline)
 RUSTC_VER=$(rustc --version)

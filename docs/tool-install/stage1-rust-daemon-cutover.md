@@ -3,13 +3,13 @@
 Rev 1, 2026-11-15 America/Chicago. Status: **DRAFT ONLY — DO NOT RUN BEFORE PASTE W COMPLETES (after 2026-11-21 15:33 CT / 21:33Z). Not yet reviewed by the adversarial-reviewer. Nothing installed, enabled, or started on Johnny.**
 
 > **HOLD — DO NOT RUN BEFORE PASTE W (after 2026-11-21 15:33 CT / 21:33Z):**
-> Johnny's one-week uninterrupted capture test is running until **2026-11-21 15:33 CT (21:33Z)** (`docs/os-handoff.md:15-21`, `docs/tool-install/module1-slice2b-boot-unit.md:583-601`). Do not touch Johnny, do not copy files to Johnny, and do not run any paste in this runbook until **Paste W** (`docs/tool-install/module1-slice2b-boot-unit.md:583-601`) has been run by AJ after `2026-11-21 15:33 CT` and printed `M1S2B-WEEK-DONE` and `M1S2B-NORC-WEEK-DONE`.
+> Johnny's one-week uninterrupted capture test is running until **2026-11-21 15:33 CT (21:33Z)** (`docs/os-handoff.md:4, 33-39`, `docs/tool-install/module1-slice2b-boot-unit.md:583-601`). Do not touch Johnny, do not copy files to Johnny, and do not run any paste in this runbook until **Paste W** (`docs/tool-install/module1-slice2b-boot-unit.md:583-601`) has been run by AJ after `2026-11-21 15:33 CT` and printed `M1S2B-WEEK-DONE` and `M1S2B-NORC-WEEK-DONE`.
 
 ---
 
 ## 1. Purpose and AJ Decisions (2026-11-14 10:56 PM CT)
 
-Stage 1 (`docs/architecture/architecture-rev2.md:287-317`) replaces the Python ring-buffer reader (`johnny-m1s2b-reader.py`) with the Rust userspace sensor daemon (`johnny-daemon`) while keeping the kernel XDP side (`j_xdp_records`) and all live BPF pins untouched, and keeping the Python reader installed on disk as an immediate rollback.
+Stage 1 (`docs/architecture/architecture-rev2.md:287-324`) replaces the Python ring-buffer reader (`johnny-m1s2b-reader.py`) with the Rust userspace sensor daemon (`johnny-daemon`) while keeping the kernel XDP side (`j_xdp_records`) and all live BPF pins untouched, and keeping the Python reader installed on disk as an immediate rollback.
 
 AJ approved the four Stage 1 code-shape decisions on **2026-11-14 at 10:56 PM CT** (`docs/architecture/architecture-rev2.md` §1.2, §4 Stage 1):
 
@@ -20,7 +20,7 @@ AJ approved the four Stage 1 code-shape decisions on **2026-11-14 at 10:56 PM CT
    - `crates/johnny-daemon`: the Stage 1 binary crate with internal control-plane (`crates/johnny-daemon/src/control/`: `config.rs` Policy Administrator, `policy.rs` pure Policy Engine, `status.rs` structured logger) and data-plane (`crates/johnny-daemon/src/data/`: `ring.rs` ring consumer, `writer.rs` rotating run-file writer) separation per NIST SP 800-207 (`docs/architecture/architecture-rev2.md:42, 56`).
    - `docs/tool-install/johnny-m1s2b-reader.py` remains untouched in place for fallback/rollback.
 4. **Plain Cargo builds, binary SHA-256, CycloneDX SBOM, and AJ-signed tags:**
-   - `bash crates/release.sh` runs `cargo build --release --locked --offline` on Rock Box, emits `crates/dist/johnny-daemon` and `crates/dist/johnny-daemon.sha256`, and emits a CycloneDX 1.5 JSON SBOM at `crates/johnny-daemon.cdx.json` (and `crates/dist/johnny-daemon.cdx.json`). Note: `cargo-cyclonedx` is not installed in `~/.cargo/bin` on Rock Box (`cargo --list`), so `crates/release.sh` generates the CycloneDX 1.5 JSON SBOM deterministically from `cargo metadata --format-version 1 --locked --offline` and `crates/Cargo.lock` (and automatically invokes `cargo cyclonedx` if later installed).
+   - `bash crates/release.sh` runs `cargo build --release --locked --offline` on Rock Box, emits `crates/dist/johnny-daemon` and `crates/dist/johnny-daemon.sha256`, and emits a CycloneDX 1.5 JSON SBOM at `crates/johnny-daemon.cdx.json` (and `crates/dist/johnny-daemon.cdx.json`). Note: `cargo-cyclonedx` is not installed in `~/.cargo/bin` on Rock Box (`cargo --list`), so `crates/release.sh:29-141` generates the CycloneDX 1.5 JSON SBOM deterministically from `cargo metadata --format-version 1 --locked --offline` and `crates/Cargo.lock` (`tools[0].name` is `cargo-metadata-lockfile`).
    - Release signing uses signed git tags signed by AJ (documented in §3 below; no signing keys are created by agents).
 
 ---
@@ -32,6 +32,7 @@ AJ approved the four Stage 1 code-shape decisions on **2026-11-14 at 10:56 PM CT
 ```
 e39d77684dc7e67b0939dda80f7de18be6e2b59a43ab2c3dd71d8ebe394174b5  crates/dist/johnny-daemon
 e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa  etc/systemd/system/johnny-daemon.service
+169558ff46d732ae471991edec867adec487757580682ff5e291583571dd7f58  crates/johnny-daemon.cdx.json
 ```
 
 ### Existing slice 2b pins on Johnny (MUST remain unchanged on disk):
@@ -82,11 +83,12 @@ bash docs/tool-install/module1-slice2b-self-test.sh &&
 (cd crates && cargo test --locked --offline) &&
 bash crates/release.sh &&
 echo "e39d77684dc7e67b0939dda80f7de18be6e2b59a43ab2c3dd71d8ebe394174b5  crates/dist/johnny-daemon
-e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa  etc/systemd/system/johnny-daemon.service" | sha256sum -c - &&
+e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa  etc/systemd/system/johnny-daemon.service
+169558ff46d732ae471991edec867adec487757580682ff5e291583571dd7f58  crates/johnny-daemon.cdx.json" | sha256sum -c - &&
 echo STAGE1-ROCKBOX-GATE-DONE
 ```
 
-Expect `SELF-TEST-OK`, all Rust unit and parity tests passing, `STAGE1-RELEASE-OK`, two `OK` hash lines, and **`STAGE1-ROCKBOX-GATE-DONE`**.
+Expect `SELF-TEST-OK`, all Rust unit and parity tests passing, `STAGE1-RELEASE-OK`, three `OK` hash lines, and **`STAGE1-ROCKBOX-GATE-DONE`**.
 
 ### Paste S1-2: Copy Stage 1 binary, unit, and SBOM to Johnny staging dir (DO NOT RUN BEFORE PASTE W; no sudo)
 
@@ -96,10 +98,11 @@ Expect `SELF-TEST-OK`, all Rust unit and parity tests passing, `STAGE1-RELEASE-O
 ssh aj@192.168.50.152 'mkdir -p -m 0700 /home/aj/cis-audit/stage1' &&
 scp /home/aj/Projects/strix-halo-johnny-stage1/crates/dist/johnny-daemon /home/aj/Projects/strix-halo-johnny-stage1/etc/systemd/system/johnny-daemon.service /home/aj/Projects/strix-halo-johnny-stage1/crates/johnny-daemon.cdx.json aj@192.168.50.152:/home/aj/cis-audit/stage1/ &&
 ssh aj@192.168.50.152 'cd /home/aj/cis-audit/stage1 && echo "e39d77684dc7e67b0939dda80f7de18be6e2b59a43ab2c3dd71d8ebe394174b5  johnny-daemon
-e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa  johnny-daemon.service" | sha256sum -c - && echo STAGE1-COPY-DONE'
+e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa  johnny-daemon.service
+169558ff46d732ae471991edec867adec487757580682ff5e291583571dd7f58  johnny-daemon.cdx.json" | sha256sum -c - && echo STAGE1-COPY-DONE'
 ```
 
-Expect two `OK` hash lines and **`STAGE1-COPY-DONE`**.
+Expect three `OK` hash lines and **`STAGE1-COPY-DONE`**.
 
 ### Paste S1-3: Preflight live pins, install Stage 1 files (not started), and run read-only `--probe` & `--summary` smoke (DO NOT RUN BEFORE PASTE W)
 
@@ -109,7 +112,8 @@ Expect two `OK` hash lines and **`STAGE1-COPY-DONE`**.
 ssh -t aj@192.168.50.152 'sudo -v &&
 cd /home/aj/cis-audit/stage1 &&
 echo "e39d77684dc7e67b0939dda80f7de18be6e2b59a43ab2c3dd71d8ebe394174b5  johnny-daemon
-e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa  johnny-daemon.service" | sha256sum -c - &&
+e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa  johnny-daemon.service
+169558ff46d732ae471991edec867adec487757580682ff5e291583571dd7f58  johnny-daemon.cdx.json" | sha256sum -c - &&
 echo "a4d4dfa4c7d6ba3c9ffb64810a54952f4e7ce652889a2fe6f628adadef1bf9eb  /root/m1s2b/module1-slice2b-boot.sh
 476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
 e5c16249c479a5f807c2c794b146ee81ec2ed2f937c445f65480088cfa0d529c  /etc/systemd/system/johnny-m1s2b-reader.service
@@ -126,13 +130,16 @@ echo "$probe_out" &&
 echo "$probe_out" | grep -q -- "\"version\":1,\"event\":\"probe\"" &&
 latest_bin=$(sudo find /var/lib/johnny/m1s2b -maxdepth 1 -type f -name "run-*.bin" | sort | tail -n1) &&
 [ -n "$latest_bin" ] &&
-sum_rs=$(sudo /usr/local/libexec/johnny/johnny-daemon --summary "$latest_bin" --top 5) &&
-sum_py=$(sudo /usr/bin/python3 -I /usr/local/libexec/johnny/johnny-m1s2b-reader.py --summary "$latest_bin" --top 5) &&
+snap_bin=/root/m1s2b/stage1-summary-snap.bin &&
+sudo install -m 0600 -o root -g root "$latest_bin" "$snap_bin" &&
+sum_rs=$(sudo /usr/local/libexec/johnny/johnny-daemon --summary "$snap_bin" --top 5) &&
+sum_py=$(sudo /usr/bin/python3 -I /usr/local/libexec/johnny/johnny-m1s2b-reader.py --summary "$snap_bin" --top 5) &&
+sudo rm -f "$snap_bin" &&
 [ "$sum_rs" = "$sum_py" ] &&
 echo STAGE1-PROBE-INSTALL-DONE'
 ```
 
-Expect staged and live hashes verified, `/usr/local/libexec/johnny/johnny-daemon` and `/etc/systemd/system/johnny-daemon.service` installed (not yet enabled or started), `--probe` outputting `"version":1,"event":"probe"` read-only alongside the live Python reader, `--summary` output matching the Python reader byte-for-byte on the newest live run file, and **`STAGE1-PROBE-INSTALL-DONE`**.
+Expect staged and live hashes verified, `/usr/local/libexec/johnny/johnny-daemon` and `/etc/systemd/system/johnny-daemon.service` installed (not yet enabled or started), `--probe` outputting `"version":1,"event":"probe"` read-only alongside the live Python reader, `--summary` output matching the Python reader byte-for-byte on a stable snapshot copy of the newest run file (never comparing the live inode), and **`STAGE1-PROBE-INSTALL-DONE`**.
 
 ### Paste S1-4: Cutover from `johnny-m1s2b-reader.service` to `johnny-daemon.service` (DO NOT RUN BEFORE PASTE W)
 
@@ -165,13 +172,27 @@ echo "$props" | grep -q "^MemoryMax=1073741824$" &&
 echo "$props" | grep -q "^MemorySwapMax=0$" &&
 echo "$props" | grep -q "^NRestarts=0$" &&
 echo "$props" | grep -q "^Result=success$" &&
-j_begin=$(sudo journalctl -u johnny-daemon.service -b --no-pager -o cat | grep "\"event\":\"reader-begin\"" | tail -n1) &&
+j_begin="" &&
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  j_begin=$(sudo journalctl -u johnny-daemon.service -b --no-pager -o cat | grep "\"event\":\"reader-begin\"" | tail -n1 || true)
+  if [ -n "$j_begin" ]; then
+    break
+  fi
+  sleep 1
+done &&
+if [ -z "$j_begin" ]; then
+  j_begin=$(sudo journalctl -u johnny-daemon.service -b --no-pager -o cat | grep "\"event\":\"reader-begin\"" | tail -n1 || true)
+fi &&
+if [ -z "$j_begin" ]; then
+  echo "STOP-missing-reader-begin" >&2
+  exit 1
+fi &&
 echo "$j_begin" &&
 echo "$j_begin" | grep -q -- "^\\{\"version\":1,\"event\":\"reader-begin\"" &&
 echo STAGE1-CUTOVER-DONE'
 ```
 
-Expect `johnny-capture-xdp-records.service` untouched (`active`), `johnny-m1s2b-reader.service` `disabled`/`inactive` (with its files and hashes untouched on disk), `johnny-daemon.service` `enabled`/`active` with `MemoryMax=1073741824`, `NRestarts=0`, `Result=success`, journal line starting `{"version":1,"event":"reader-begin"`, and **`STAGE1-CUTOVER-DONE`**.
+Expect `johnny-capture-xdp-records.service` untouched (`active`), `johnny-m1s2b-reader.service` `disabled`/`inactive` (with its files and hashes untouched on disk), `johnny-daemon.service` `enabled`/`active` with `MemoryMax=1073741824`, `NRestarts=0`, `Result=success`, bounded wait for journal line starting `{"version":1,"event":"reader-begin"`, and **`STAGE1-CUTOVER-DONE`**.
 
 ### Paste S1-5: Verify 60 s zero-drop window and dual-reader run-file parity on Johnny (DO NOT RUN BEFORE PASTE W)
 
@@ -191,8 +212,11 @@ echo "$status_out" &&
 echo "$status_out" | grep -q "^CFG ver=1 sample_every=1 rate=1000000 burst=100000$" &&
 newest_bin=$(sudo find /var/lib/johnny/m1s2b -maxdepth 1 -type f -name "run-*.bin" | sort | tail -n1) &&
 [ -n "$newest_bin" ] &&
-sum_rs=$(sudo /usr/local/libexec/johnny/johnny-daemon --summary "$newest_bin" --top 5) &&
-sum_py=$(sudo /usr/bin/python3 -I /usr/local/libexec/johnny/johnny-m1s2b-reader.py --top 5 --summary "$newest_bin") &&
+snap_bin=/root/m1s2b/stage1-summary-snap.bin &&
+sudo install -m 0600 -o root -g root "$newest_bin" "$snap_bin" &&
+sum_rs=$(sudo /usr/local/libexec/johnny/johnny-daemon --summary "$snap_bin" --top 5) &&
+sum_py=$(sudo /usr/bin/python3 -I /usr/local/libexec/johnny/johnny-m1s2b-reader.py --top 5 --summary "$snap_bin") &&
+sudo rm -f "$snap_bin" &&
 echo "$sum_rs" &&
 [ "$sum_rs" = "$sum_py" ] &&
 j_stops=$(sudo journalctl -u johnny-daemon.service -b --no-pager -o cat | grep -c "STOP-" || true) &&
@@ -200,7 +224,7 @@ j_stops=$(sudo journalctl -u johnny-daemon.service -b --no-pager -o cat | grep -
 echo STAGE1-VERIFY-DONE'
 ```
 
-Expect `window 60` passing with zero drops (`OK-no-drops-window`, `M1S2B-WINDOW-DONE`), `status` confirming `CFG ver=1 sample_every=1 rate=1000000 burst=100000`, the newest run file written by `johnny-daemon` parsed identically by both `johnny-daemon --summary` and `johnny-m1s2b-reader.py --summary`, zero `STOP-` lines in `johnny-daemon.service` journal, and **`STAGE1-VERIFY-DONE`**.
+Expect `window 60` passing with zero drops (`OK-no-drops-window`, `M1S2B-WINDOW-DONE`), `status` confirming `CFG ver=1 sample_every=1 rate=1000000 burst=100000`, a stable snapshot copy of the newest run file written by `johnny-daemon` parsed identically by both `johnny-daemon --summary` and `johnny-m1s2b-reader.py --summary` (never comparing the live inode), zero `STOP-` lines in `johnny-daemon.service` journal, and **`STAGE1-VERIFY-DONE`**.
 
 Note: `module1-slice2b-boot.sh verify` (`docs/tool-install/module1-slice2b-boot.sh:698-702`) asserts `johnny-m1s2b-reader.service` is `enabled` and `active`, so Paste S1-5 uses `boot.sh window 60` + `boot.sh status` while `johnny-daemon.service` is active, and the Rollback section below runs `boot.sh verify` once `johnny-m1s2b-reader.service` is re-enabled.
 
@@ -208,7 +232,7 @@ Note: `module1-slice2b-boot.sh verify` (`docs/tool-install/module1-slice2b-boot.
 
 ## Rollback (not part of the paste sequence above)
 
-Run this block to switch Johnny back from `johnny-daemon.service` to the Python reader `johnny-m1s2b-reader.service` (`docs/architecture/architecture-rev2.md:308-309`). The BPF program `j_xdp_records` is never detached, and all existing `/var/lib/johnny/m1s2b/run-*.bin` files remain readable by both readers.
+Run this block to switch Johnny back from `johnny-daemon.service` to the Python reader `johnny-m1s2b-reader.service` (`docs/architecture/architecture-rev2.md:315-316`). The BPF program `j_xdp_records` is never detached, and all existing `/var/lib/johnny/m1s2b/run-*.bin` files remain readable by both readers.
 
 ***<u>Run on Rock Box</u>***
 
