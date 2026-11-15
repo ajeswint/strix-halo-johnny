@@ -1,10 +1,10 @@
 # Johnny Architecture Rev 2: AJ Decisions and Stages
 
-Rev 1, 2026-11-14 America/Chicago. Status: AJ DECISIONS RECORDED (docs only; nothing applied; nothing runs on Johnny)
+Rev 2, 2026-11-15 America/Chicago. Status: AJ DECISIONS RECORDED + STAGE 1 DRAFTED ON ROCK BOX (nothing applied; nothing runs on Johnny)
 
 This file supersedes the decision brief `docs/architecture/architecture-pass.md` (rev 3) for every item it decides. Items it does not decide stay open, and each one says **AJ decides.**
 
-- **Source of the decisions:** AJ answered the brief through his architect on 2026-11-14 at about 10:04 PM and 10:08 PM CT, and approved this rev 2 plan at 10:11 PM CT. The chat is not saved in the repo. This file is the record.
+- **Source of the decisions:** AJ answered the brief through his architect on 2026-11-14 at about 10:04 PM and 10:08 PM CT, approved rev 1 of this plan at 10:11 PM CT, and approved the four Stage 1 code-shape picks (O5, O6, O8, O9) at 10:56 PM CT (`§1.2`, `§2.3`, `§4 Stage 1`, `§7`). The chat is not saved in the repo. This file is the record.
 - **Wording:** each decision below is AJ's words paraphrased. Lines under "Notes" are not AJ's words. They carry a repo cite, a URL, or a label.
 - **Hold:** Johnny's one-week capture test runs until 2026-11-21 15:33 CT (21:33Z) (`docs/os-handoff.md:21`, `docs/tool-install/module1-slice2b-boot-unit.md:3`). Nothing in this file asks AJ to touch Johnny before then.
 
@@ -205,11 +205,11 @@ Brief = `docs/architecture/architecture-pass.md`. For open rows the brief's opti
 |---|---|---|---|---|
 | 1 | Module boundaries (`:338-339`) | **Answered** | One lightweight deterministic sensor daemon. Control plane and data plane are separated inside it. AI inference is outside it. | How the split is kept inside one daemon. **AJ decides.** (O13) |
 | 2 | Languages (`:340-341`) | **Answered** | C in-kernel for BPF. Rust for userspace. | AI inference process; Windows kernel driver. **AJ decides.** (O11) |
-| 3 | Kernel-to-userspace BPF library (`:342-343`) | **Partly answered** | C in-kernel plus Rust userspace. | The specific Rust BPF crate. `docs/agent-team.md:71` names aya or libbpf-rs. **AJ decides.** (O5) |
-| 4 | Record schema evolution (`:344-345`) | **Partly answered** | A version field in every record. Readers ignore unknown fields. | The concrete encoding. **AJ decides.** (O6) |
+| 3 | Kernel-to-userspace BPF library (`:342-343`) | **Answered** (Stage 1) | **AJ decision (AJ, 2026-11-14 10:56 PM CT):** Use `aya` (`=0.16.0`, `default-features = false`) in userspace only (`crates/johnny-daemon/Cargo.toml:9`, `crates/johnny-daemon/src/bpf.rs:1-322`, with `attach` at `:235-277` and `probe` at `:283-322`). Attach to existing pinned maps (`m2_rb`, `m2_cfg`, `m2_ctl`) under `/sys/fs/bpf/johnny_m1s2b` (or load the existing compiled C object `docs/tool-install/module1-xdp-records.o` in userspace) without modifying the C BPF source, object, or pins. | Stage 2 BPF-LSM attachment mechanics on Rock Box. **AJ decides.** (O5) |
+| 4 | Record schema evolution (`:344-345`) | **Answered** (Stage 1 v1) | **AJ decision (AJ, 2026-11-14 10:56 PM CT):** Freeze today's 80-byte `struct m2_rec` (`docs/tool-install/module1_xdp_records.c:133-165`) as implicit v1 across the kernel-to-userspace boundary, stamp `"version": 1` in userspace outputs (`crates/johnny-record-v1/src/lib.rs:25`, `crates/johnny-record-v1/src/record.rs:140-145`, `crates/johnny-daemon/src/control/status.rs:118`, `crates/johnny-daemon/src/bpf.rs:311`), and have readers ignore unknown versions or headers safely (`crates/johnny-record-v1/src/record.rs:83-86`, `crates/johnny-daemon/src/data/ring.rs:133-140`, `crates/johnny-record-v1/src/runfile.rs:130-145`). New fields and in-kernel binary header changes are deferred to v2. | v2 binary wire encoding when v2 opens. **AJ decides.** (O6) |
 | 5 | Storage backend (`:346-347`) | **Open** | — | **AJ decides.** (O7) |
-| 6 | Repo layout (`:348-349`) | **Open** | — | **AJ decides.** (O8) |
-| 7 | Build, test, packaging (`:350-351`) | **Partly answered** | Signed builds plus SBOM. | Where builds run, package format, SBOM format, build-signing method, test harness. **AJ decides.** (O9) |
+| 6 | Repo layout (`:348-349`) | **Answered** (Stage 1) | **AJ decision (AJ, 2026-11-14 10:56 PM CT):** `crates/` is a Cargo workspace next to `docs/` (`crates/Cargo.toml:1-15`) with a shared `johnny-record-v1` parser library crate (`crates/johnny-record-v1/`, reusable by the Stage 2 Rock Box agent) and a `johnny-daemon` binary crate (`crates/johnny-daemon/`). `docs/tool-install/johnny-m1s2b-reader.py` stays in place for fallback. | Where Stage 2–4 crates sit inside `crates/`. **AJ decides.** (O8) |
+| 7 | Build, test, packaging (`:350-351`) | **Answered** (Stage 1) | **AJ decision (AJ, 2026-11-14 10:56 PM CT):** Plain Cargo builds (`crates/release.sh:1-146`). Release target emits a SHA-256 of the compiled Rust binary (`crates/dist/johnny-daemon.sha256`) and a CycloneDX SBOM (`crates/johnny-daemon.cdx.json`; `cargo-cyclonedx` is missing on Rock Box, documented at `crates/release.sh:3-5`, `:29-32` and `docs/tool-install/stage1-rust-daemon-cutover.md:23`, so `crates/release.sh:34-141` emits deterministic CycloneDX 1.5 JSON from `cargo metadata --locked --offline` + `crates/Cargo.lock` with tool name `cargo-metadata-lockfile`). Signing uses signed git tags (`git tag -s`), and AJ signs; no keys created by agents (`docs/tool-install/stage1-rust-daemon-cutover.md:60-67`). | Package format for Stage 2–4 fleet rollout. **AJ decides.** (O9) |
 | 8 | Rule versioning and hot reload (`:352-353`) | **Answered** for the mechanism | Hot-reloadable rules: candidate / validate / commit, and rollback. | Rule format, what "validate" checks, what triggers rollback. **AJ decides.** (O10) |
 
 ### 2.4 Other parts of the brief
@@ -288,33 +288,40 @@ The stages replace the brief's build order (`docs/architecture/architecture-pass
 
 **Goal.** A Rust daemon on Johnny replaces the Python reader as the consumer of the existing ring buffer. The kernel side does not change.
 
-**Scope.**
+**AJ Stage 1 Decisions (AJ, 2026-11-14 10:56 PM CT):**
+1. **Userspace BPF attachment (`aya`, O5):** Use `aya` (`=0.16.0`, `default-features = false`) in userspace only (`crates/johnny-daemon/Cargo.toml:9`, `crates/johnny-daemon/src/bpf.rs:1-322`, with `attach` at `:235-277` and `probe` at `:283-322`). Attach to the existing pinned maps and ring `m2_rb` under `/sys/fs/bpf/johnny_m1s2b` (or load the existing compiled C object `docs/tool-install/module1-xdp-records.o` in userspace without modifying kernel probes). Never modify the C BPF source (`docs/tool-install/module1_xdp_records.c`), compiled C object (`docs/tool-install/module1-xdp-records.o`), or any live pins or hashes.
+2. **Implicit v1 wire contract (`struct m2_rec`, O6):** Freeze today's 80-byte `struct m2_rec` (`docs/tool-install/module1_xdp_records.c:133-165`) as implicit v1 across the kernel-to-userspace boundary, and stamp `"version": 1` in userspace outputs (`crates/johnny-record-v1/src/lib.rs:25`, `crates/johnny-record-v1/src/record.rs:140-145`, `crates/johnny-daemon/src/control/status.rs:118`, `crates/johnny-daemon/src/bpf.rs:311`). New fields and in-kernel binary header changes come only in v2 (deferred). Readers ignore unknown versions or headers safely (`crates/johnny-record-v1/src/record.rs:83-86`, `crates/johnny-daemon/src/data/ring.rs:133-140`, `crates/johnny-record-v1/src/runfile.rs:130-145`).
+3. **Cargo workspace (`crates/`, O8):** `crates/` is a Cargo workspace next to `docs/` (`crates/Cargo.toml:1-15`) containing the shared `johnny-record-v1` parser library crate (`crates/johnny-record-v1/`, `#![forbid(unsafe_code)]`, reusable by the Stage 2 Rock Box agent) and the `johnny-daemon` binary crate (`crates/johnny-daemon/`). `docs/tool-install/johnny-m1s2b-reader.py` stays in place untouched for fallback/rollback.
+4. **Plain Cargo builds, SHA-256, CycloneDX SBOM, and AJ-signed tags (O9):** Build with plain Cargo (`crates/release.sh:1-146`), emitting a SHA-256 hash of the compiled Rust release binary (`crates/dist/johnny-daemon.sha256`) and a CycloneDX 1.5 SBOM (`crates/johnny-daemon.cdx.json`; `cargo-cyclonedx` is not installed on Rock Box, documented at `crates/release.sh:3-5`, `:29-32` and `docs/tool-install/stage1-rust-daemon-cutover.md:23`). Release signing uses AJ-signed git tags (`git tag -s`); agents never create signing keys (`docs/tool-install/stage1-rust-daemon-cutover.md:60-67`).
+
+**Scope & Draft Deliverables (built and tested on Rock Box against synthetic/recorded fixtures only):**
 - Consumes ring `m2_rb` (`docs/tool-install/module1_xdp_records.c:218-221`), which the existing C program `j_xdp_records` fills (`docs/architecture/architecture-pass.md:11`). The pinned BPF object is not rebuilt.
-- Reads the documented record: 80 bytes, `struct m2_rec`, version byte first (`docs/tool-install/module1_xdp_records.c:133-165`, `:78`).
-- Writes the documented run file: a 96-byte header, then 80-byte records (`docs/tool-install/johnny-m1s2b-reader.py:58-63`, `:42-43`).
-- Follows §1.2: one daemon, control plane and data plane kept apart inside it. Assumption: in Stage 1 the data plane is the ring drain and the file writer, and the control plane is config, rotation limits, and status.
-- The Python reader stays installed as the rollback.
+- Reads the documented record: 80 bytes, `struct m2_rec`, version byte first (`docs/tool-install/module1_xdp_records.c:133-165`, `:78`; `crates/johnny-record-v1/src/record.rs:31-108`).
+- Writes the documented run file: a 96-byte header, then 80-byte records (`docs/tool-install/johnny-m1s2b-reader.py:58-63`, `:42-43`; `crates/johnny-record-v1/src/runfile.rs:69-166`), with live rotation (`1 GiB` / `3600 s`) and retention (`keep=200`, `dir-cap=200 GiB`, `reserve=100 GiB`) limits configured in `etc/systemd/system/johnny-daemon.service:16` (binary CLI defaults match the Python reader's defaults at `crates/johnny-daemon/src/control/config.rs:15-24`, `:72-88`; bounds validated at `crates/johnny-daemon/src/control/config.rs:100-124` and enforced by `crates/johnny-daemon/src/control/policy.rs:28-79` and `crates/johnny-daemon/src/data/writer.rs:78-265`).
+- Follows §1.2: one daemon with control plane (`crates/johnny-daemon/src/control/` — `config.rs:1-246` Policy Administrator bounds validation, `policy.rs:1-92` pure Policy Engine for rotate/keep/dir-cap/low-disk decisions, `status.rs:1-244` `"version": 1` event logger; there is no rule candidate/validate/commit/rollback store in this commit) and data plane (`crates/johnny-daemon/src/data/` — `mod.rs:15-23` `KernelMaps` trait, `ring.rs:1-152` `Ring` consumer, `synth.rs:1-127` test-only `SynthRing`, `writer.rs:1-265` `RotatingWriter`) separated inside it (`crates/johnny-daemon/src/daemon.rs:1-128`).
+- Draft systemd unit `etc/systemd/system/johnny-daemon.service` (not installed, not enabled, not started) matches every sandbox directive of `etc/systemd/system/johnny-m1s2b-reader.service` (`crates/johnny-daemon/tests/parity.rs:664-713`).
+- Draft cutover/rollback runbook `docs/tool-install/stage1-rust-daemon-cutover.md` marked `DO NOT RUN BEFORE PASTE W (after 2026-11-21 15:33 CT / 21:33Z)`, keeping the Python reader as rollback.
 - Not in Stage 1: any BPF change, any LSM hook, any AI, any stream to the MAX, any database.
 
 **Entry criteria.**
-1. Paste W passes, run only after 2026-11-21 15:33 CT (21:33Z). Paste W and what it must print are in `docs/tool-install/module1-slice2b-boot-unit.md:583-601`; the date is in `docs/os-handoff.md:21`. This is the first entry step.
-2. AJ answers the remaining Stage 1 code-shape items: the Rust BPF crate (O5), how the version rule applies to today's 80-byte record (O6), repo layout (O8), and the build / signing / SBOM / packaging toolchain (O9).
-3. The draft and every paste are reviewed by the adversarial-reviewer before AJ runs anything (`AGENTS.md:13`).
+1. Paste W passes, run only after 2026-11-21 15:33 CT (21:33Z). Paste W and what it must print are in `docs/tool-install/module1-slice2b-boot-unit.md:583-601`; the date is in `docs/os-handoff.md:4, 33`. This is the first entry step.
+2. **Answered (AJ, 2026-11-14 10:56 PM CT):** AJ answered the four Stage 1 code-shape items: `aya` in userspace only (O5), implicit v1 80-byte `struct m2_rec` with `"version": 1` stamped in userspace outputs and unknown versions/headers safely handled (O6), `crates/` Cargo workspace with `johnny-record-v1` + `johnny-daemon` (O8), and plain Cargo builds + SHA-256 + CycloneDX SBOM + AJ-signed git tags (O9).
+3. The draft and every paste in `docs/tool-install/stage1-rust-daemon-cutover.md` are reviewed by the adversarial-reviewer before AJ runs anything (`AGENTS.md:13`).
 
 **Exit criteria.** Targets. Thresholds: **AJ decides.** (O27)
-1. **Target:** parity with the Python reader's files, proven on Rock Box fixtures. The self-test already feeds the Python reader a synthetic ring (`docs/tool-install/module1-slice2b-self-test.sh:8`). What "parity" means exactly (byte-identical files, or the same records in the same order) is AJ's call.
-2. **Target:** on Johnny, zero drops over an AJ-chosen window. "Drops" are the counters the existing checks stop on: `rate_limited`, `rb_full`, `discarded` (`docs/os-handoff.md:20`). The window length is AJ's call.
-3. **Target:** the same retention limits as today (`docs/os-handoff.md:28`), and a unit sandbox no weaker than the current reader unit's (`docs/architecture/architecture-pass.md:367`).
-4. **Target:** switching back to the Python reader is proven once.
+1. **Target (proven on Rock Box fixtures):** byte-for-byte run-file parity and `--summary` parity with `docs/tool-install/johnny-m1s2b-reader.py` on synthetic ring + recorded fixtures (`crates/johnny-daemon/tests/parity.rs:243-460`).
+2. **Target:** on Johnny (after Paste W), zero drops over an AJ-chosen window (`docs/tool-install/stage1-rust-daemon-cutover.md:197-229`). "Drops" are the counters the existing checks stop on: `rate_limited`, `rb_full`, `discarded` (`docs/os-handoff.md:38`). The window length is AJ's call.
+3. **Target:** the same retention limits as today (`docs/os-handoff.md:45`, `etc/systemd/system/johnny-daemon.service:16`), and a unit sandbox no weaker than the current reader unit's (`etc/systemd/system/johnny-daemon.service`, verified by `crates/johnny-daemon/tests/parity.rs:664-713`).
+4. **Target:** switching back to the Python reader (`docs/tool-install/stage1-rust-daemon-cutover.md:233-263`) is proven once.
 5. The Python reader is kept as rollback until AJ retires it.
 
 **What stays easy to change.**
-- The daemon is userspace only. The BPF object, the maps, and the pins are untouched, so going back is a unit switch.
-- The file format does not change in Stage 1, so every older run file stays readable by both readers.
+- The daemon is userspace only. The BPF object, the maps, and the pins are untouched, so going back is a unit switch (`docs/tool-install/stage1-rust-daemon-cutover.md:233-263`).
+- The file format does not change in Stage 1, so every older run file stays readable by both readers (`crates/johnny-daemon/tests/parity.rs:243-460`).
 - Assumption: only one process drains a BPF ring at a time (one consumer position; https://docs.kernel.org/bpf/ringbuf.html, to confirm). So the two readers are swapped, not run side by side. The earlier cutover had a few-second capture gap (`docs/tool-install/module1-slice2b-boot-unit.md:25`).
-- **Target:** the BPF crate is used in one module only, so the crate can be swapped later.
+- The `aya` crate is isolated in `crates/johnny-daemon/src/bpf.rs:1-322` (imported only at `:28`; `attach` at `:235-277`, `probe` at `:283-322`), and the data plane talks to map pins through the `KernelMaps` trait (`crates/johnny-daemon/src/data/mod.rs:15-23`; `Ring` consumer at `crates/johnny-daemon/src/data/ring.rs:24-152`), so the BPF attachment layer can be swapped later without touching `johnny-record-v1` or `RotatingWriter` (`crates/johnny-daemon/src/data/writer.rs:78-265`).
 
-**Open items.** O5, O6, O8, O9, O13, O27. **AJ decides.**
+**Open items.** O13 (beyond Stage 1's single-process `src/control/` and `src/data/` module boundary wired in `src/daemon.rs:70-128`), O27 (Johnny cutover window length and Python reader retirement date). **AJ decides.**
 
 ### Stage 2: Rock Box Linux agent
 
@@ -453,15 +460,15 @@ Scope and hosts:
 - **O4.** The MAX: host record (hardware, OS, address), and how the parked Security Onion pattern (`docs/os-handoff.md:404`) relates to "backend on the MAX". **AJ decides.**
 
 Code shape:
-- **O5.** The Rust BPF crate (brief §4 question 3). **AJ decides.**
-- **O6.** The concrete record encoding, and how the version rule applies to today's 80-byte record (brief §4 question 4). **AJ decides.**
+- **O5.** **Decided for Stage 1 (AJ, 2026-11-14 10:56 PM CT):** `aya` (`=0.16.0`, `default-features = false`) in userspace only (`crates/johnny-daemon/Cargo.toml:9`), attaching to existing pinned maps (`m2_rb`, `m2_cfg`, `m2_ctl`) in `crates/johnny-daemon/src/bpf.rs:1-322` (`attach` at `:235-277`, `probe` at `:283-322`) or loading the existing compiled C object in userspace. Still open for Stage 2: whether Stage 2's Rock Box BPF-LSM loader also uses `aya` or pre-compiled C objects. **AJ decides.**
+- **O6.** **Decided for Stage 1 v1 (AJ, 2026-11-14 10:56 PM CT):** freeze today's 80-byte `struct m2_rec` as implicit v1, stamp `"version": 1` in userspace outputs (`crates/johnny-record-v1/src/lib.rs:25`, `crates/johnny-daemon/src/control/status.rs:118`), safely skip unknown versions and reject unknown headers in readers (`crates/johnny-record-v1/src/record.rs:83-86`, `crates/johnny-daemon/src/data/ring.rs:133-140`, `crates/johnny-record-v1/src/runfile.rs:130-145`), and defer new fields / in-kernel binary header changes to v2. Still open for v2: the v2 wire encoding. **AJ decides.**
 - **O7.** Storage backend and how retention is enforced (brief §4 question 5). **AJ decides.**
-- **O8.** Repo layout (brief §4 question 6). **AJ decides.**
-- **O9.** Build, test, and packaging toolchain: where builds run, package format, SBOM format, build-signing method (brief §4 question 7). **AJ decides.**
+- **O8.** **Decided for Stage 1 (AJ, 2026-11-14 10:56 PM CT):** `crates/` Cargo workspace next to `docs/` with `johnny-record-v1` (shared parser library crate) and `johnny-daemon` (binary crate), leaving `docs/tool-install/johnny-m1s2b-reader.py` in place (`crates/Cargo.toml:1-15`). Still open: Stage 2–4 crate names inside `crates/`. **AJ decides.**
+- **O9.** **Decided for Stage 1 (AJ, 2026-11-14 10:56 PM CT):** plain Cargo builds (`crates/release.sh:1-146`), emitting SHA-256 of the compiled Rust binary (`crates/dist/johnny-daemon.sha256`) and a CycloneDX SBOM (`crates/johnny-daemon.cdx.json`), with release signing via AJ-signed git tags (`git tag -s`, `docs/tool-install/stage1-rust-daemon-cutover.md:60-67`). Still open for Stage 2–4: fleet package format. **AJ decides.**
 - **O10.** Rule format, what "validate" checks, and what triggers a rollback (rest of brief §4 question 8). **AJ decides.**
 - **O11.** Language of the AI inference process and of the Windows kernel driver. **AJ decides.**
 - **O12.** The LPM-trie block map: which program holds it, what it blocks, who may write it. **AJ decides.**
-- **O13.** How the control plane and data plane are kept apart inside one daemon. **AJ decides.**
+- **O13.** How the control plane and data plane are kept apart inside one daemon once multi-threaded/async gRPC arrives in Stage 2–3 (in Stage 1 they are separated as `crates/johnny-daemon/src/control/` and `crates/johnny-daemon/src/data/` inside the single-threaded deterministic loop at `crates/johnny-daemon/src/daemon.rs:25-128`). **AJ decides.**
 - **O14.** The RTA monitor: what it checks and what the fallback is. **AJ decides.**
 - **O15.** The gRPC contract, and for each host whether the AI is a local process or on the MAX. **AJ decides.**
 

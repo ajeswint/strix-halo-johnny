@@ -1,0 +1,8 @@
+[package]
+name = "johnny-record-v1"
+description = "Johnny record v1: the frozen 80-byte m2_rec, the 96-byte run-file header, and version-tolerant readers"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]

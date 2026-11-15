@@ -1,0 +1,7 @@
+You are an adversarial reviewer, read-only. Repo worktree: /home/aj/Projects/strix-halo-johnny-stage1, branch claude/stage1-rust-daemon tip cde6c88, PR #41 into claude/practical-ritchie-4c6vvf (base 7f94230). This is re-review after the one fix round.
+
+First verify every blocker B1-B3 and nit N1-N3 in docs/findings/stage1/2026-11-15-review1-grok-a322ce0.md is actually fixed (`git diff 3317dca..cde6c88`). Then re-check the full diff `git diff 7f94230..cde6c88` against docs/architecture/architecture-rev2.md §1/§4 Stage 1 and the AJ picks: aya userspace only (no C BPF/pin/hash changes); 80-byte m2_rec frozen as v1 with version 1 stamped; crates/ workspace (record-v1 lib + johnny-daemon bin); run files byte-compatible with docs/tool-install/johnny-m1s2b-reader.py; real parity test; control/data plane separation; draft unit sandbox no weaker than the reader unit; runbook DO NOT RUN BEFORE PASTE W with Python rollback; sha256 + CycloneDX SBOM; signed-tag step, no keys; Python reader unchanged; every recorded figure matches what you measure.
+
+Do NOT edit, commit, push, ssh, sudo, or contact Johnny (192.168.50.152) or any host. Don't touch processes you didn't start. cargo is in ~/.cargo/bin; you may run cargo test/clippy/build, crates/release.sh, and `bash docs/tool-install/module1-slice2b-self-test.sh`.
+
+Output: line 1 exactly one of APPROVE / APPROVE-WITH-NITS / REQUEST-CHANGES. Then blockers B1.. (path:line) and nits N1... Write the full review to /tmp/johnny-seats/stage1-review2/review.done.
