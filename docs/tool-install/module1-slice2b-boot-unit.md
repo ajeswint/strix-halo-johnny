@@ -42,20 +42,20 @@ A 4× increase to 8,000 rec/s and burst 16,000 gives an exact 2.0 s burst window
 
 ## Final sha256 Pins
 
-Live on Johnny (rev 113 retention applied and verified 2026-11-14 19:18Z):
+Live on Johnny (boot helper a4d4dfa4c7d6ba3c9ffb64810a54952f4e7ce652889a2fe6f628adadef1bf9eb applied 2026-11-14 21:32Z, rev 114/115):
 
 ```
 a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  docs/tool-install/module1-xdp-records.o
-0fb61363ddce962f0a645c340072fe5085b5ebeda0794230fa6dbc492dd2388f  docs/tool-install/module1-slice2b-boot.sh
+a4d4dfa4c7d6ba3c9ffb64810a54952f4e7ce652889a2fe6f628adadef1bf9eb  docs/tool-install/module1-slice2b-boot.sh
 4e2e359d89691320f85464f8497cb94d18ee861ed7cd03fb49f69a543114de0a  etc/systemd/system/johnny-capture-xdp-records.service
 476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37  docs/tool-install/johnny-m1s2b-reader.py
 e5c16249c479a5f807c2c794b146ee81ec2ed2f937c445f65480088cfa0d529c  etc/systemd/system/johnny-m1s2b-reader.service
 ```
 
-Rate cap removal draft (this PR, NOT APPLIED; apply via the Rate cap removal section):
+Pre-change helper kept as backup at `/root/m1s2b/backup-pre-no-ratecap/`:
 
 ```
-a4d4dfa4c7d6ba3c9ffb64810a54952f4e7ce652889a2fe6f628adadef1bf9eb  docs/tool-install/module1-slice2b-boot.sh
+0fb61363ddce962f0a645c340072fe5085b5ebeda0794230fa6dbc492dd2388f  docs/tool-install/module1-slice2b-boot.sh
 ```
 
 Unchanged system dependencies:

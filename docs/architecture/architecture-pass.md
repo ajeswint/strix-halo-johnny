@@ -1,6 +1,6 @@
 # Johnny Architecture Pass: Decision Brief
 
-Rev 2, 2026-11-14 America/Chicago (Rev 2: review 1 fixes).  
+Rev 3, 2026-11-14 America/Chicago (Rev 3: review 2 fixes; Decision 1 note).  
 Status: **DRAFT — options only, every item AJ decision pending; nothing applied; nothing runs on Johnny.**
 
 ---
@@ -45,10 +45,10 @@ Module 1 passive SPAN sniffing is complete and verified on Johnny (verified at t
     - *Cons:* High security risk; vulnerable to adversarial prompt injection; unpredictable feedback loops.
     - *Cost:* Requires complex grammar confinement, audit logging, and safety boundary enforcement.
     - *Blocks:* Provable deterministic safety properties; increases risk of false negatives.
-  - **Option 3: Off-box SLM / Split execution (Security Onion / MAX model).** Remove the SLM runtime from Johnny entirely. Johnny acts as an ultra-lean sensor/enforcer, streaming anomalous metadata over LAN mTLS to the MAX (`README.md:26`, `docs/agent-team.md:264`) for heavy model inference.
+  - **Option 3: Off-box SLM / Split execution (Security Onion / MAX model).** Remove the SLM runtime from Johnny entirely. Johnny acts as an ultra-lean sensor/enforcer, streaming anomalous metadata over a LAN channel to the MAX (`README.md:26`, `docs/agent-team.md:264`) for heavy model inference.
     - *Pros:* Zero impact on Johnny's 32 GB RAM and CPU cores; permits running larger models on workstation hardware.
     - *Cons:* Dependent on LAN connectivity to the external host; introduces network round-trip latency for cognitive triage.
-    - *Cost:* Low on-box cost; requires defining LAN RPC/mTLS schema.
+    - *Cost:* Low on-box cost; needs a LAN channel to the MAX (schema and interface per §4).
     - *Unblocks:* Frees maximum host resources for capture, Suricata, Zeek, and local storage.
 - **Recommendation:** **Option 1 (Tighten-only and advisory scoring).** Enforces strict neuro-symbolic separation: the model can escalate suspicion but cannot downgrade defenses or blind the fast path.
 - **AJ decision pending.** **AJ decides.**
@@ -119,6 +119,7 @@ Module 1 passive SPAN sniffing is complete and verified on Johnny (verified at t
     - *Cost:* Extremely high.
     - *Blocks:* Delays operational network monitoring and analysis while building endpoint software.
 - **Recommendation:** **Option 1 (Pure Network Sensor).** Johnny's physical role and hardware investment (Minisforum MS-02 Ultra with Intel E810 25G capture NIC on SPAN mirror) is a network sensor. Trying to force host-level storage and process hooks onto a network appliance creates conceptual confusion and wasted effort.
+- Note: a network-only sensor cannot reach Webroot or CrowdStrike class, because those products are host agents (see §5 gap row 1 and §7 Decision 1 note). Option C is the real path to that level; Option B is a cheap first step. AJ decides.
 - **AJ decision pending.** **AJ decides.**
 
 ---
@@ -231,7 +232,6 @@ stateDiagram-v2
     KnownGood --> Unknown: Protocol Anomaly / Threshold Exceeded / Dynamic Re-evaluation
     KnownGood --> KnownBad: Malicious Activity Detected / Admin Override
     KnownBad --> KnownGood: Admin Reclassification / False-Positive Resolution (AJ Only)
-    KnownBad --> [*]: Purged / Decommissioned
 ```
 
 | Current State | Input / Event | New State | Authorized Transition Actor | Action / Effect |
@@ -364,7 +364,7 @@ A transparent, rigorous assessment of where Johnny's documented architecture and
 | **2. Detection Content Lifecycle** | **Static compiled limits & disabled Suricata.** Hardcoded token bucket (1M/100k); basic counter verification scripts. Suricata 8.0.3 installed (`docs/os-handoff.md:370`) but disabled/inactive (`docs/os-handoff.md:375`). No custom rules, automated rule deployment, or false-positive feedback loops. | **Continuous threat feed & behavioral rules.** Commercial EDRs maintain dynamic behavioral rule compilers, ML classification models updated multiple times daily, automated false-positive suppression, and STIX/TAXII threat intel integration. | Which primary detection engines (Suricata, Zeek, or custom daemon) should be prioritized, and how should rule updates be managed? |
 | **3. Response & Rollback** | **Conceptual only.** Rollback exists as theoretical formulas ($S_0 = S_t + \sum \Delta_k^{-1}$ in `docs/JOHNNY_ Executive Architectural Summary.md:26`; $\text{State}_{\text{host}} = S_0 + \sum_{k=t}^{1} \Delta_k^{-1}$ in `docs/JOHNNY_ Executive Architectural Summary.md:75`). No rollback code exists in the repository. Switch quarantine blocked by out-of-band management (`docs/network-map.md:22-23`). | **Live transactional unwinding.** Webroot intercepts file writes into a transient shadow cache and unwinds registry/file modifications upon malicious verdict (`docs/BEGIN_Network_Security_Software_Enterprise.md:67-89`). Commercial EDRs provide automated host network containment. | Decisions on Items D and E: Should on-box file rollback be dropped, and should network quarantine be structured as an advisory workflow or automated switch control? |
 | **4. Fleet Management & Enrollment** | **Single host, manual administration.** Exactly one node managed via manual SSH pastes and terminal console. No enrollment tokens, registration APIs, or fleet inventory. | **Automated multi-tenant agent orchestration.** Automated silent installer packages, cryptographic device enrollment (TPM/attestation), policy assignment by host group, and heartbeat monitoring across tens of thousands of endpoints. | Decision on Item B: Should Johnny be formally scoped to a single-node appliance reporting over LAN to the MAX, or is multi-node fleet orchestration required? |
-| **5. Tamper Resistance & Self-Protection** | **Host OS hardened; userspace sandboxed via systemd.** Strong host foundation: Secure Boot, TPM2 PCR 7 LUKS, kernel lockdown, CIS Level 1 compliance (225 PASS, 18 PASS manual, 31 N/A, 0 FAIL, `docs/os-handoff.md:90`). Userspace reader runs under strict systemd hardening (`etc/systemd/system/johnny-m1s2b-reader.service:11, 32-41, 63`): `User=root`, `NoNewPrivileges=yes`, empty `CapabilityBoundingSet=` and `AmbientCapabilities=`, `ProtectSystem=strict`, `PrivateNetwork=yes`, `IPAddressDeny=any`, `ReadWritePaths=` restricted to ring pin and output directory, and `@system-service bpf` syscall filter. Remaining gap: no kernel anti-tamper protecting the daemon from root termination, and no measured pin-mode security beyond filesystem root ownership. | **Active kernel anti-tampering.** Commercial drivers actively intercept and block termination calls directed at security daemons, detect driver unloading attempts, and protect local event databases from tampering. | What additional tamper-resistance or process self-protection controls, if any, are required for userspace daemons beyond systemd sandboxing? |
+| **5. Tamper Resistance & Self-Protection** | **Host OS hardened; userspace sandboxed via systemd.** Strong host foundation: Secure Boot, TPM2 PCR 7 LUKS, kernel lockdown, CIS Level 1 compliance (225 PASS, 18 PASS manual, 31 N/A, 0 FAIL, `docs/os-handoff.md:90`). Userspace reader runs under strict systemd hardening (`etc/systemd/system/johnny-m1s2b-reader.service:11, 32-41, 63`): `User=root`, `NoNewPrivileges=yes`, empty `CapabilityBoundingSet=` and `AmbientCapabilities=`, `ProtectSystem=strict`, `PrivateNetwork=yes`, `IPAddressDeny=any`, `ReadWritePaths=` restricted to ring pin and output directory, and `@system-service bpf` syscall filter. Remaining gap: no kernel anti-tamper protecting the daemon from root termination, not documented in the unit. | **Active kernel anti-tampering.** Commercial drivers actively intercept and block termination calls directed at security daemons, detect driver unloading attempts, and protect local event databases from tampering. | What additional tamper-resistance or process self-protection controls, if any, are required for userspace daemons beyond systemd sandboxing? |
 | **6. Cloud & Threat-Intel Backend** | **None.** No cloud infrastructure, reputation lookups, or global intelligence directories exist in repo. | **Multi-petabyte graph correlation.** Webroot BrightCloud correlates 200+ TB of threat data (`docs/BEGIN_Network_Security_Software_Enterprise.md:13-17`) with low latency (<100 ms on broadband links, `docs/Security Software Architecture Overview.md:70`) across millions of endpoints (`docs/BEGIN_Network_Security_Software_Enterprise.md:42`). CrowdStrike Threat Graph correlates cross-tenant events in real time. | Which external threat intelligence feeds (STIX/TAXII, public blocklists, DNS feeds) should Johnny ingest locally? |
 | **7. Scale, Storage & Search** | **Rotating binary header files.** Python reader writes binary header files to `/var/lib/johnny/m1s2b` with a 200 GiB directory cap (`docs/os-handoff.md:17, 39, 53`). No database, indexing, or structured query engine. | **Distributed indexed telemetry datastores.** High-performance databases and indexing engines handling billions of events per day with fast search and correlation. | Decision on Item 5 in §4: Which persistence engine (e.g. ClickHouse, TimescaleDB, SQLite, or flat columnar storage) should be selected for telemetry and event indexing? |
 | **8. Operations & Triage UI** | **Command-line logs & grep only.** Operator visibility is limited to running `boot.sh status`, `journalctl`, and raw binary file dumps (`docs/tool-install/module1-slice2b-boot.sh`). No graphical interface, alert queue, or on-call paging. | **Unified SOC Management Console.** Rich web consoles with process tree visualization, alert triage queues, incident timeline reconstruction, and automated case management. | What operator interface (local terminal TUI, web UI, or headless log streaming to the MAX) should be built for alert review and triage? |
@@ -403,13 +403,14 @@ The following decisions are arranged in logical order of dependency (each decisi
   - B. Dual Network Sensor + Johnny Appliance Self-Protection (Network capture + local BPF-LSM on Johnny's OS only).
   - C. Full Distributed EDR (Network sensor + separate endpoint agents deployed to rock-box and other LAN hosts).
 - **Recommendation:** **Option A** — Aligns with physical hardware, avoids building two separate products, and maximizes network monitoring efficiency.
+- Note: a network-only sensor cannot reach Webroot or CrowdStrike class, because those products are host agents (see §5 gap row 1). Option C is the real path to that level; Option B is a cheap first step. AJ decides.
 - **AJ decision pending.** **AJ decides.**
 
 ### Decision 2: Network Containment Authority & Management Path (Item E)
 - **Question:** How should threat containment actions (e.g. OpenC2 `contain` / MAC quarantine) be executed against the network infrastructure?
 - **Options:**
-  - A. Human-in-the-Loop Advisory (Johnny detects and outputs exact RouterOS commands; AJ reviews and applies from laptop).
-  - B. Programmatic Switch Management (Johnny given dedicated API/SSH access to CRS309 with restricted bridge filter user).
+  - A. Human-in-the-Loop Advisory (Johnny proposes a MAC ACL or VLAN action, never port shutdown; AJ reviews and applies from the laptop on ether1; exact RouterOS lines are not in this brief).
+  - B. Programmatic Switch Management (Johnny gets a dedicated, least-privilege RouterOS API/SSH path restricted to MAC ACL or VLAN changes).
   - C. Gateway-level Containment on ASUS Router (Quarantine WAN access at router firewall; leave L2 switch untouched).
   - D. Alert-Only (No containment capability; forensic logging and detection only).
 - **Recommendation:** **Option A** — Preserves the physical out-of-band security boundary of the core switch; eliminates risk of rogue lockouts.
@@ -473,9 +474,9 @@ A staged, milestone-based capability progression. **No implementation commands o
 5. **Milestone 5: Sensor Ingress Filtering & Protocol Validation (Rock Box)**
    - *Actions on Johnny:* None.
    - *Capability:* Definition of ingress prefix filtering and packet sanity checks to optimize kernel-to-userspace data flow.
-6. **Milestone 6: Suricata / Zeek Sensor Integration & Alert Ingestion (Johnny — Post-Gate; only if AJ picks local detection engines)**
+6. **Milestone 6: Suricata / Zeek Sensor Integration & Alert Ingestion (Johnny — Post-Gate; needs a new AJ decision (which detection engines; see gap row 2))**
    - *Actions on Johnny:* Enabling and configuring local detection engines within the resource budget.
-   - *Capability:* Correlating network-level signature detections with the $K_3$ entity verdict engine.
+   - *Capability:* Correlating network-level signature detections with the $K_3$ entity verdict engine (only if AJ picks Item F Option 1).
 7. **Milestone 7: Cognitive Triage & Upstream Telemetry Client (Rock Box / Johnny — only if AJ picks Item A Option 1 and Item B Option 1)**
    - *Actions on Johnny:* Deployment of bounded triage logic and authenticated LAN streaming to the MAX.
    - *Capability:* Structured advisory scoring and telemetry compression over authenticated LAN channel (mTLS or WireGuard, per Item B Option 1).

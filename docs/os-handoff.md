@@ -6,7 +6,7 @@
   - Rev 114 rate-cap raise APPLIED and VERIFIED on Johnny 2026-11-14 21:32Z (apply transcript: [`docs/findings/module1-slice2b-no-ratecap/2026-11-14-apply-output.md`](findings/module1-slice2b-no-ratecap/2026-11-14-apply-output.md)).
   - Paste A preflight OK: cfg 8000/16000 before, `rate_limited 18217138` (historical, unchanged between Paste A and C; `docs/findings/module1-slice2b-no-ratecap/2026-11-14-apply-output.md:23, 78, 90`).
   - Paste B apply-cfg + reader restart + mark-reader, baseline 21:32:11Z boot_id `e9476f51-151b-4593-aa88-811e397794d1`, records prog id 78, reader InvocationID `502eed3ad10a42abab7c05ce28607223`, NRestarts 0.
-  - Paste C verify: `PASS-RATIO tcpdump=486 xdp=582 pct=83`, VERIFY-DROPS rate_limited=0 rb_full=0 discarded=0, `ETHTOOL-DROP-DELTAS none (checked=16)`, WINDOW secs=60 seen-delta=32812 emitted-delta=32812 all drop deltas 0 (`M1S2B-NORC-VERIFY-DONE`; `docs/findings/module1-slice2b-no-ratecap/2026-11-14-apply-output.md:59, 62, 65`).
+  - Paste C verify: `PASS-RATIO tcpdump=486 xdp=582 pct=83`, VERIFY-DROPS rate_limited=0 rb_full=0 discarded=0, `ETHTOOL-DROP-DELTAS none (checked=16)`, WINDOW secs=60 seen-delta=32812 emitted-delta=32812 all drop deltas 0 (`M1S2B-NORC-VERIFY-DONE`; `docs/findings/module1-slice2b-no-ratecap/2026-11-14-apply-output.md:59, 60, 62, 65`).
   - Week test running: run Paste W (`boot.sh week`) only after 2026-11-21 15:33 CT (21:33Z); no reboot of Johnny or commands on Johnny before.
   - Runbook N2 fixed in `docs/tool-install/module1-slice2b-boot-unit.md` (prose only outside bash fences).
   - Architecture pass STARTED (docs only, `docs/architecture/architecture-pass.md`), every decision AJ pending.
