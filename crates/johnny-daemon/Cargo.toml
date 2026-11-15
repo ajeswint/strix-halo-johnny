@@ -1,0 +1,11 @@
+[package]
+name = "johnny-daemon"
+description = "Johnny Stage 1 userspace sensor daemon: drains the pinned ring m2_rb into rotating run files"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+aya = { version = "=0.16.0", default-features = false }
+johnny-record-v1 = { path = "../johnny-record-v1" }
+libc = "0.2"

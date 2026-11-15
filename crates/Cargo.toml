@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = ["johnny-record-v1", "johnny-daemon"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[profile.release]
+codegen-units = 1
+lto = true
+overflow-checks = true
+panic = "abort"
+strip = "symbols"
