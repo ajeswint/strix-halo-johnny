@@ -3,12 +3,12 @@
 Rev 3, 2026-11-17 America/Chicago. Status: **APPLIED AND VERIFIED ON JOHNNY (2026-11-17, PR #42 build, merge `c23ea4f`; `docs/os-handoff.md` rev 119, `docs/sessions/2026-11-17-stage1-cutover-applied.md`).**
 
 > **APPLIED ON JOHNNY (2026-11-17):**
-> AJ ended the Paste W week-test hold early by choice on 2026-11-17 (test ran `2026-11-14 15:33 CT` to cutover, ~3 days, not 7; Paste C at `20:27Z` printed `M1S2B-NORC-VERIFY-DONE` with `window-60 seen-delta=26416` and zero drops, and `BASELINE CTL rate_limited 18217138` had `0` new `rate_limited` from baseline `2026-11-14T21:32:11Z` to cutover) and ran Pastes S1-1 through S1-5 (`S1-3` ~3:29 PM CT `STAGE1-PROBE-INSTALL-DONE`, `S1-4` ~3:30 PM CT `STAGE1-CUTOVER-DONE`, `S1-5` ~3:42 PM CT `STAGE1-VERIFY-DONE`). Johnny now runs `johnny-daemon.service` (`enabled`/`active`, `/usr/local/libexec/johnny/johnny-daemon` SHA-256 `08e96c19b83edc6662684d0c4a7902675def5837a769d1592f06dc082c1681ac`, `/etc/systemd/system/johnny-daemon.service` SHA-256 `e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa`); `johnny-m1s2b-reader.service` is `disabled`/`inactive` with its files kept on disk (`476cf867...`, unit `e5c16249...`), and the **Rollback** section below remains available. The Paste W hold banner below was superseded by AJ's choice (no longer the gate) and is kept verbatim because `cutover_runbook_audit` in `crates/johnny-daemon/tests/parity.rs` asserts it.
+> AJ ended the Paste W week-test hold early by choice on 2026-11-17 (test ran `2026-11-14 15:33 CT` to cutover, ~3 days, not 7; Paste C at `20:27Z` printed `M1S2B-NORC-VERIFY-DONE` with `window-60 seen-delta=26416` and zero drops, and `BASELINE CTL rate_limited 18217138` had `0` new `rate_limited` from baseline `2026-11-14T21:32:11Z` to cutover) and ran Pastes S1-1 through S1-5 (`S1-3` ~3:29 PM CT `STAGE1-PROBE-INSTALL-DONE`, `S1-4` ~3:30 PM CT `STAGE1-CUTOVER-DONE`, `S1-5` ~3:42 PM CT `STAGE1-VERIFY-DONE`). Johnny now runs `johnny-daemon.service` (`enabled`/`active`, `/usr/local/libexec/johnny/johnny-daemon` SHA-256 `08e96c19b83edc6662684d0c4a7902675def5837a769d1592f06dc082c1681ac`, `/etc/systemd/system/johnny-daemon.service` SHA-256 `e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa`); `johnny-m1s2b-reader.service` is `disabled`/`inactive` with its files kept on disk (`476cf867...`, unit `e5c16249...`), and the **Rollback** section below remains available. The historical Paste W hold banner below was superseded by AJ's choice (ended early after ~3 days; Paste W superseded, not passed) and retains its original gate substrings because `cutover_runbook_audit` in `crates/johnny-daemon/tests/parity.rs:745-746` asserts them.
 
 Rev 2 note (2026-11-17 America/Chicago, historical): fixes S1-3 `--probe` `STOP-mmap-probe errno=22`: `probe()` in `crates/johnny-daemon/src/bpf.rs` now opens `m2_rb` read-write because on Johnny's Ubuntu `7.0.0-42.42` kernel `mm/mmap.c` `do_mmap` runs `vm_flags |= VM_SHARED | VM_MAYSHARE; if (!(file->f_mode & FMODE_WRITE)) vm_flags &= ~(VM_MAYWRITE | VM_SHARED);` — mainline v7.3's `vma_flags_clear(&vma_flags, VMA_MAYWRITE_BIT, VMA_SHARED_BIT)` spelling is equivalent — so `kernel/bpf/syscall.c` `bpf_map_mmap` returns `-EINVAL` without `FMODE_WRITE`; pages `0..1` are still mapped `PROT_READ`, where `bpf_map_mmap` clears `VM_MAYWRITE` when `VM_WRITE` is absent. Historical pre-cutover status: **DRAFT — DO NOT RUN CUTOVER BEFORE PASTE W COMPLETES (after 2026-11-21 15:33 CT / 21:33Z).**
 
-> **HOLD — DO NOT RUN BEFORE PASTE W (after 2026-11-21 15:33 CT / 21:33Z):**
-> Johnny's one-week uninterrupted capture test is running until **2026-11-21 15:33 CT (21:33Z)** (`docs/os-handoff.md:4, 33-39`, `docs/tool-install/module1-slice2b-boot-unit.md:583-601`). Do not touch Johnny, do not copy files to Johnny, and do not run any paste in this runbook until **Paste W** (`docs/tool-install/module1-slice2b-boot-unit.md:583-601`) has been run by AJ after `2026-11-21 15:33 CT` and printed `M1S2B-WEEK-DONE` and `M1S2B-NORC-WEEK-DONE`.
+> **HISTORICAL HOLD (superseded 2026-11-17 by AJ's choice) — DO NOT RUN BEFORE PASTE W (after 2026-11-21 15:33 CT / 21:33Z):**
+> Pre-cutover week-test gate (`docs/os-handoff.md:30, 59-65`, `docs/tool-install/module1-slice2b-boot-unit.md:583-601`; superseded at `docs/os-handoff.md:4` when AJ chose on 2026-11-17 to end the `2026-11-14 15:33 CT` hold early after ~3 days, so Paste W was superseded, not passed): Johnny's one-week uninterrupted capture test was originally scheduled until **2026-11-21 15:33 CT (21:33Z)**.
 
 ---
 
@@ -73,9 +73,9 @@ git verify-tag stage1-daemon-v0.1.0
 
 ---
 
-## 4. Cutover Pastes — DO NOT RUN BEFORE PASTE W (after 2026-11-21 15:33 CT / 21:33Z)
+## 4. Cutover Pastes (APPLIED on Johnny 2026-11-17; Paste W hold ended early by AJ's choice)
 
-Every paste below is typed on Rock Box. Pastes S1-2 through S1-5 touch Johnny and **MUST NOT** be run until after **2026-11-21 15:33 CT (21:33Z)** and after **Paste W** (`docs/tool-install/module1-slice2b-boot-unit.md:583-601`) has passed with `M1S2B-NORC-WEEK-DONE`.
+Every paste below is typed on Rock Box. On 2026-11-17, AJ chose to end the one-week capture hold early (~3 days from `2026-11-14 15:33 CT` to cutover, not 7; Paste W at `docs/tool-install/module1-slice2b-boot-unit.md:583-601` was superseded, not passed) and ran Pastes S1-1 through S1-5 on Johnny (`docs/os-handoff.md` rev 119).
 
 ### Paste S1-1: Rock Box self-test, Cargo test suite, release build, and hash gate (no root, no SSH)
 
@@ -95,7 +95,7 @@ echo STAGE1-ROCKBOX-GATE-DONE
 
 Expect `SELF-TEST-OK`, all Rust unit and parity tests passing, `STAGE1-RELEASE-OK`, three `OK` hash lines, and **`STAGE1-ROCKBOX-GATE-DONE`**.
 
-### Paste S1-2: Copy Stage 1 binary, unit, and SBOM to Johnny staging dir (DO NOT RUN BEFORE PASTE W; no sudo)
+### Paste S1-2: Copy Stage 1 binary, unit, and SBOM to Johnny staging dir (no sudo; applied 2026-11-17)
 
 Note: any files already staged on Johnny in `/home/aj/cis-audit/stage1` from the failed `2026-11-17` S1-3 attempt are stale and must be re-copied by Paste S1-2 (`scp` overwrites them, and `sha256sum -c -` below and in Paste S1-3 will fail closed on a stale copy).
 
@@ -111,7 +111,7 @@ e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa  johnny-daemon.
 
 Expect three `OK` hash lines and **`STAGE1-COPY-DONE`**.
 
-### Paste S1-3: Preflight live pins, install Stage 1 files (not started), and run read-only `--probe` & `--summary` smoke (DO NOT RUN BEFORE PASTE W)
+### Paste S1-3: Preflight live pins, install Stage 1 files (not started), and run read-only `--probe` & `--summary` smoke (applied 2026-11-17)
 
 ***<u>Run on Rock Box</u>***
 
@@ -148,7 +148,7 @@ echo STAGE1-PROBE-INSTALL-DONE'
 
 Expect staged and live hashes verified, `/usr/local/libexec/johnny/johnny-daemon` and `/etc/systemd/system/johnny-daemon.service` installed (not yet enabled or started), `--probe` outputting `"version":1,"event":"probe"` read-only alongside the live Python reader, `--summary` output matching the Python reader byte-for-byte on a stable snapshot copy of the newest run file (never comparing the live inode), and **`STAGE1-PROBE-INSTALL-DONE`**.
 
-### Paste S1-4: Cutover from `johnny-m1s2b-reader.service` to `johnny-daemon.service` (DO NOT RUN BEFORE PASTE W)
+### Paste S1-4: Cutover from `johnny-m1s2b-reader.service` to `johnny-daemon.service` (applied 2026-11-17)
 
 ***<u>Run on Rock Box</u>***
 
@@ -201,7 +201,7 @@ echo STAGE1-CUTOVER-DONE'
 
 Expect `johnny-capture-xdp-records.service` untouched (`active`), `johnny-m1s2b-reader.service` `disabled`/`inactive` (with its files and hashes untouched on disk), `johnny-daemon.service` `enabled`/`active` with `MemoryMax=1073741824`, `NRestarts=0`, `Result=success`, bounded wait for journal line starting `{"version":1,"event":"reader-begin"`, and **`STAGE1-CUTOVER-DONE`**.
 
-### Paste S1-5: Verify 60 s zero-drop window and dual-reader run-file parity on Johnny (DO NOT RUN BEFORE PASTE W)
+### Paste S1-5: Verify 60 s zero-drop window and dual-reader `--summary` parity on Johnny (applied 2026-11-17)
 
 ***<u>Run on Rock Box</u>***
 
