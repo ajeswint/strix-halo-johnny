@@ -1,6 +1,6 @@
 # Module 1 Slice 2b: Boot-time j_xdp_records and Persistent Rotating Reader
 
-Rev 5, 2026-11-14 America/Chicago. Status: **2b applied/verified/cold-boot proven (2026-11-12 ~05:54Z); retention raise APPLIED and verified 2026-11-14 19:18Z (1 GiB / 3600 s files, keep=200, 200 GiB dir cap, 100 GiB reserve, MemoryMax=1G); rate cap raised to cfg ver=1 sample_every=1 rate=1000000 burst=100000 per CPU APPLIED and verified 2026-11-14 21:32Z (Paste A/B/C passed; 60 s window seen 32812 emitted 32812, rate_limited/rb_full/discarded deltas 0); one-week test running, Paste W due after 2026-11-21 15:33 CT (21:33Z).**
+Rev 6, 2026-11-17 America/Chicago. Status: **2b applied/verified/cold-boot proven (2026-11-12 ~05:54Z); retention raise APPLIED and verified 2026-11-14 19:18Z (1 GiB / 3600 s files, keep=200, 200 GiB dir cap, 100 GiB reserve, MemoryMax=1G); rate cap raised to cfg ver=1 sample_every=1 rate=1000000 burst=100000 per CPU APPLIED and verified 2026-11-14 21:32Z (Paste A/B/C passed; 60 s window seen 32812 emitted 32812, rate_limited/rb_full/discarded deltas 0); one-week hold ended early by AJ's choice on 2026-11-17 (~3 days from 2026-11-14 15:33 CT to cutover, not 7; Paste W superseded, not passed; Stage 1 `johnny-daemon.service` cut over on 2026-11-17 with `johnny-m1s2b-reader.service` disabled/inactive and kept on disk for rollback, `docs/tool-install/stage1-rust-daemon-cutover.md`).**
 
 ## Purpose and Scope
 
@@ -580,7 +580,7 @@ echo M1S2B-NORC-VERIFY-DONE'
 
 Expect both units active, boot.sh hash verified, `verify` passing with zero drops (`VERIFY-DROPS rate_limited=0 rb_full=0 discarded=0`), `window 60` passing with zero drops (`OK-no-drops-window`), status showing new CFG and baseline reader mark, reader journal startup showing new cfg snapshot alongside 1 GiB / 200 GiB / 100 GiB retention settings, and **`M1S2B-NORC-VERIFY-DONE`**.
 
-### Paste W: One-week validation gate (read-only, run >= 7 days after Paste B)
+### Paste W: One-week validation gate (read-only, run >= 7 days after Paste B; superseded 2026-11-17 by AJ's choice, ended early after ~3 days, not passed)
 
 ***<u>Run on Rock Box</u>***
 
