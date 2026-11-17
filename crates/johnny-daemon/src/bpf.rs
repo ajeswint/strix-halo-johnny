@@ -8,15 +8,15 @@
 //!
 //! Privilege matches the Python reader
 //! (`docs/tool-install/johnny-m1s2b-reader.py:504-506`): `m2_rb` is opened
-//! read-write (the consumer page needs it), `m2_cfg` and `m2_ctl` are
-//! opened with `BPF_F_RDONLY`. aya 0.16 has no read-only pin open, so those
-//! two descriptors come from one small `BPF_OBJ_GET` call here and are then
-//! handed to aya (`MapData::from_fd`).
+//! read-write in `attach` and `probe` (`mm/mmap.c` `do_mmap` clears `VM_SHARED`
+//! without `FMODE_WRITE`, so `kernel/bpf/syscall.c` `bpf_map_mmap` returns
+//! `EINVAL`; `probe`'s `PROT_READ` mapping keeps `VM_MAYWRITE` clear via
+//! `bpf_map_mmap` / `kernel/bpf/ringbuf.c` `ringbuf_map_mmap_kern` and cannot
+//! write the consumer position), while `m2_cfg` and `m2_ctl` are opened
+//! `BPF_F_RDONLY` via `BPF_OBJ_GET` (`MapData::from_fd`).
 //!
-//! Not exercised on Rock Box: creating a BPF map there needs privilege
-//! (`kernel.unprivileged_bpf_disabled=2`). The tests drive the daemon
-//! through `data::synth` instead. `--probe` is the first, read-only use of
-//! this module on Johnny.
+//! Not exercised on Rock Box (`kernel.unprivileged_bpf_disabled=2`); tests
+//! use `data::synth`, and `--probe` is the first read-only use on Johnny.
 
 use std::ffi::CString;
 use std::io;
@@ -276,13 +276,13 @@ pub fn attach(pin_dir: &Path) -> Result<Attached<PinnedMaps>, Stop> {
     })
 }
 
-/// Read-only look at the three pins: types, sizes, `m2_cfg`, `m2_ctl`, and
-/// the ring's two positions. Every pin is opened `BPF_F_RDONLY` and the
-/// ring pages are mapped `PROT_READ`, so this consumes nothing and can run
-/// beside the live reader. One JSON line.
+/// Read-only look at the three pins (`m2_cfg`/`m2_ctl` `BPF_F_RDONLY`; `m2_rb`
+/// read-write as `mm/mmap.c` `do_mmap` drops `VM_SHARED` without `FMODE_WRITE`
+/// and `kernel/bpf/syscall.c` `bpf_map_mmap` returns `EINVAL`; pages `0..1`
+/// mapped `PROT_READ` via `ringbuf_map_mmap_kern` cannot write consumer_pos).
 pub fn probe(pin_dir: &Path) -> Result<String, Stop> {
     let rb_pin = pin_dir.join("m2_rb");
-    let rb = open_pin(&rb_pin, MapType::RingBuf, RB_BYTES, true)?;
+    let rb = open_pin(&rb_pin, MapType::RingBuf, RB_BYTES, false)?;
     let ring_map_id = rb
         .info()
         .map_err(|e| stop!("obj-info {} errno={}", rb_pin.display(), errno_of(&e)))?

@@ -1,6 +1,6 @@
 # Stage 1: Rust Userspace Sensor Daemon (`johnny-daemon`) — Draft Cutover & Rollback Runbook
 
-Rev 1, 2026-11-15 America/Chicago. Status: **DRAFT ONLY — DO NOT RUN BEFORE PASTE W COMPLETES (after 2026-11-21 15:33 CT / 21:33Z). Not yet reviewed by the adversarial-reviewer. Nothing installed, enabled, or started on Johnny.**
+Rev 2, 2026-11-17 America/Chicago (fixes S1-3 `--probe` `STOP-mmap-probe errno=22`: `probe()` in `crates/johnny-daemon/src/bpf.rs` now opens `m2_rb` read-write so `mm/mmap.c` `do_mmap` keeps `VM_SHARED` for `kernel/bpf/syscall.c` `bpf_map_mmap`, while still mapping pages `0..1` `PROT_READ`). Status: **DRAFT — DO NOT RUN CUTOVER BEFORE PASTE W COMPLETES (after 2026-11-21 15:33 CT / 21:33Z).** Note: the rev 1 files already staged on Johnny in `/home/aj/cis-audit/stage1` (and `/usr/local/libexec/johnny/johnny-daemon` installed before `--probe` exited in the failed 2026-11-17 S1-3 attempt) are stale and must be re-copied by Paste S1-2 (`johnny-m1s2b-reader.service` remains live; `johnny-daemon.service` was never enabled or started, so nothing was cut over).
 
 > **HOLD — DO NOT RUN BEFORE PASTE W (after 2026-11-21 15:33 CT / 21:33Z):**
 > Johnny's one-week uninterrupted capture test is running until **2026-11-21 15:33 CT (21:33Z)** (`docs/os-handoff.md:4, 33-39`, `docs/tool-install/module1-slice2b-boot-unit.md:583-601`). Do not touch Johnny, do not copy files to Johnny, and do not run any paste in this runbook until **Paste W** (`docs/tool-install/module1-slice2b-boot-unit.md:583-601`) has been run by AJ after `2026-11-21 15:33 CT` and printed `M1S2B-WEEK-DONE` and `M1S2B-NORC-WEEK-DONE`.
@@ -13,7 +13,7 @@ Stage 1 (`docs/architecture/architecture-rev2.md:287-324`) replaces the Python r
 
 AJ approved the four Stage 1 code-shape decisions on **2026-11-14 at 10:56 PM CT** (`docs/architecture/architecture-rev2.md` §1.2, §4 Stage 1):
 
-1. **BPF crate (`aya`, userspace only):** `johnny-daemon` uses `aya = "=0.16.0"` (`default-features = false`) isolated in a single module (`crates/johnny-daemon/src/bpf.rs`). It attaches in userspace only to the existing pinned maps under `/sys/fs/bpf/johnny_m1s2b` (`m2_rb` read-write for the ring consumer page; `m2_cfg` and `m2_ctl` opened `BPF_F_RDONLY` via `BPF_OBJ_GET` and wrapped in `aya::maps::MapData::from_fd`). It never modifies, loads, or rebuilds `docs/tool-install/module1_xdp_records.c` or `docs/tool-install/module1-xdp-records.o`, and never alters any live pins or hashes.
+1. **BPF crate (`aya`, userspace only):** `johnny-daemon` uses `aya = "=0.16.0"` (`default-features = false`) isolated in a single module (`crates/johnny-daemon/src/bpf.rs`). It attaches in userspace only to the existing pinned maps under `/sys/fs/bpf/johnny_m1s2b` (`m2_rb` read-write for the ring consumer page in `attach()` and for `--probe`'s `PROT_READ` `MAP_SHARED` position mapping, since `mm/mmap.c` `do_mmap` clears `VM_SHARED` when the fd lacks `FMODE_WRITE` and `kernel/bpf/syscall.c` `bpf_map_mmap` then returns `EINVAL`; `m2_cfg` and `m2_ctl` opened `BPF_F_RDONLY` via `BPF_OBJ_GET` and wrapped in `aya::maps::MapData::from_fd`). It never modifies, loads, or rebuilds `docs/tool-install/module1_xdp_records.c` or `docs/tool-install/module1-xdp-records.o`, and never alters any live pins or hashes.
 2. **Record v1 frozen; `"version": 1` stamped in userspace outputs:** Today's 80-byte `struct m2_rec` (`docs/tool-install/module1_xdp_records.c:133-165`) is frozen as implicit v1 across the kernel-to-userspace boundary. Every userspace JSON output line (`--log-format json`, `--dump-json`, `--probe`) is stamped `"version":1` first (`crates/johnny-record-v1/src/lib.rs:25`). Readers ignore unknown record versions safely (`Decoded::Unknown { version }` in `crates/johnny-record-v1/src/record.rs:54-59`; default `--on-unknown-version skip` in `crates/johnny-daemon/src/control/config.rs:39-45`). In-kernel binary header changes are deferred to v2.
 3. **Cargo workspace (`crates/`):** `crates/` sits next to `docs/` with two workspace members (`crates/Cargo.toml:1-3`):
    - `crates/johnny-record-v1`: `#![forbid(unsafe_code)]` library crate containing the frozen 80-byte `RecordV1` codec, the 96-byte `RunHeader` (`JM1S2RB\0`) codec, `RunFileReader`, `--summary` renderer, and UTC timestamp math, reusable by the Stage 2 Rock Box agent.
@@ -30,9 +30,9 @@ AJ approved the four Stage 1 code-shape decisions on **2026-11-14 at 10:56 PM CT
 ### Stage 1 deployables (built on Rock Box, `rustc 1.100.0 (0ef1bc386 2026-11-09)`):
 
 ```
-e39d77684dc7e67b0939dda80f7de18be6e2b59a43ab2c3dd71d8ebe394174b5  crates/dist/johnny-daemon
+e80253b2dad575923a8a557ddc42800f85d81d67681ed6b21990e79ae0858e30  crates/dist/johnny-daemon
 e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa  etc/systemd/system/johnny-daemon.service
-169558ff46d732ae471991edec867adec487757580682ff5e291583571dd7f58  crates/johnny-daemon.cdx.json
+b7d0d2472528afb9f4041b24c9337eecb0fb6e61f4094d47a0ac38a370559136  crates/johnny-daemon.cdx.json
 ```
 
 ### Existing slice 2b pins on Johnny (MUST remain unchanged on disk):
@@ -59,10 +59,10 @@ e5c16249c479a5f807c2c794b146ee81ec2ed2f937c445f65480088cfa0d529c  /etc/systemd/s
 
 ## 3. Release Signing Step (AJ signs git tag on Rock Box)
 
-Agents never create signing keys or sign tags. When AJ approves the Stage 1 commit and binary hash (`e39d77684dc7e67b0939dda80f7de18be6e2b59a43ab2c3dd71d8ebe394174b5`), AJ creates and verifies a signed git tag on Rock Box using his own signing key:
+Agents never create signing keys or sign tags. When AJ approves the Stage 1 commit and binary hash (`e80253b2dad575923a8a557ddc42800f85d81d67681ed6b21990e79ae0858e30`), AJ creates and verifies a signed git tag on Rock Box using his own signing key:
 
 ```text
-git tag -s stage1-daemon-v0.1.0 -m "Stage 1 johnny-daemon v0.1.0 (sha256 e39d77684dc7e67b0939dda80f7de18be6e2b59a43ab2c3dd71d8ebe394174b5)"
+git tag -s stage1-daemon-v0.1.0 -m "Stage 1 johnny-daemon v0.1.0 (sha256 e80253b2dad575923a8a557ddc42800f85d81d67681ed6b21990e79ae0858e30)"
 git verify-tag stage1-daemon-v0.1.0
 ```
 
@@ -78,13 +78,13 @@ Every paste below is typed on Rock Box. Pastes S1-2 through S1-5 touch Johnny an
 
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH" &&
-cd /home/aj/Projects/strix-halo-johnny-stage1 &&
+cd /home/aj/Projects/strix-halo-johnny-stage1-fix &&
 bash docs/tool-install/module1-slice2b-self-test.sh &&
 (cd crates && cargo test --locked --offline) &&
 bash crates/release.sh &&
-echo "e39d77684dc7e67b0939dda80f7de18be6e2b59a43ab2c3dd71d8ebe394174b5  crates/dist/johnny-daemon
+echo "e80253b2dad575923a8a557ddc42800f85d81d67681ed6b21990e79ae0858e30  crates/dist/johnny-daemon
 e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa  etc/systemd/system/johnny-daemon.service
-169558ff46d732ae471991edec867adec487757580682ff5e291583571dd7f58  crates/johnny-daemon.cdx.json" | sha256sum -c - &&
+b7d0d2472528afb9f4041b24c9337eecb0fb6e61f4094d47a0ac38a370559136  crates/johnny-daemon.cdx.json" | sha256sum -c - &&
 echo STAGE1-ROCKBOX-GATE-DONE
 ```
 
@@ -92,14 +92,16 @@ Expect `SELF-TEST-OK`, all Rust unit and parity tests passing, `STAGE1-RELEASE-O
 
 ### Paste S1-2: Copy Stage 1 binary, unit, and SBOM to Johnny staging dir (DO NOT RUN BEFORE PASTE W; no sudo)
 
+Note: any files already staged on Johnny in `/home/aj/cis-audit/stage1` from the failed `2026-11-17` S1-3 attempt are stale and must be re-copied by Paste S1-2 (`scp` overwrites them, and `sha256sum -c -` below and in Paste S1-3 will fail closed on a stale copy).
+
 ***<u>Run on Rock Box</u>***
 
 ```bash
 ssh aj@192.168.50.152 'mkdir -p -m 0700 /home/aj/cis-audit/stage1' &&
-scp /home/aj/Projects/strix-halo-johnny-stage1/crates/dist/johnny-daemon /home/aj/Projects/strix-halo-johnny-stage1/etc/systemd/system/johnny-daemon.service /home/aj/Projects/strix-halo-johnny-stage1/crates/johnny-daemon.cdx.json aj@192.168.50.152:/home/aj/cis-audit/stage1/ &&
-ssh aj@192.168.50.152 'cd /home/aj/cis-audit/stage1 && echo "e39d77684dc7e67b0939dda80f7de18be6e2b59a43ab2c3dd71d8ebe394174b5  johnny-daemon
+scp /home/aj/Projects/strix-halo-johnny-stage1-fix/crates/dist/johnny-daemon /home/aj/Projects/strix-halo-johnny-stage1-fix/etc/systemd/system/johnny-daemon.service /home/aj/Projects/strix-halo-johnny-stage1-fix/crates/johnny-daemon.cdx.json aj@192.168.50.152:/home/aj/cis-audit/stage1/ &&
+ssh aj@192.168.50.152 'cd /home/aj/cis-audit/stage1 && echo "e80253b2dad575923a8a557ddc42800f85d81d67681ed6b21990e79ae0858e30  johnny-daemon
 e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa  johnny-daemon.service
-169558ff46d732ae471991edec867adec487757580682ff5e291583571dd7f58  johnny-daemon.cdx.json" | sha256sum -c - && echo STAGE1-COPY-DONE'
+b7d0d2472528afb9f4041b24c9337eecb0fb6e61f4094d47a0ac38a370559136  johnny-daemon.cdx.json" | sha256sum -c - && echo STAGE1-COPY-DONE'
 ```
 
 Expect three `OK` hash lines and **`STAGE1-COPY-DONE`**.
@@ -111,9 +113,9 @@ Expect three `OK` hash lines and **`STAGE1-COPY-DONE`**.
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
 cd /home/aj/cis-audit/stage1 &&
-echo "e39d77684dc7e67b0939dda80f7de18be6e2b59a43ab2c3dd71d8ebe394174b5  johnny-daemon
+echo "e80253b2dad575923a8a557ddc42800f85d81d67681ed6b21990e79ae0858e30  johnny-daemon
 e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa  johnny-daemon.service
-169558ff46d732ae471991edec867adec487757580682ff5e291583571dd7f58  johnny-daemon.cdx.json" | sha256sum -c - &&
+b7d0d2472528afb9f4041b24c9337eecb0fb6e61f4094d47a0ac38a370559136  johnny-daemon.cdx.json" | sha256sum -c - &&
 echo "a4d4dfa4c7d6ba3c9ffb64810a54952f4e7ce652889a2fe6f628adadef1bf9eb  /root/m1s2b/module1-slice2b-boot.sh
 476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
 e5c16249c479a5f807c2c794b146ee81ec2ed2f937c445f65480088cfa0d529c  /etc/systemd/system/johnny-m1s2b-reader.service
@@ -121,7 +123,7 @@ e5c16249c479a5f807c2c794b146ee81ec2ed2f937c445f65480088cfa0d529c  /etc/systemd/s
 a73c5bd2dc0bd7c2c3b99a937d703abe4628f715b0aa1e00b3ce29fe8da99481  /root/m1s2b/module1-xdp-records.o" | sudo sha256sum -c - &&
 sudo install -m 0755 -o root -g root johnny-daemon /usr/local/libexec/johnny/johnny-daemon &&
 sudo install -m 0644 -o root -g root johnny-daemon.service /etc/systemd/system/johnny-daemon.service &&
-echo "e39d77684dc7e67b0939dda80f7de18be6e2b59a43ab2c3dd71d8ebe394174b5  /usr/local/libexec/johnny/johnny-daemon
+echo "e80253b2dad575923a8a557ddc42800f85d81d67681ed6b21990e79ae0858e30  /usr/local/libexec/johnny/johnny-daemon
 e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa  /etc/systemd/system/johnny-daemon.service" | sudo sha256sum -c - &&
 sudo systemctl daemon-reload &&
 /usr/local/libexec/johnny/johnny-daemon --version &&
@@ -147,7 +149,7 @@ Expect staged and live hashes verified, `/usr/local/libexec/johnny/johnny-daemon
 
 ```bash
 ssh -t aj@192.168.50.152 'sudo -v &&
-echo "e39d77684dc7e67b0939dda80f7de18be6e2b59a43ab2c3dd71d8ebe394174b5  /usr/local/libexec/johnny/johnny-daemon
+echo "e80253b2dad575923a8a557ddc42800f85d81d67681ed6b21990e79ae0858e30  /usr/local/libexec/johnny/johnny-daemon
 e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa  /etc/systemd/system/johnny-daemon.service
 476cf86762aacbeb3c71a42638bf0a01eacf9801cf02719a1a5c584cc93e6f37  /usr/local/libexec/johnny/johnny-m1s2b-reader.py
 e5c16249c479a5f807c2c794b146ee81ec2ed2f937c445f65480088cfa0d529c  /etc/systemd/system/johnny-m1s2b-reader.service" | sudo sha256sum -c - &&

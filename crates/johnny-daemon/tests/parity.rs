@@ -735,9 +735,12 @@ fn cutover_runbook_audit() {
         .arg("-c")
         .arg(
             r####"
-import re, shlex, sys
+import hashlib, json, re, shlex, sys
 
-doc_path, want_unit_sha = sys.argv[1:3]
+doc_path, want_unit_sha, sbom_path = sys.argv[1:4]
+sbom_raw = open(sbom_path, "rb").read()
+want_sbom_sha = hashlib.sha256(sbom_raw).hexdigest()
+want_bin_sha = json.loads(sbom_raw.decode("utf-8"))["metadata"]["component"]["hashes"][0]["content"]
 text = open(doc_path, encoding="utf-8").read()
 assert "DO NOT RUN BEFORE PASTE W" in text, "missing Paste W hold banner"
 assert "2026-11-21 15:33 CT" in text, "missing week-test end timestamp"
@@ -814,6 +817,10 @@ for idx, ((lab, body), want_tok) in enumerate(zip(blocks, expected_tokens), 1):
     for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
         if path.endswith("johnny-daemon.service"):
             assert h == want_unit_sha, f"block #{idx} wrong unit sha {h} != {want_unit_sha}"
+        elif path.endswith("johnny-daemon.cdx.json"):
+            assert h == want_sbom_sha, f"block #{idx} wrong sbom sha {h} != {want_sbom_sha}"
+        elif path.endswith("/johnny-daemon") or path == "johnny-daemon":
+            assert h == want_bin_sha, f"block #{idx} wrong bin sha {h} != {want_bin_sha}"
 
 rb = text.find("## Rollback")
 assert rb >= 0 and "not part of the paste sequence" in text[rb:rb + 200]
@@ -821,6 +828,7 @@ assert rb >= 0 and "not part of the paste sequence" in text[rb:rb + 200]
         )
         .arg(&runbook)
         .arg(&unit_sha)
+        .arg(root.join("crates/johnny-daemon.cdx.json"))
         .output()
         .unwrap();
     assert!(
@@ -829,5 +837,51 @@ assert rb >= 0 and "not part of the paste sequence" in text[rb:rb + 200]
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+#[test]
+fn probe_opens_m2_rb_read_write_and_maps_positions_read_only() {
+    let root = repo_root();
+    let bpf_src = fs::read_to_string(root.join("crates/johnny-daemon/src/bpf.rs")).unwrap();
+    let start = bpf_src
+        .find("pub fn probe(")
+        .expect("missing pub fn probe in src/bpf.rs");
+    let rest = &bpf_src[start..];
+    let open_brace = rest.find('{').expect("missing opening brace for probe()");
+    let mut depth = 0usize;
+    let mut end = None;
+    for (idx, ch) in rest[open_brace..].char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = Some(open_brace + idx + 1);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let probe_body = &rest[..end.expect("unclosed brace in probe()")];
+    assert!(
+        probe_body.contains("open_pin(&rb_pin, MapType::RingBuf, RB_BYTES, false)"),
+        "probe() must open m2_rb read-write (rdonly=false) so do_mmap keeps VM_SHARED for bpf_map_mmap"
+    );
+    assert!(
+        !probe_body.contains("open_pin(&rb_pin, MapType::RingBuf, RB_BYTES, true)"),
+        "probe() must not open m2_rb read-only (BPF_F_RDONLY)"
+    );
+    assert!(
+        probe_body.contains(
+            "Mapping::new(rb.fd().as_fd().as_raw_fd(), 2 * page, libc::PROT_READ, 0)"
+        ),
+        "probe() must map consumer+producer pages with PROT_READ only"
+    );
+    assert!(
+        !probe_body.contains("PROT_WRITE"),
+        "probe() must never map ring pages with PROT_WRITE"
+    );
+}
+
 
 
