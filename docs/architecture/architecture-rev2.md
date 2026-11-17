@@ -108,7 +108,7 @@ Notes:
 
 #### Fix 2: Rollback on Rock Box depends on Rock Box's filesystem — **VERIFIED 2026-11-17: ext4, no reflink → full-copy shadow**
 
-**AJ decision (AJ, 2026-11-14):** Rollback on Rock Box depends on Rock Box's filesystem, which is NOT YET VERIFIED.
+**AJ decision (AJ, 2026-11-14):** Rollback on Rock Box depends on Rock Box's filesystem, which was not yet verified at the time of the decision (verified 2026-11-17, see Status below).
 - Reflink / FICLONE where the filesystem supports it (btrfs; XFS with reflink).
 - Otherwise a full-copy shadow (e.g. ext4).
 - Disk use scales with the write volume of the monitored process.
@@ -351,8 +351,8 @@ Rollback is not in AJ's Stage 2 scope list. Its mechanism follows fix 2. Which s
 **What stays easy to change.**
 - Thresholds live in maps and rules, not in compiled code, so they change by rule reload.
 - **Target:** each hook (exec, write, network) is its own BPF program, so one can be removed without the others.
-- **Target:** the rollback store sits behind one interface, so reflink and full-copy are interchangeable once the §3 result is known.
-- Rock Box is AJ's workstation. It also hosts the relay bot and the DMT Console (`AGENTS.md:11`, `docs/os-handoff.md:245`), and every Johnny paste is typed there. Whether the agent starts observe-only (log, do not deny), which cannot cut those off, or enforcing from the start is AJ's choice; neither is a default. **AJ decides.** (O28)
+- **Target:** the rollback store sits behind one interface, so reflink and full-copy are interchangeable. The §3 result (2026-11-17) is one ext4 partition with no reflink, so full-copy is the backend Rock Box can use today.
+- Rock Box is AJ's workstation. It also hosts the relay bot and the DMT Console (`AGENTS.md:11`, `docs/os-handoff.md:298`), and every Johnny paste is typed there. Whether the agent starts observe-only (log, do not deny), which cannot cut those off, or enforcing from the start is AJ's choice; neither is a default. **AJ decides.** (O28)
 
 **Open items.** O2, O10, O12, O17, O18, O21, O22, O28. **AJ decides.**
 
