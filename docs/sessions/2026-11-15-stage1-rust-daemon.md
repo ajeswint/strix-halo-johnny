@@ -38,4 +38,5 @@
 - `cargo clippy --all-targets --locked --offline` (in `crates/`): 0 warnings.
 - `bash crates/release.sh`: `RELEASE-BINARY dist/johnny-daemon sha256=e39d77684dc7e67b0939dda80f7de18be6e2b59a43ab2c3dd71d8ebe394174b5`, `RELEASE-SBOM johnny-daemon.cdx.json tool=cargo-metadata-lockfile`, `STAGE1-RELEASE-OK`.
 - `systemd-analyze verify etc/systemd/system/johnny-daemon.service`: clean.
+  - **Correction (2026-11-17, PR #41 review2 N2):** not clean. Measured on Rock Box: exit 1 with one diagnostic, `johnny-daemon.service: Command /usr/local/libexec/johnny/johnny-daemon is not executable: No such file or directory` (the binary is not installed at that path on Rock Box). No other diagnostic on the unit text.
 - `bash docs/tool-install/module1-slice2b-self-test.sh`: `PINS-OK`, `SHELLCHECK-OK`, `STATIC-CHECKS-OK`, `READER-TESTS-OK`, `E2E-OK scenarios=15`, `OUTSIDE-FENCE-DIFF-OK blocks=17`, `RUNBOOK-OK blocks=22`, `SELF-TEST-OK`.
