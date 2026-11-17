@@ -882,6 +882,3 @@ fn probe_opens_m2_rb_read_write_and_maps_positions_read_only() {
         "probe() must never map ring pages with PROT_WRITE"
     );
 }
-
-
-
