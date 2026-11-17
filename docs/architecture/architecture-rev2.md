@@ -1,12 +1,12 @@
 # Johnny Architecture Rev 2: AJ Decisions and Stages
 
-Rev 2, 2026-11-15 America/Chicago. Status: AJ DECISIONS RECORDED + STAGE 1 DRAFTED ON ROCK BOX (nothing applied; nothing runs on Johnny)
+Rev 2, 2026-11-17 America/Chicago. Status: AJ DECISIONS RECORDED + STAGE 1 APPLIED AND VERIFIED ON JOHNNY 2026-11-17 (`docs/os-handoff.md` rev 119, `docs/sessions/2026-11-17-stage1-cutover-applied.md`)
 
 This file supersedes the decision brief `docs/architecture/architecture-pass.md` (rev 3) for every item it decides. Items it does not decide stay open, and each one says **AJ decides.**
 
 - **Source of the decisions:** AJ answered the brief through his architect on 2026-11-14 at about 10:04 PM and 10:08 PM CT, approved rev 1 of this plan at 10:11 PM CT, and approved the four Stage 1 code-shape picks (O5, O6, O8, O9) at 10:56 PM CT (`§1.2`, `§2.3`, `§4 Stage 1`, `§7`). The chat is not saved in the repo. This file is the record.
 - **Wording:** each decision below is AJ's words paraphrased. Lines under "Notes" are not AJ's words. They carry a repo cite, a URL, or a label.
-- **Hold:** Johnny's one-week capture test runs until 2026-11-21 15:33 CT (21:33Z) (`docs/os-handoff.md:21`, `docs/tool-install/module1-slice2b-boot-unit.md:3`). Nothing in this file asks AJ to touch Johnny before then.
+- **Hold (superseded 2026-11-17 by AJ's choice):** Johnny's one-week capture test (`2026-11-14 15:33 CT` to `2026-11-21 15:33 CT` / `21:33Z`, `docs/tool-install/module1-slice2b-boot-unit.md:3`) was ended early by AJ's choice on 2026-11-17 (~3 days, not 7; 0 new `rate_limited`, `rb_full`, or `discarded` drops from baseline `2026-11-14T21:32:11Z` to cutover) when AJ ran Pastes S1-1..S1-5 to apply Stage 1 (`docs/os-handoff.md` rev 119). Paste W is superseded and is no longer the gate.
 
 Labels used here:
 
@@ -284,9 +284,9 @@ Rollback: none needed. The block changes nothing.
 
 The stages replace the brief's build order (`docs/architecture/architecture-pass.md:457-482`). Every threshold below is a **Target** until AJ sets it. No figure here is measured.
 
-### Stage 1: Rust userspace daemon on Johnny
+### Stage 1: Rust userspace daemon on Johnny (APPLIED 2026-11-17)
 
-**Goal.** A Rust daemon on Johnny replaces the Python reader as the consumer of the existing ring buffer. The kernel side does not change.
+**Goal.** A Rust daemon on Johnny replaces the Python reader as the consumer of the existing ring buffer. The kernel side does not change. **Status: APPLIED AND VERIFIED ON JOHNNY 2026-11-17** (PR #42 build, merge `c23ea4f`; `S1-1..S1-5` passed; `johnny-daemon.service` `enabled`/`active`, `johnny-m1s2b-reader.service` `disabled`/`inactive` with files kept on disk for rollback; `docs/os-handoff.md` rev 119, `docs/sessions/2026-11-17-stage1-cutover-applied.md`).
 
 **AJ Stage 1 Decisions (AJ, 2026-11-14 10:56 PM CT):**
 1. **Userspace BPF attachment (`aya`, O5):** Use `aya` (`=0.16.0`, `default-features = false`) in userspace only (`crates/johnny-daemon/Cargo.toml:9`, `crates/johnny-daemon/src/bpf.rs:1-322`, with `attach` at `:235-277` and `probe` at `:283-322`). Attach to the existing pinned maps and ring `m2_rb` under `/sys/fs/bpf/johnny_m1s2b` (or load the existing compiled C object `docs/tool-install/module1-xdp-records.o` in userspace without modifying kernel probes). Never modify the C BPF source (`docs/tool-install/module1_xdp_records.c`), compiled C object (`docs/tool-install/module1-xdp-records.o`), or any live pins or hashes.
@@ -294,25 +294,25 @@ The stages replace the brief's build order (`docs/architecture/architecture-pass
 3. **Cargo workspace (`crates/`, O8):** `crates/` is a Cargo workspace next to `docs/` (`crates/Cargo.toml:1-15`) containing the shared `johnny-record-v1` parser library crate (`crates/johnny-record-v1/`, `#![forbid(unsafe_code)]`, reusable by the Stage 2 Rock Box agent) and the `johnny-daemon` binary crate (`crates/johnny-daemon/`). `docs/tool-install/johnny-m1s2b-reader.py` stays in place untouched for fallback/rollback.
 4. **Plain Cargo builds, SHA-256, CycloneDX SBOM, and AJ-signed tags (O9):** Build with plain Cargo (`crates/release.sh:1-146`), emitting a SHA-256 hash of the compiled Rust release binary (`crates/dist/johnny-daemon.sha256`) and a CycloneDX 1.5 SBOM (`crates/johnny-daemon.cdx.json`; `cargo-cyclonedx` is not installed on Rock Box, documented at `crates/release.sh:3-5`, `:29-32` and `docs/tool-install/stage1-rust-daemon-cutover.md:23`). Release signing uses AJ-signed git tags (`git tag -s`); agents never create signing keys (`docs/tool-install/stage1-rust-daemon-cutover.md:60-67`).
 
-**Scope & Draft Deliverables (built and tested on Rock Box against synthetic/recorded fixtures only):**
+**Scope & Deliverables (APPLIED on Johnny 2026-11-17, PR #42 build, merge `c23ea4f`):**
 - Consumes ring `m2_rb` (`docs/tool-install/module1_xdp_records.c:218-221`), which the existing C program `j_xdp_records` fills (`docs/architecture/architecture-pass.md:11`). The pinned BPF object is not rebuilt.
 - Reads the documented record: 80 bytes, `struct m2_rec`, version byte first (`docs/tool-install/module1_xdp_records.c:133-165`, `:78`; `crates/johnny-record-v1/src/record.rs:31-108`).
 - Writes the documented run file: a 96-byte header, then 80-byte records (`docs/tool-install/johnny-m1s2b-reader.py:58-63`, `:42-43`; `crates/johnny-record-v1/src/runfile.rs:69-166`), with live rotation (`1 GiB` / `3600 s`) and retention (`keep=200`, `dir-cap=200 GiB`, `reserve=100 GiB`) limits configured in `etc/systemd/system/johnny-daemon.service:16` (binary CLI defaults match the Python reader's defaults at `crates/johnny-daemon/src/control/config.rs:15-24`, `:72-88`; bounds validated at `crates/johnny-daemon/src/control/config.rs:100-124` and enforced by `crates/johnny-daemon/src/control/policy.rs:28-79` and `crates/johnny-daemon/src/data/writer.rs:78-265`).
 - Follows §1.2: one daemon with control plane (`crates/johnny-daemon/src/control/` — `config.rs:1-246` Policy Administrator bounds validation, `policy.rs:1-92` pure Policy Engine for rotate/keep/dir-cap/low-disk decisions, `status.rs:1-244` `"version": 1` event logger; there is no rule candidate/validate/commit/rollback store in this commit) and data plane (`crates/johnny-daemon/src/data/` — `mod.rs:15-23` `KernelMaps` trait, `ring.rs:1-152` `Ring` consumer, `synth.rs:1-127` test-only `SynthRing`, `writer.rs:1-265` `RotatingWriter`) separated inside it (`crates/johnny-daemon/src/daemon.rs:1-128`).
-- Draft systemd unit `etc/systemd/system/johnny-daemon.service` (not installed, not enabled, not started) matches every sandbox directive of `etc/systemd/system/johnny-m1s2b-reader.service` (`crates/johnny-daemon/tests/parity.rs:664-713`).
-- Draft cutover/rollback runbook `docs/tool-install/stage1-rust-daemon-cutover.md` marked `DO NOT RUN BEFORE PASTE W (after 2026-11-21 15:33 CT / 21:33Z)`, keeping the Python reader as rollback.
+- Systemd unit `etc/systemd/system/johnny-daemon.service` (SHA-256 `e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa`, installed, `enabled`, and `active` on Johnny since 2026-11-17 ~3:30 PM CT with binary `/usr/local/libexec/johnny/johnny-daemon` SHA-256 `08e96c19b83edc6662684d0c4a7902675def5837a769d1592f06dc082c1681ac`) matches every sandbox directive of `etc/systemd/system/johnny-m1s2b-reader.service` (`crates/johnny-daemon/tests/parity.rs:664-713`).
+- Cutover/rollback runbook `docs/tool-install/stage1-rust-daemon-cutover.md` (APPLIED 2026-11-17 via Pastes S1-1..S1-5; historical `DO NOT RUN BEFORE PASTE W (after 2026-11-21 15:33 CT / 21:33Z)` banner retained for test audit, superseded by AJ's choice), keeping the Python reader (`johnny-m1s2b-reader.service` `disabled`/`inactive`, files kept on disk) as rollback.
 - Not in Stage 1: any BPF change, any LSM hook, any AI, any stream to the MAX, any database.
 
 **Entry criteria.**
-1. Paste W passes, run only after 2026-11-21 15:33 CT (21:33Z). Paste W and what it must print are in `docs/tool-install/module1-slice2b-boot-unit.md:583-601`; the date is in `docs/os-handoff.md:4, 33`. This is the first entry step.
+1. Paste W hold (originally after 2026-11-21 15:33 CT / 21:33Z, `docs/tool-install/module1-slice2b-boot-unit.md:583-601`) was ended early and superseded by AJ's choice on 2026-11-17 (~3 days from `2026-11-14 15:33 CT` to cutover, not 7; Paste C at `20:27Z` printed `M1S2B-NORC-VERIFY-DONE` with `window-60 seen-delta=26416` and zero drops, and `BASELINE CTL rate_limited 18217138` had `0` new `rate_limited` from baseline `2026-11-14T21:32:11Z` to cutover). No longer the gate.
 2. **Answered (AJ, 2026-11-14 10:56 PM CT):** AJ answered the four Stage 1 code-shape items: `aya` in userspace only (O5), implicit v1 80-byte `struct m2_rec` with `"version": 1` stamped in userspace outputs and unknown versions/headers safely handled (O6), `crates/` Cargo workspace with `johnny-record-v1` + `johnny-daemon` (O8), and plain Cargo builds + SHA-256 + CycloneDX SBOM + AJ-signed git tags (O9).
 3. The draft and every paste in `docs/tool-install/stage1-rust-daemon-cutover.md` are reviewed by the adversarial-reviewer before AJ runs anything (`AGENTS.md:13`).
 
 **Exit criteria.** Targets. Thresholds: **AJ decides.** (O27)
-1. **Target (proven on Rock Box fixtures):** byte-for-byte run-file parity and `--summary` parity with `docs/tool-install/johnny-m1s2b-reader.py` on synthetic ring + recorded fixtures (`crates/johnny-daemon/tests/parity.rs:243-460`).
-2. **Target:** on Johnny (after Paste W), zero drops over an AJ-chosen window (`docs/tool-install/stage1-rust-daemon-cutover.md:197-229`). "Drops" are the counters the existing checks stop on: `rate_limited`, `rb_full`, `discarded` (`docs/os-handoff.md:38`). The window length is AJ's call.
-3. **Target:** the same retention limits as today (`docs/os-handoff.md:45`, `etc/systemd/system/johnny-daemon.service:16`), and a unit sandbox no weaker than the current reader unit's (`etc/systemd/system/johnny-daemon.service`, verified by `crates/johnny-daemon/tests/parity.rs:664-713`).
-4. **Target:** switching back to the Python reader (`docs/tool-install/stage1-rust-daemon-cutover.md:233-263`) is proven once.
+1. **Target (proven on Rock Box fixtures and on Johnny 2026-11-17 in S1-3 and S1-5):** byte-for-byte run-file parity and `--summary` parity with `docs/tool-install/johnny-m1s2b-reader.py` on synthetic ring + recorded fixtures (`crates/johnny-daemon/tests/parity.rs:243-460`) and on Johnny live snapshots (`STAGE1-PROBE-INSTALL-DONE`, `STAGE1-VERIFY-DONE`).
+2. **Target (proven on Johnny 2026-11-17 in S1-5):** on Johnny, zero drops over an AJ-chosen window (`WINDOW secs=60 seen-delta=17087 rate_limited-delta=0 rb_full-delta=0 discarded-delta=0 emitted-delta=17087 pkts-delta=17088`, `OK-no-drops-window`, `STAGE1-VERIFY-DONE`; `docs/tool-install/stage1-rust-daemon-cutover.md`). "Drops" are the counters the existing checks stop on: `rate_limited`, `rb_full`, `discarded` (`docs/os-handoff.md:38`). The window length is AJ's call.
+3. **Target (proven on Johnny 2026-11-17 in S1-4):** the same retention limits as today (`docs/os-handoff.md:45`, `etc/systemd/system/johnny-daemon.service:16`), and a unit sandbox no weaker than the current reader unit's (`etc/systemd/system/johnny-daemon.service`, verified by `crates/johnny-daemon/tests/parity.rs:664-713`).
+4. **Target:** switching back to the Python reader (`docs/tool-install/stage1-rust-daemon-cutover.md` Rollback section) remains available with the Python reader files kept on disk (`476cf867...`, unit `e5c16249...`).
 5. The Python reader is kept as rollback until AJ retires it.
 
 **What stays easy to change.**
