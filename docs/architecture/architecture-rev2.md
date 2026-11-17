@@ -6,7 +6,7 @@ This file supersedes the decision brief `docs/architecture/architecture-pass.md`
 
 - **Source of the decisions:** AJ answered the brief through his architect on 2026-11-14 at about 10:04 PM and 10:08 PM CT, approved rev 1 of this plan at 10:11 PM CT, and approved the four Stage 1 code-shape picks (O5, O6, O8, O9) at 10:56 PM CT (`§1.2`, `§2.3`, `§4 Stage 1`, `§7`). The chat is not saved in the repo. This file is the record.
 - **Wording:** each decision below is AJ's words paraphrased. Lines under "Notes" are not AJ's words. They carry a repo cite, a URL, or a label.
-- **Hold (superseded 2026-11-17 by AJ's choice):** Johnny's one-week capture test (`2026-11-14 15:33 CT` to `2026-11-21 15:33 CT` / `21:33Z`, `docs/tool-install/module1-slice2b-boot-unit.md:3`) was ended early by AJ's choice on 2026-11-17 (~3 days, not 7; 0 new `rate_limited`, `rb_full`, or `discarded` drops from baseline `2026-11-14T21:32:11Z` to cutover) when AJ ran Pastes S1-1..S1-5 to apply Stage 1 (`docs/os-handoff.md` rev 119). Paste W is superseded and is no longer the gate.
+- **Hold (superseded 2026-11-17 by AJ's choice):** Johnny's one-week capture test (`2026-11-14 15:33 CT` to `2026-11-21 15:33 CT` / `21:33Z`, `docs/tool-install/stage1-rust-daemon-cutover.md:10-11`, `docs/os-handoff.md:30`) was ended early by AJ's choice on 2026-11-17 (~3 days, not 7; 0 new `rate_limited`, `rb_full`, or `discarded` drops from baseline `2026-11-14T21:32:11Z` to cutover) when AJ ran Pastes S1-1..S1-5 to apply Stage 1 (`docs/os-handoff.md` rev 119). Paste W is superseded and is no longer the gate.
 
 Labels used here:
 
@@ -282,7 +282,7 @@ Rollback: none needed. The block changes nothing.
 
 ## 4. Stages
 
-The stages replace the brief's build order (`docs/architecture/architecture-pass.md:457-482`). Every threshold below is a **Target** until AJ sets it; only the Stage 1 cutover counters and parity results recorded below (`:307`, `:312-314`) are measured on Johnny, while Stages 2–4 figures remain unmeasured.
+The stages replace the brief's build order (`docs/architecture/architecture-pass.md:457-482`). Every threshold below is a **Target** until AJ sets it; only the Stage 1 cutover counters (`:307`, `:313`), the S1-4 retention properties (`:314`; its unit-sandbox check is a Rock Box test), and the Johnny `--summary` matches in S1-3 and S1-5 (`:312`) are measured on Johnny (run-file byte parity at `:312` is a Rock Box fixture result), while Stages 2–4 figures remain unmeasured.
 
 ### Stage 1: Rust userspace daemon on Johnny (APPLIED 2026-11-17)
 
@@ -309,7 +309,7 @@ The stages replace the brief's build order (`docs/architecture/architecture-pass
 3. The draft and every paste in `docs/tool-install/stage1-rust-daemon-cutover.md` are reviewed by the adversarial-reviewer before AJ runs anything (`AGENTS.md:13`).
 
 **Exit criteria.** Targets. Thresholds: **AJ decides.** (O27)
-1. **Target (proven on Rock Box fixtures and on Johnny 2026-11-17 in S1-3 and S1-5):** byte-for-byte run-file parity and `--summary` parity with `docs/tool-install/johnny-m1s2b-reader.py` on synthetic ring + recorded fixtures (`crates/johnny-daemon/tests/parity.rs:243-460`), and `--summary` parity on Johnny live snapshots in S1-3 and S1-5 (`docs/tool-install/stage1-rust-daemon-cutover.md:145`, `:228`; `STAGE1-PROBE-INSTALL-DONE`, `STAGE1-VERIFY-DONE`).
+1. **Target (byte-for-byte run-file parity proven on Rock Box fixtures; `--summary` parity proven on Johnny 2026-11-17 in S1-3 and S1-5):** byte-for-byte run-file parity and `--summary` parity with `docs/tool-install/johnny-m1s2b-reader.py` on synthetic ring + recorded fixtures (`crates/johnny-daemon/tests/parity.rs:243-460`), and `--summary` parity on Johnny live snapshots in S1-3 and S1-5 (`docs/tool-install/stage1-rust-daemon-cutover.md:145`, `:228`; `STAGE1-PROBE-INSTALL-DONE`, `STAGE1-VERIFY-DONE`).
 2. **Target (proven on Johnny 2026-11-17 in S1-5):** on Johnny, zero drops over an AJ-chosen window (`WINDOW secs=60 seen-delta=17087 rate_limited-delta=0 rb_full-delta=0 discarded-delta=0 emitted-delta=17087 pkts-delta=17088`, `OK-no-drops-window`, `STAGE1-VERIFY-DONE`; `docs/tool-install/stage1-rust-daemon-cutover.md:216`). "Drops" are the counters the existing checks stop on: `rate_limited`, `rb_full`, `discarded` (`docs/os-handoff.md:11, 64, 82`, `docs/tool-install/module1-slice2b-boot-unit.md:679-680`). The window length is AJ's call.
 3. **Target (proven on Johnny 2026-11-17 in S1-4):** the same retention limits as today (`etc/systemd/system/johnny-daemon.service:16`, `docs/os-handoff.md:10, 72`), and a unit sandbox no weaker than the current reader unit's (`etc/systemd/system/johnny-daemon.service`, verified by `crates/johnny-daemon/tests/parity.rs:664-713`).
 4. **Target:** switching back to the Python reader (`docs/tool-install/stage1-rust-daemon-cutover.md:240-268`) remains available with the Python reader files kept on disk (`476cf867...`, unit `e5c16249...`).
