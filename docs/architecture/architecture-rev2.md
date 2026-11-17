@@ -282,7 +282,7 @@ Rollback: none needed. The block changes nothing.
 
 ## 4. Stages
 
-The stages replace the brief's build order (`docs/architecture/architecture-pass.md:457-482`). Every threshold below is a **Target** until AJ sets it; only the Stage 1 cutover counters (`:307`, `:313-314`) and the Johnny `--summary` matches in S1-3 and S1-5 (`:312`) are measured on Johnny (run-file byte parity at `:312` is a Rock Box fixture result), while Stages 2–4 figures remain unmeasured.
+The stages replace the brief's build order (`docs/architecture/architecture-pass.md:457-482`). Every threshold below is a **Target** until AJ sets it; only the Stage 1 cutover counters (`:307`, `:313`), the S1-4 retention properties (`:314`; its unit-sandbox check is a Rock Box test), and the Johnny `--summary` matches in S1-3 and S1-5 (`:312`) are measured on Johnny (run-file byte parity at `:312` is a Rock Box fixture result), while Stages 2–4 figures remain unmeasured.
 
 ### Stage 1: Rust userspace daemon on Johnny (APPLIED 2026-11-17)
 
