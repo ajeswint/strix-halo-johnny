@@ -1,0 +1,21 @@
+AJ ran architecture-rev2 §3 on Rock Box ~5:04 PM CT 2026-11-17, UNREVIEWED (read-only). Verbatim output:
+== kernel
+7.3.0-10-generic
+== mount holding /
+/dev/nvme0n1p2 ext4 rw,relatime
+== mount holding /home
+/dev/nvme0n1p2 ext4 rw,relatime
+== filesystem type of / and /home
+/ ext2/ext3
+/home ext2/ext3
+== xfs reflink on /
+not-xfs-or-no-access
+== xfs reflink on /home
+not-xfs-or-no-access
+== active LSM list
+lockdown,capability,landlock,yama,apparmor,bpf,ima,evm
+== kernel config
+CONFIG_BPF_LSM=y
+CONFIG_LSM="landlock,lockdown,yama,integrity,apparmor,bpf"
+ROCKBOX-FS-CHECK-DONE
+Required edits (Claude N1-N4 + adds): full raw output committed; UNVERIFIED flipped at fix 2, Stage 2 entry 2 and 3, §3 review state; say §3 ran unreviewed; O28 observe-only vs enforcing presented as AJ's choice, not a default; entry 1 open via O27 (AJ declares Stage 1 exited or starts Stage 2 alongside); O22: single ext4 / no reflink -> full copies, store on / shares OS space so cap must protect free space on /, store may sit on another disk (EXDEV only limits clones); BPF LSM active so no cmdline change/reboot; handoff rev bump; session note; session CSV row.
