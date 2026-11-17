@@ -8,15 +8,20 @@
 //!
 //! Privilege matches the Python reader
 //! (`docs/tool-install/johnny-m1s2b-reader.py:504-506`): `m2_rb` is opened
-//! read-write (the consumer page needs it), `m2_cfg` and `m2_ctl` are
-//! opened with `BPF_F_RDONLY`. aya 0.16 has no read-only pin open, so those
-//! two descriptors come from one small `BPF_OBJ_GET` call here and are then
-//! handed to aya (`MapData::from_fd`).
+//! read-write in `attach` and `probe` (on Johnny's Ubuntu 7.0.0-42.42 kernel,
+//! `mm/mmap.c` `do_mmap` runs `vm_flags |= VM_SHARED | VM_MAYSHARE;
+//! if (!(file->f_mode & FMODE_WRITE)) vm_flags &= ~(VM_MAYWRITE | VM_SHARED);`
+//! — mainline v7.3's `vma_flags_clear(&vma_flags, VMA_MAYWRITE_BIT, VMA_SHARED_BIT)`
+//! spelling is equivalent — so `kernel/bpf/syscall.c` `bpf_map_mmap` returns
+//! `-EINVAL` without `FMODE_WRITE`; in `probe`, only `bpf_map_mmap` clears
+//! `VM_MAYWRITE` when `VM_WRITE` is absent before `map->ops->map_mmap`, and
+//! `kernel/bpf/ringbuf.c` `ringbuf_map_mmap_kern` only rejects a `VM_WRITE` VMA
+//! that is not the one consumer page at `pgoff 0` with `-EPERM`, so `probe`'s
+//! `PROT_READ` mapping cannot write the consumer position), while `m2_cfg` and
+//! `m2_ctl` are opened `BPF_F_RDONLY` via `BPF_OBJ_GET` (`MapData::from_fd`).
 //!
-//! Not exercised on Rock Box: creating a BPF map there needs privilege
-//! (`kernel.unprivileged_bpf_disabled=2`). The tests drive the daemon
-//! through `data::synth` instead. `--probe` is the first, read-only use of
-//! this module on Johnny.
+//! Not exercised on Rock Box (`kernel.unprivileged_bpf_disabled=2`); tests
+//! use `data::synth`, and `--probe` is the first read-only use on Johnny.
 
 use std::ffi::CString;
 use std::io;
@@ -277,12 +282,21 @@ pub fn attach(pin_dir: &Path) -> Result<Attached<PinnedMaps>, Stop> {
 }
 
 /// Read-only look at the three pins: types, sizes, `m2_cfg`, `m2_ctl`, and
-/// the ring's two positions. Every pin is opened `BPF_F_RDONLY` and the
-/// ring pages are mapped `PROT_READ`, so this consumes nothing and can run
-/// beside the live reader. One JSON line.
+/// the ring's two positions. `m2_cfg` and `m2_ctl` are opened `BPF_F_RDONLY`.
+/// `m2_rb` is opened read-write because on Johnny's Ubuntu 7.0.0-42.42 kernel
+/// `mm/mmap.c` `do_mmap` runs `vm_flags |= VM_SHARED | VM_MAYSHARE;
+/// if (!(file->f_mode & FMODE_WRITE)) vm_flags &= ~(VM_MAYWRITE | VM_SHARED);`
+/// (mainline v7.3's `vma_flags_clear(..., VMA_MAYWRITE_BIT, VMA_SHARED_BIT)`
+/// spelling is equivalent), so `kernel/bpf/syscall.c` `bpf_map_mmap` returns
+/// `-EINVAL` without `FMODE_WRITE`. Pages `0..1` are mapped `PROT_READ`: only
+/// `bpf_map_mmap` clears `VM_MAYWRITE` when `VM_WRITE` is absent (before
+/// `map->ops->map_mmap`), and `kernel/bpf/ringbuf.c` `ringbuf_map_mmap_kern`
+/// only rejects a `VM_WRITE` VMA that is not exactly the one consumer page at
+/// `pgoff 0` (`-EPERM`), so this consumes nothing, can run beside the live
+/// reader, and prints one JSON line.
 pub fn probe(pin_dir: &Path) -> Result<String, Stop> {
     let rb_pin = pin_dir.join("m2_rb");
-    let rb = open_pin(&rb_pin, MapType::RingBuf, RB_BYTES, true)?;
+    let rb = open_pin(&rb_pin, MapType::RingBuf, RB_BYTES, false)?;
     let ring_map_id = rb
         .info()
         .map_err(|e| stop!("obj-info {} errno={}", rb_pin.display(), errno_of(&e)))?
