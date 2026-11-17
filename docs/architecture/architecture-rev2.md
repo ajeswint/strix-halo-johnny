@@ -1,6 +1,6 @@
 # Johnny Architecture Rev 2: AJ Decisions and Stages
 
-Rev 2, 2026-11-17 America/Chicago. Status: AJ DECISIONS RECORDED + STAGE 1 APPLIED AND VERIFIED ON JOHNNY 2026-11-17 (`docs/os-handoff.md` rev 119, `docs/sessions/2026-11-17-stage1-cutover-applied.md`)
+Rev 2, 2026-11-17 America/Chicago. Status: AJ DECISIONS RECORDED + STAGE 1 APPLIED AND VERIFIED ON JOHNNY 2026-11-17 + ROCK BOX §3 CHECK RECORDED 2026-11-17 (`docs/findings/stage2/2026-11-17-rockbox-fs-check.md`, `docs/os-handoff.md` rev 120, `docs/sessions/2026-11-17-stage2-rockbox-fs-check.md`; Stage 1: `docs/os-handoff.md` rev 119, `docs/sessions/2026-11-17-stage1-cutover-applied.md`)
 
 This file supersedes the decision brief `docs/architecture/architecture-pass.md` (rev 3) for every item it decides. Items it does not decide stay open, and each one says **AJ decides.**
 
@@ -106,14 +106,14 @@ Notes:
 - Where a "suggest" goes and how AJ sees it was not stated. **AJ decides.** (O19)
 - Repo lines that still carry the old rule are listed in §6.
 
-#### Fix 2: Rollback on Rock Box depends on Rock Box's filesystem — **UNVERIFIED**
+#### Fix 2: Rollback on Rock Box depends on Rock Box's filesystem — **VERIFIED 2026-11-17: ext4, no reflink → full-copy shadow**
 
 **AJ decision (AJ, 2026-11-14):** Rollback on Rock Box depends on Rock Box's filesystem, which is NOT YET VERIFIED.
 - Reflink / FICLONE where the filesystem supports it (btrfs; XFS with reflink).
 - Otherwise a full-copy shadow (e.g. ext4).
 - Disk use scales with the write volume of the monitored process.
 
-Status: **UNVERIFIED.** Rock Box's filesystem is not recorded anywhere in this repo. The read-only check for AJ is in §3.
+Status: **VERIFIED 2026-11-17 (§3 check, run by AJ ~5:04 PM CT, raw output in `docs/findings/stage2/2026-11-17-rockbox-fs-check.md`).** `/` and `/home` are one ext4 partition (`/dev/nvme0n1p2`), with no reflink. Rollback on Rock Box therefore needs a full-copy shadow (the ext4 case above). A full-copy store on `/` shares space with the OS, so its disk cap must protect free space on `/`. A full-copy store may sit on another disk: the `EXDEV` same-filesystem limit applies only to clones. Store location and cap: **AJ decides.** (O22)
 
 Notes:
 - `ioctl_ficlone(2)` (https://man7.org/linux/man-pages/man2/ioctl_ficlone.2.html): the clone shares blocks until one side is written. Source and destination must be on the same filesystem (`EXDEV` if not). A filesystem that cannot reflink returns `EOPNOTSUPP`.
@@ -185,7 +185,7 @@ Brief = `docs/architecture/architecture-pass.md`. For open rows the brief's opti
 | Decision 2: containment path (Item E) | `:409-417` | **Still open** | Nothing. Stage 2's "network gating for Unknown processes" is on the endpoint, inside the agent. It does not touch the switch. | Options A–D at `:412-415`. **AJ decides.** (O20) |
 | Decision 3: SLM role (Item A) | `:419-426` | **Decided** for authority. **Partly decided** for placement. | §1.5 fix 1: tighten or suggest only; loosening only by AJ-signed rules. §1.2 item 5: inference is a separate process, or on the MAX over gRPC. §1.3: async, off the hot path. | Whether any model runs on Johnny itself, its RAM budget (`README.md:25`), model choice. **AJ decides.** (O16) Signature scheme. **AJ decides.** (O17) |
 | Decision 4: verdict model (Item F) | `:428-435` | **Still open** | One limit only: the AI cannot loosen (fix 1). AJ's Stage 2 scope uses the word "Unknown" for processes. | States, transitions, who may make each transition, network entities vs processes. Options A–C at `:431-433`. **AJ decides.** (O21) |
-| Decision 5: file rollback (Item D) | `:437-444` | **Partly decided** | §1.5 fix 2: rollback on Rock Box follows Rock Box's filesystem. **UNVERIFIED** until the §3 check is run. | Rollback on Johnny itself (Options A–C at `:440-442`); which stage builds rollback; shadow store location and disk cap. **AJ decides.** (O22) |
+| Decision 5: file rollback (Item D) | `:437-444` | **Partly decided** | §1.5 fix 2: rollback on Rock Box follows Rock Box's filesystem: **verified 2026-11-17** as one ext4 partition, no reflink, so full-copy shadow (`docs/findings/stage2/2026-11-17-rockbox-fs-check.md`). | Rollback on Johnny itself (Options A–C at `:440-442`); which stage builds rollback; shadow store location and disk cap. **AJ decides.** (O22) |
 | Decision 6: upstream (Item B) | `:446-453` | **Partly decided** | §1.1: the backend is on the MAX. §1.2 item 11: logs go to the MAX over TLS 1.3. §1.2 item 5: AI calls use gRPC. | Client authentication (mTLS), WireGuard, certificate issuance, MLS / fleet keying, any cloud scope. Options A–C at `:449-451`. **AJ decides.** (O23) |
 
 ### 2.2 Items A–F
@@ -223,9 +223,9 @@ Brief = `docs/architecture/architecture-pass.md`. For open rows the brief's opti
 
 ## 3. Rock Box Read-Only Check (fix 2 and Stage 2 entry)
 
-What it is: nine read-only lines for AJ to run later on Rock Box, in a normal terminal. No sudo. No writes. No ssh. It does not touch Johnny, so the week-test hold does not apply to it.
+What it is: nine read-only lines for AJ to run on Rock Box, in a normal terminal. No sudo. No writes. No ssh. It does not touch Johnny, so the week-test hold does not apply to it.
 
-Review state: **not yet reviewed.** The adversarial-reviewer reviews this exact block before AJ runs it (`AGENTS.md:13`). The writer did not run it.
+Review state: **ran unreviewed.** AJ ran this exact block on Rock Box at ~5:04 PM CT 2026-11-17 before any adversarial review of it (`AGENTS.md:13`); no review record exists. The block is read-only, so there was no harm. Raw output: `docs/findings/stage2/2026-11-17-rockbox-fs-check.md`. Result: ext4 on one partition for `/` and `/home`, no reflink (full-copy shadow); `CONFIG_BPF_LSM=y` and `bpf` active.
 
 ***<u>Run on Rock Box</u>***
 
@@ -336,9 +336,9 @@ The stages replace the brief's build order (`docs/architecture/architecture-pass
 Rollback is not in AJ's Stage 2 scope list. Its mechanism follows fix 2. Which stage builds it: **AJ decides.** (O22)
 
 **Entry criteria.**
-1. Stage 1 exit.
-2. The Rock Box filesystem check (§3) has been run and its output is recorded in the repo (fix 2). Until then Rock Box's filesystem is **UNVERIFIED**.
-3. BPF LSM availability on Rock Box has been checked read-only: `CONFIG_BPF_LSM` in the kernel config, and `bpf` in the active LSM list (https://docs.kernel.org/bpf/bpf_lsm.html). The same §3 block covers it. **UNVERIFIED** until AJ runs it.
+1. Stage 1 exit. **Open (O27):** Stage 1 is applied and verified on Johnny (2026-11-17), but its exit thresholds are not set. AJ either declares Stage 1 exited, or decides to start Stage 2 alongside it. **AJ decides.**
+2. The Rock Box filesystem check (§3) has been run and its output is recorded in the repo (fix 2). **Met 2026-11-17** (`docs/findings/stage2/2026-11-17-rockbox-fs-check.md`): one ext4 partition for `/` and `/home`, no reflink, so full-copy shadow.
+3. BPF LSM availability on Rock Box has been checked read-only: `CONFIG_BPF_LSM` in the kernel config, and `bpf` in the active LSM list (https://docs.kernel.org/bpf/bpf_lsm.html). The same §3 block covers it. **Met 2026-11-17** (`docs/findings/stage2/2026-11-17-rockbox-fs-check.md`): `CONFIG_BPF_LSM=y` and `bpf` is in the active list `lockdown,capability,landlock,yama,apparmor,bpf,ima,evm`. No kernel command-line change or reboot is needed for BPF LSM.
 4. Assumption: two open items must be answered before agent code is written, because the scope depends on them: the signature scheme for AJ-signed rules (O17) and enough of the verdict model to define "Unknown" (O21). **AJ decides.**
 
 **Exit criteria.** Targets. Thresholds: **AJ decides.** (O28)
@@ -352,7 +352,7 @@ Rollback is not in AJ's Stage 2 scope list. Its mechanism follows fix 2. Which s
 - Thresholds live in maps and rules, not in compiled code, so they change by rule reload.
 - **Target:** each hook (exec, write, network) is its own BPF program, so one can be removed without the others.
 - **Target:** the rollback store sits behind one interface, so reflink and full-copy are interchangeable once the §3 result is known.
-- Rock Box is AJ's workstation. It also hosts the relay bot and the DMT Console (`AGENTS.md:11`, `docs/os-handoff.md:245`), and every Johnny paste is typed there. Assumption: the agent starts observe-only (log, do not deny) so it cannot cut those off. **AJ decides.** (O28)
+- Rock Box is AJ's workstation. It also hosts the relay bot and the DMT Console (`AGENTS.md:11`, `docs/os-handoff.md:245`), and every Johnny paste is typed there. Whether the agent starts observe-only (log, do not deny), which cannot cut those off, or enforcing from the start is AJ's choice; neither is a default. **AJ decides.** (O28)
 
 **Open items.** O2, O10, O12, O17, O18, O21, O22, O28. **AJ decides.**
 
@@ -481,7 +481,7 @@ AI:
 Brief decisions still open:
 - **O20.** Decision 2 / Item E: the quarantine path (`docs/architecture/architecture-pass.md:409-417`). **AJ decides.**
 - **O21.** Decision 4 / Item F: verdict model states, transitions, and authority (`docs/architecture/architecture-pass.md:428-435`). **AJ decides.**
-- **O22.** Decision 5 / Item D: file rollback on Johnny itself (`docs/architecture/architecture-pass.md:437-444`); which stage builds rollback on Rock Box; shadow store location and disk cap; what to do on a filesystem fix 2 does not name. **AJ decides.**
+- **O22.** Decision 5 / Item D: file rollback on Johnny itself (`docs/architecture/architecture-pass.md:437-444`); which stage builds rollback on Rock Box; shadow store location and disk cap (Rock Box is one ext4 partition with no reflink, so full copies: a store on `/` shares space with the OS and its cap must protect free space on `/`; a store may sit on another disk, since `EXDEV` limits only clones; `docs/findings/stage2/2026-11-17-rockbox-fs-check.md`); what to do on a filesystem fix 2 does not name. **AJ decides.**
 - **O23.** Decision 6 / Item B beyond TLS 1.3 logs: client authentication, WireGuard, certificate issuance, MLS / fleet keying, any cloud scope (`docs/architecture/architecture-pass.md:446-453`). **AJ decides.**
 - **O24.** Where the brief's milestones 4–6 go (K3 engine, ingress filtering, Suricata / Zeek; `docs/architecture/architecture-pass.md:471-479`). **AJ decides.**
 - **O25.** Brief §5 "Needs from AJ" rows 2, 5, 6, 8, 9: detection engines, tamper resistance, threat-intel feeds, operator interface, test method (`docs/architecture/architecture-pass.md:364`, `:367`, `:368`, `:370`, `:371`). **AJ decides.**
@@ -489,7 +489,7 @@ Brief decisions still open:
 
 Stage thresholds:
 - **O27.** Stage 1: what "parity" means, the zero-drop window length, and when the Python reader is retired. **AJ decides.**
-- **O28.** Stage 2: exit thresholds; observe-only or enforcing at first; how writes shorter than 4096 bytes are handled; what to do if BPF LSM is not active on Rock Box. **AJ decides.**
+- **O28.** Stage 2: exit thresholds; observe-only or enforcing from the start (AJ's choice, no default); how writes shorter than 4096 bytes are handled. (BPF LSM is active on Rock Box as of 2026-11-17, `docs/findings/stage2/2026-11-17-rockbox-fs-check.md`, so the not-active fallback is moot unless that changes.) **AJ decides.**
 - **O29.** Stage 3: exit thresholds; whether it overlaps Stage 2; how the "90%+" Target is measured. **AJ decides.**
 - **O30.** Stage 4: exit thresholds; the Microsoft signing path; who holds the EV certificate; whether Stage 4 waits for Stage 3. **AJ decides.**
 

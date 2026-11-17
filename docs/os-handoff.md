@@ -1,4 +1,13 @@
-# Johnny — OS Handoff (rev 119, 2026-11-17 America/Chicago)
+# Johnny — OS Handoff (rev 120, 2026-11-17 America/Chicago)
+
+## Rev 120 (2026-11-17 America/Chicago): Rock Box §3 filesystem + BPF LSM check recorded (docs only)
+- **Status:** **RECORDED (docs only). Nothing changed on Rock Box or Johnny.** AJ ran the read-only `docs/architecture/architecture-rev2.md` §3 block on Rock Box at ~5:04 PM CT; it ran **unreviewed** (§3 said "not yet reviewed", no adversarial review happened; read-only, so no harm). Raw output: `docs/findings/stage2/2026-11-17-rockbox-fs-check.md`.
+- **Result:** kernel `7.3.0-10-generic`. `/` and `/home` are one ext4 partition (`/dev/nvme0n1p2`, `rw,relatime`), no reflink, so Rock Box rollback (fix 2) needs a **full-copy shadow**. Active LSMs `lockdown,capability,landlock,yama,apparmor,bpf,ima,evm`; `CONFIG_BPF_LSM=y`, `CONFIG_LSM="landlock,lockdown,yama,integrity,apparmor,bpf"`: BPF LSM is active, so no kernel command-line change or reboot is needed for it.
+- **Stage 2 entry (architecture-rev2 §4):** criteria 2 (filesystem check recorded) and 3 (BPF LSM checked) are **met**. Criterion 1 (Stage 1 exit) is **open** via O27: AJ either declares Stage 1 exited or decides to start Stage 2 alongside it. Criterion 4 (O17 signing, O21 "Unknown") is open. **AJ decides.**
+- **O22 addition:** a full-copy store on the single ext4 `/` shares space with the OS, so its cap must protect free space on `/`. A full-copy store may sit on another disk; the `EXDEV` limit applies only to clones.
+- **O28:** observe-only vs enforcing from the start is AJ's choice (no default).
+- **Session:** `docs/sessions/2026-11-17-stage2-rockbox-fs-check.md`, `docs/sessions/Johnny_Stage2RockBoxFsCheck_Session_Log_2026-11-17.csv`.
+- **Johnny:** unchanged since rev 119 (`johnny-daemon.service` live, Python reader disabled, Rollback available).
 
 ## Rev 119 (2026-11-17 America/Chicago): Stage 1 Rust userspace daemon (`johnny-daemon.service`) APPLIED and VERIFIED on Johnny
 - **Status:** **APPLIED AND VERIFIED ON JOHNNY (2026-11-17, PR #42 build, merge `c23ea4f`).** Johnny now runs `johnny-daemon.service` (`enabled`/`active`); `johnny-m1s2b-reader.service` is `disabled`/`inactive` with its files kept on disk (`476cf867...`, unit `e5c16249...`); rollback = Rollback section of [`docs/tool-install/stage1-rust-daemon-cutover.md`](tool-install/stage1-rust-daemon-cutover.md). Paste W (week test) was ended early by AJ's choice (test ran `2026-11-14 15:33 CT` to cutover, ~3 days, not 7) and is superseded, no longer the gate. Session note: [`docs/sessions/2026-11-17-stage1-cutover-applied.md`](sessions/2026-11-17-stage1-cutover-applied.md).
