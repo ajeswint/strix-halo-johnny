@@ -1,0 +1,17 @@
+Review git diff 1b9d113..9e80583 (and confirm the rest of PR #47, base cc7e22c, still holds) on worktree /home/aj/Projects/strix-halo-johnny-stage2-decisions-2, branch claude/stage2-decisions-2 tip 9e80583. PR #47 must not be merged.
+
+Paste S1-6 in docs/tool-install/stage1-rust-daemon-cutover.md must remain UNREVIEWED — DRAFT, read-only (nothing started/stopped/installed/written on Johnny), and labeled ***<u>Run on Rock Box</u>*** immediately above the bash fence (not "Run on Johnny").
+
+B1: refuse PASS / STAGE1-EXIT-CHECK-DONE before 2026-11-21 15:33 CT. Compare against that exact instant via date with TZ=America/Chicago or UTC 2026-11-21T21:33:00Z. Before then, print a distinct NOT-YET token and exit nonzero. A premature run must not be able to pass.
+
+B2: fail if johnny-daemon.service restarted or Johnny rebooted since cutover. systemctl show must require NRestarts=0 and ActiveEnterTimestamp or InvocationID consistent with the cutover (ActiveEnterTimestamp at or before the cutover time in docs/sessions/2026-11-17-stage1-cutover-applied.md: Paste S1-4 ~3:30 PM CT, HEADER start_utc=2026-11-17 21:30:30Z). Check boot_id only if that session note recorded one; do not invent a boot_id pin if it did not. Fail on any restart or reboot with distinct tokens, not "changed".
+
+N1: fail if the journal or counter/data source has stopped updating, instead of passing quietly. Newest counter/data source must be recent (e.g. newest /var/lib/johnny/m1s2b/run-*.bin mtime under 10 minutes). Do not require a journal line in the last 10 minutes (daemon journals file-open/file-closed on ~3600s rotation). Require seen increased past baseline 168066737. Fail if journalctl itself cannot be read.
+
+N2: when counters cannot be read or parsed (NOTE-ctl-unreadable, missing CTL lines, non-integer values), emit a distinct UNREADABLE token, not "changed". "changed" only for a present, parsed value that differs from rate_limited 18217138, rb_full 0, discarded 0.
+
+Baseline: seen=168066737 sampled_out=0 rate_limited=18217138 rb_full=0 emitted=149849599 discarded=0. CTL format is one "CTL name total" line per counter from module1-slice2b-boot.sh status.
+
+Session note docs/sessions/2026-11-17-stage2-decisions-2.md (and CSV) should record that B1/B2/N1/N2 were applied from Claude's summary. Must not say AJ declined B1. Must not edit historical notes (stage1-cutover-applied.md, 2026-11-17-stage2-decisions.md).
+
+If Rollback line numbers shifted, architecture-rev2.md cites must be updated (were :275-303). parity.rs changes must be test-only. Self-test and cargo test --locked --offline in crates/ (PATH=$HOME/.cargo/bin:$PATH) must pass.
