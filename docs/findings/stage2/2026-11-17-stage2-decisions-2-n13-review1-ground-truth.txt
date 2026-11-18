@@ -1,0 +1,16 @@
+Review git diff 7dee6ad..741f738 on worktree /home/aj/Projects/strix-halo-johnny-stage2-decisions-2, branch claude/stage2-decisions-2 tip 741f738 (PR #47, base cc7e22c, not to be merged by the reviewer). Confirm earlier S1-6 B1/B2/N1/N2 behavior was not broken.
+
+Task A — Claude re-review nits of 7dee6ad (APPROVE-WITH-NITS, none blocking):
+n1: S1-6 Expect says `[[: not found` means aj's login shell is not bash; send it back. First runbook paste to use bash [[ ]] over SSH; fails safe.
+n2: Expect says `STOP-exit-journal-UNREADABLE missing=reader-begin` can mean journald rotated away / deleted the 11-17 entries. That is a false stop, not a Stage 1 failure.
+n3: S1-6 review state is now “Claude reviewed 7dee6ad: APPROVE-WITH-NITS n1–n3”, not UNREVIEWED DRAFT, in current (non-historical) places.
+Session note: Claude's N1 was only the silent journal stop; seen-grows and file-freshness are additions beyond it, kept on purpose. Historical session notes untouched.
+Claude's re-review is recorded in the session note, CSV, and docs/findings/stage2/.
+Paste S1-6 stays read-only, ***<u>Run on Rock Box</u>***, B1 date gate unchanged. Rollback cites still accurate if lines shifted. parity.rs test-only.
+
+Task B — AJ yes at 10:50 PM CT 2026-11-17: AGENTS.md and docs/agent-team.md record current standing seats, replacing the Claude Fable writer as of 2026-11-15:
+Writer: Antigravity agy with gemini-4-argon-high (high effort, auto mode).
+Reviewer: Grok 4.7 high via cursor-agent.
+Earlier seat pins remain as historical revision text, not the current pin. Writer does not review their own work; AJ decides and runs sudo; domain ownership unchanged.
+
+Self-test and cargo test --locked --offline in crates/ (PATH=$HOME/.cargo/bin:$PATH) must pass.
