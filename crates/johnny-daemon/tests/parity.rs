@@ -744,6 +744,10 @@ want_bin_sha = json.loads(sbom_raw.decode("utf-8"))["metadata"]["component"]["ha
 text = open(doc_path, encoding="utf-8").read()
 assert "DO NOT RUN BEFORE PASTE W" in text, "missing Paste W hold banner"
 assert "2026-11-21 15:33 CT" in text, "missing week-test end timestamp"
+assert "Claude reviewed 7dee6ad: APPROVE-WITH-NITS n1–n3" in text, "missing S1-6 Claude review state"
+assert "UNREVIEWED" not in text, "runbook still contains UNREVIEWED"
+assert "[[: not found" in text, "missing n1 Expect note"
+assert "STOP-exit-journal-UNREADABLE missing=reader-begin" in text, "missing n2 Expect note"
 
 lines = text.splitlines()
 blocks = []
@@ -783,6 +787,7 @@ expected_tokens = [
     "STAGE1-PROBE-INSTALL-DONE",
     "STAGE1-CUTOVER-DONE",
     "STAGE1-VERIFY-DONE",
+    "STAGE1-EXIT-CHECK-DONE",
     "STAGE1-ROLLBACK-DONE",
 ]
 assert len(blocks) == len(expected_tokens), f"got {len(blocks)} blocks, want {len(expected_tokens)}"
@@ -814,6 +819,161 @@ for idx, ((lab, body), want_tok) in enumerate(zip(blocks, expected_tokens), 1):
             remote_args = stoks[h_idx + 1:end_idx]
             assert len(remote_args) == 1, f"block #{idx}: nested quotes split ssh command: {remote_args}"
     assert f"echo {want_tok}" in body, f"block #{idx} missing token {want_tok}"
+    if want_tok == "STAGE1-EXIT-CHECK-DONE":
+        for s16_tok in (
+            "TZ=America/Chicago",
+            "2026-11-21 15:33:00",
+            "2026-11-21T21:33:00Z",
+            "STOP-exit-NOT-YET",
+            "2026-11-17T21:30:30Z",
+            "STOP-exit-rebooted",
+            "STOP-exit-units",
+            "NRestarts",
+            "ActiveEnterTimestamp",
+            "InvocationID",
+            "STOP-exit-daemon-restarted",
+            "STOP-exit-ctl-UNREADABLE",
+            "STOP-exit-rate_limited-changed",
+            "STOP-exit-rb_full-changed",
+            "STOP-exit-discarded-changed",
+            "168066737",
+            "STOP-exit-seen-not-increased",
+            "STOP-exit-runfile-UNREADABLE",
+            "STOP-exit-runfile-stale",
+            "STOP-exit-journal-UNREADABLE",
+            "STOP-exit-journal-stops",
+        ):
+            assert s16_tok in body, f"S1-6 block missing required token {s16_tok}"
+
+        import os, shutil, subprocess, tempfile
+        tdir = tempfile.mkdtemp(prefix="s16_audit_")
+        try:
+            bdir = os.path.join(tdir, "bin")
+            os.makedirs(bdir)
+            proc_stat = os.path.join(tdir, "proc_stat")
+            remote_sh = stoks[3].replace("/proc/stat", proc_stat)
+
+            def write_shim(name, content):
+                p = os.path.join(bdir, name)
+                with open(p, "w") as f:
+                    f.write("#!/usr/bin/env bash\n" + content + "\n")
+                os.chmod(p, 0o755)
+
+            write_shim("sudo", 'if [ "$1" = "-v" ]; then exit 0; fi\nexec "$@"')
+            write_shim("sha256sum", 'exit 0')
+            write_shim("date", '''
+if [[ "$*" == *"-d"* ]]; then
+  exec /usr/bin/date "$@"
+fi
+if [[ "$*" == *"+%s"* ]]; then
+  echo "${MOCK_NOW_EPOCH:-1795296780}"
+else
+  echo "${MOCK_NOW_UTC:-2026-11-21T21:33:00Z}"
+fi
+''')
+            write_shim("systemctl", '''
+case "$*" in
+  *"is-active johnny-capture-xdp-records.service"*) echo "${MOCK_XDP:-active}" ;;
+  *"is-active johnny-daemon.service"*) echo "${MOCK_RS:-active}" ;;
+  *"is-active johnny-m1s2b-reader.service"*) echo "${MOCK_PY:-inactive}" ;;
+  *"-p NRestarts"*) echo "${MOCK_NRESTARTS:-0}" ;;
+  *"-p Result"*) echo "${MOCK_RESULT:-success}" ;;
+  *"-p ActiveEnterTimestamp"*) echo "${MOCK_ACTIVE_ENTER:-Tue 2026-11-17 15:30:29 CST}" ;;
+  *"-p InvocationID"*) echo "${MOCK_INV:-0123456789abcdef0123456789abcdef}" ;;
+esac
+''')
+            write_shim("find", 'echo "${MOCK_NEWEST_BIN:-/var/lib/johnny/m1s2b/run-20261121T210000Z.bin}"')
+            write_shim("stat", 'echo "${MOCK_MTIME:-1795296700}"')
+            write_shim("journalctl", '''
+if [ "${MOCK_J_FAIL:-0}" = "1" ]; then exit 1; fi
+echo "${MOCK_J_OUT:-{\\"version\\":1,\\"event\\":\\"reader-begin\\"}}"
+''')
+
+            default_ctl = "\n".join([
+                "ATTACH records 78",
+                "CTL seen 170000000",
+                "CTL sampled_out 0",
+                "CTL rate_limited 18217138",
+                "CTL rb_full 0",
+                "CTL discarded 0",
+                "CTL emitted 151782862",
+                "CFG ver=1 sample_every=1 rate=1000000 burst=100000",
+            ])
+
+            def run_s16(**env_over):
+                with open(proc_stat, "w") as f:
+                    f.write(f"btime {env_over.pop('btime', '1794500000')}\n")
+                status_sh = os.path.join(tdir, "status.sh")
+                with open(status_sh, "w") as f:
+                    if env_over.pop("status_fail", False):
+                        f.write("#!/usr/bin/env bash\nexit 1\n")
+                    else:
+                        ctl_text = env_over.pop("ctl_text", default_ctl)
+                        f.write("#!/usr/bin/env bash\ncat <<'EOF'\n" + ctl_text + "\nEOF\n")
+                os.chmod(status_sh, 0o755)
+                script = remote_sh.replace("/root/m1s2b/module1-slice2b-boot.sh", status_sh)
+                env = os.environ.copy()
+                env["PATH"] = bdir + ":" + env.get("PATH", "")
+                env.update(env_over)
+                return subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True)
+
+            # Happy path at 2026-11-21 15:33:00 CT (1795296780)
+            r = run_s16()
+            assert r.returncode == 0 and "STAGE1-EXIT-CHECK-DONE" in r.stdout, f"happy path failed: {r.stdout} {r.stderr}"
+
+            # B1: 1 second before gate (1795296779) -> STOP-exit-NOT-YET
+            r = run_s16(MOCK_NOW_EPOCH="1795296779", MOCK_NOW_UTC="2026-11-21T21:32:59Z")
+            assert r.returncode != 0 and "STOP-exit-NOT-YET" in r.stderr and "STAGE1-EXIT-CHECK-DONE" not in r.stdout
+
+            # B2: rebooted after cutover (1794951031 > 1794951030) -> STOP-exit-rebooted
+            r = run_s16(btime="1794951031")
+            assert r.returncode != 0 and "STOP-exit-rebooted" in r.stderr and "changed" not in r.stderr
+
+            # B2: daemon restarted (NRestarts=1) -> STOP-exit-daemon-restarted
+            r = run_s16(MOCK_NRESTARTS="1")
+            assert r.returncode != 0 and "STOP-exit-daemon-restarted" in r.stderr and "changed" not in r.stderr
+
+            # B2: ActiveEnterTimestamp after cutover -> STOP-exit-daemon-restarted
+            r = run_s16(MOCK_ACTIVE_ENTER="Tue 2026-11-17 21:30:31 UTC")
+            assert r.returncode != 0 and "STOP-exit-daemon-restarted" in r.stderr and "changed" not in r.stderr
+
+            # N2: NOTE-ctl-unreadable -> STOP-exit-ctl-UNREADABLE (not changed)
+            r = run_s16(ctl_text="ATTACH records 78\nNOTE-ctl-unreadable")
+            assert r.returncode != 0 and "STOP-exit-ctl-UNREADABLE" in r.stderr and "changed" not in r.stderr
+
+            # N2: missing CTL line -> STOP-exit-ctl-UNREADABLE (not changed)
+            r = run_s16(ctl_text="CTL seen 170000000\nCTL sampled_out 0\nCTL rb_full 0\nCTL emitted 151782862\nCTL discarded 0")
+            assert r.returncode != 0 and "STOP-exit-ctl-UNREADABLE" in r.stderr and "changed" not in r.stderr
+
+            # N2: non-integer CTL value -> STOP-exit-ctl-UNREADABLE (not changed)
+            r = run_s16(ctl_text=default_ctl.replace("CTL rate_limited 18217138", "CTL rate_limited NaN"))
+            assert r.returncode != 0 and "STOP-exit-ctl-UNREADABLE" in r.stderr and "changed" not in r.stderr
+
+            # N2: present parsed value differs -> *-changed
+            r = run_s16(ctl_text=default_ctl.replace("CTL rate_limited 18217138", "CTL rate_limited 18217139"))
+            assert r.returncode != 0 and "STOP-exit-rate_limited-changed" in r.stderr
+            r = run_s16(ctl_text=default_ctl.replace("CTL rb_full 0", "CTL rb_full 1"))
+            assert r.returncode != 0 and "STOP-exit-rb_full-changed" in r.stderr
+            r = run_s16(ctl_text=default_ctl.replace("CTL discarded 0", "CTL discarded 1"))
+            assert r.returncode != 0 and "STOP-exit-discarded-changed" in r.stderr
+
+            # N1: seen not increased past 168066737 -> STOP-exit-seen-not-increased
+            r = run_s16(ctl_text=default_ctl.replace("CTL seen 170000000", "CTL seen 168066737"))
+            assert r.returncode != 0 and "STOP-exit-seen-not-increased" in r.stderr and "changed" not in r.stderr
+
+            # N1: newest run-*.bin stale (> 600s) -> STOP-exit-runfile-stale
+            r = run_s16(MOCK_MTIME="1795296000")
+            assert r.returncode != 0 and "STOP-exit-runfile-stale" in r.stderr
+
+            # N1: journalctl unreadable -> STOP-exit-journal-UNREADABLE
+            r = run_s16(MOCK_J_FAIL="1")
+            assert r.returncode != 0 and "STOP-exit-journal-UNREADABLE" in r.stderr
+
+            # N1: journal STOP- line -> STOP-exit-journal-stops
+            r = run_s16(MOCK_J_OUT='{"version":1,"event":"reader-begin"}\n{"version":1,"event":"stop","stop":"STOP-low-disk"}')
+            assert r.returncode != 0 and "STOP-exit-journal-stops" in r.stderr
+        finally:
+            shutil.rmtree(tdir)
     for h, path in re.findall(r"\b([0-9a-f]{64})  ([^\s\"']+)", body):
         if path.endswith("johnny-daemon.service"):
             assert h == want_unit_sha, f"block #{idx} wrong unit sha {h} != {want_unit_sha}"

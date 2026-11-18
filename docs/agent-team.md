@@ -1,6 +1,6 @@
 # Johnny agent team
 
-Rev 10, 2026-11-05. Rev 10: standing model seats — two Claude Code instances (Sonnet, medium effort): **code-writer** and **adversarial-reviewer**; ROCK-BOX-BOT automates the relay. Agent files `.claude/agents/code-writer.md` and `.claude/agents/adversarial-reviewer.md`. Rev 9, 2026-11-05: Grok 4.7 wrote, Claude reviewed (superseded). Rev 8, 2026-11-04. Rev 8: CIS batches are one recoverable sudo script, reviewed once before AJ runs it and once at batch close; handoff bumps at session end only (AJ). Rev 7, 2026-11-03. Rev 7: reviewer label is Claude, as Assurance (AJ). Each seat writes its own Relay for the other to read. The writer does not add to a findings file after the review. Rev 6: model seats (AJ). Grok writes; Claude reviews and does not edit the draft. Domain ownership unchanged. Rev 5, 2026-10-31, agreed by AJ and Grok: first skill file (`cis-audit`); skill folders owned by the agent that holds the skill; `docs/hosts/` → Architect (provisional). Wired: `.claude/agents/` holds one file per agent (9); the Brain is the main session and has no file. Rev 2 (AJ): the SLM has full function for now; architecture-logic questions deferred (§7). Rev 3: Grok review applied (quarantine cross-reference, `.gitignore` owner, Fast Path in PW.9). Rev 4: agent files created.
+Rev 11, 2026-11-17. Rev 11 (AJ, 2026-11-17 10:50 PM CT): standing model seats — Writer (**code-writer**): Antigravity `agy` with `gemini-4-argon-high` (high effort, auto mode), replacing the Claude Fable writer as of 2026-11-15; Reviewer (**adversarial-reviewer**): Grok 4.7 high via `cursor-agent`; writer does not review their own work; AJ decides and runs sudo; domain ownership unchanged. Rev 10, 2026-11-05 (historical, superseded): standing model seats — two Claude Code instances (Sonnet, medium effort): **code-writer** and **adversarial-reviewer**; ROCK-BOX-BOT automates the relay. Agent files `.claude/agents/code-writer.md` and `.claude/agents/adversarial-reviewer.md`. Rev 9, 2026-11-05: Grok 4.7 wrote, Claude reviewed (superseded). Rev 8, 2026-11-04. Rev 8: CIS batches are one recoverable sudo script, reviewed once before AJ runs it and once at batch close; handoff bumps at session end only (AJ). Rev 7, 2026-11-03. Rev 7: reviewer label is Claude, as Assurance (AJ). Each seat writes its own Relay for the other to read. The writer does not add to a findings file after the review. Rev 6: model seats (AJ). Grok writes; Claude reviews and does not edit the draft. Domain ownership unchanged. Rev 5, 2026-10-31, agreed by AJ and Grok: first skill file (`cis-audit`); skill folders owned by the agent that holds the skill; `docs/hosts/` → Architect (provisional). Wired: `.claude/agents/` holds one file per agent (9); the Brain is the main session and has no file. Rev 2 (AJ): the SLM has full function for now; architecture-logic questions deferred (§7). Rev 3: Grok review applied (quarantine cross-reference, `.gitignore` owner, Fast Path in PW.9). Rev 4: agent files created.
 
 What this is: the roster that says which agent owns which job, so no two agents do the same work. Inputs: role list `docs/Enterprise Security Software Team Roles.md` (127 titles); control model `docs/Distributed Neural Networks and Control Systems in Cephalopods.md` §1, §4–5; architecture `docs/JOHNNY_ Executive Architectural Summary.md`.
 
@@ -18,7 +18,7 @@ What this is: the roster that says which agent owns which job, so no two agents 
 Outside the agent count:
 - **AJ** designs and decides. Holds every authority title (§5). Runs anything needing sudo or credentials, and every switch/router change.
 - **Overseer**: separate reviewer (README step 3). External.
-- **Standing LLM seats** (not domain arms): Claude Code **code-writer** + Claude Code **adversarial-reviewer** (both Sonnet / medium). See `AGENTS.md`.
+- **Standing LLM seats** (not domain arms): Writer (**code-writer**): Antigravity `agy` with `gemini-4-argon-high` (high effort, auto mode); Reviewer (**adversarial-reviewer**): Grok 4.7 high via `cursor-agent`. See `AGENTS.md`.
 
 Count: 9 agents (Architect + 8 arms), run by the Brain. Floor of 8 met.
 
@@ -222,15 +222,15 @@ Why:
 
 ## 6. Operating protocol
 
-Model seats (AJ, 2026-11-03; pinned 2026-11-05). The standing pin is `AGENTS.md`. These names say who holds the pen. They do not move §4 ownership.
+Model seats (AJ, 2026-11-17 10:50 PM CT; replaces the Claude Fable writer as of 2026-11-15, and historical 2026-11-05 two Claude Code Sonnet medium instances / earlier 2026-11-03 and 2026-11-05 Grok-writer pins). The standing pin is `AGENTS.md`. These names say who holds the pen. They do not move §4 ownership.
 
-- **Writer: Grok 4.7.** Drafts, exact commands, repo edits, and the scoring helpers `tools/relay/` already uses, inside the owning agent's paths (Platform for OS fixes, and so on).
-- **Reviewer: Claude Code, as Assurance** (AJ, 2026-11-03). Claude Code is the reviewer. Assurance is the role. Independent review only. Findings go in `docs/findings/` for a fix-batch review. Claude Code does not edit the draft. The writer does not add to that file after the review.
-- **Relay automation: ROCK-BOX-BOT** (the Grok Bot on rock-box). Runs the existing Grok-to-Claude loop in `tools/relay/` (`claude -p`, and the model ids already in `tools/relay/README.md`). This is the tool loop, not the reply Relay in the next bullet.
-- **Relay:** the seat replying to AJ writes it. Grok 4.7's Relay is for Claude Code. Claude Code's Relay is for Grok 4.7.
-- The writer does not review their own draft. AJ decides and runs sudo. No passwordless sudo.
-- CIS batches (AJ, 2026-11-04): Grok 4.7 writes one fail-fast `sudo bash` script for the recoverable steps. Claude Code reviews that exact paste before AJ runs it, and reviews once at batch close. Docs-only commits are not a review gate. Mount changes and reboots are separate pastes. Batch 5's mount steps and its reboot stay separate. A new Grok 4.7 session starts each batch. Handoff revision and session CSV happen at session end only.
-- Batch 3 rev 3 (`docs/cis-fix/batch-3.md`) was written before this rule. Further edits to it are Grok 4.7's.
+- **Writer (`code-writer`): Antigravity `agy` with `gemini-4-argon-high` (high effort, auto mode).** Drafts, exact commands, and repo edits inside the owning agent's paths (Platform for OS fixes, and so on). Agent file: `.claude/agents/code-writer.md`.
+- **Reviewer (`adversarial-reviewer`): Grok 4.7 high via `cursor-agent`, as Assurance.** Grok 4.7 high (`cursor-agent`) is the standing reviewer. Assurance is the role. Independent review only. Findings go in `docs/findings/`. The reviewer does not edit the draft. The writer does not add to that file after the review. Agent file: `.claude/agents/adversarial-reviewer.md`.
+- **Relay automation: ROCK-BOX-BOT** (the Grok Bot on rock-box). Automates the writer↔reviewer relay. Earlier seat pins (Claude Fable writer before 2026-11-15; two Claude Code Sonnet medium instances on 2026-11-05; Grok 4.7 writer / Claude reviewer on 2026-11-03 and 2026-11-05; legacy `GROK_MODEL` ids in `tools/relay/README.md`) are historical only.
+- **Relay:** the seat replying to AJ writes it. The `code-writer` seat's Relay is for the `adversarial-reviewer` to read. The `adversarial-reviewer` seat's Relay is for the `code-writer` to read.
+- The writer does not review their own work. AJ decides and runs sudo. No passwordless sudo.
+- CIS batches (AJ, 2026-11-04; seat rename 2026-11-05): the `code-writer` writes one fail-fast `sudo bash` script for the recoverable steps. The `adversarial-reviewer` reviews that exact paste before AJ runs it, and reviews once at batch close. Docs-only commits are not a review gate. Mount changes and reboots are separate pastes. Batch 5's mount steps and its reboot stay separate. A new `code-writer` session starts each batch. Handoff revision and session CSV happen at session end only.
+- Historical note: Batch 3 rev 3 (`docs/cis-fix/batch-3.md`) was written before the 2026-11-04 CIS batch rule under the historical Grok-writer pin.
 
 Directive (Brain → agent):
 ```

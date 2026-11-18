@@ -235,6 +235,115 @@ Expect `window 60` passing with zero drops (`OK-no-drops-window`, `M1S2B-WINDOW-
 
 Note: `module1-slice2b-boot.sh verify` (`docs/tool-install/module1-slice2b-boot.sh:698-702`) asserts `johnny-m1s2b-reader.service` is `enabled` and `active`, so Paste S1-5 uses `boot.sh window 60` + `boot.sh status` while `johnny-daemon.service` is active, and the Rollback section below runs `boot.sh verify` once `johnny-m1s2b-reader.service` is re-enabled.
 
+### Paste S1-6: Stage 1 exit check — drop counters unchanged since cutover (read-only; run after 2026-11-21 15:33 CT)
+
+**Review state: Claude reviewed 7dee6ad: APPROVE-WITH-NITS n1–n3** (n1–n3 applied here; see `docs/findings/stage2/2026-11-17-stage2-decisions-2-rereview-claude-7dee6ad.md`). AJ decided O27 window A on 2026-11-17 9:01 PM CT (`docs/architecture/architecture-rev2.md` O27): Stage 1 exits when this check passes after 2026-11-21 15:33 CT (`2026-11-21T21:33:00Z`), not on the date alone. Open gap AJ accepted with window A: no cold boot has been tested under the Rust daemon.
+
+Baseline (cutover, daemon-written run file `HEADER start_utc=2026-11-17 21:30:30Z` and `CTL-START`, `docs/sessions/2026-11-17-stage1-cutover-applied.md:25, 35-36`): `seen=168066737 sampled_out=0 rate_limited=18217138 rb_full=0 emitted=149849599 discarded=0`. The CTL counters (`module1-slice2b-boot.sh status`, one `CTL <name> <total>` line per counter) are cumulative since `j_xdp_records` loaded, so "unchanged" means `rate_limited` is still `18217138` and `rb_full` and `discarded` are still `0`, while `seen` has increased past `168066737`. A missing or unparsable counter emits `STOP-exit-ctl-UNREADABLE`, never `*-changed`. `docs/sessions/2026-11-17-stage1-cutover-applied.md` did not record a `boot_id` or `johnny-daemon.service` `InvocationID`, so this check prints the live `boot_id` and `InvocationID` without inventing a pin and verifies `/proc/stat` `btime` plus `systemctl show johnny-daemon.service` (`NRestarts=0`, `Result=success`, `ActiveEnterTimestamp` at or before `2026-11-17T21:30:30Z`) to fail on any reboot or daemon restart since cutover.
+
+Read-only: `sudo` is used only for `sha256sum -c`, `systemctl is-active`, `systemctl show`, `module1-slice2b-boot.sh status` (takes no lock and writes nothing), `find`, `stat`, and `journalctl` (plus unprivileged `date`, `cat /proc/sys/kernel/random/boot_id`, and `sed` on `/proc/stat`). Nothing is started, stopped, installed, or written on Johnny.
+
+***<u>Run on Rock Box</u>***
+
+```bash
+ssh -t aj@192.168.50.152 'sudo -v &&
+echo "a4d4dfa4c7d6ba3c9ffb64810a54952f4e7ce652889a2fe6f628adadef1bf9eb  /root/m1s2b/module1-slice2b-boot.sh
+08e96c19b83edc6662684d0c4a7902675def5837a769d1592f06dc082c1681ac  /usr/local/libexec/johnny/johnny-daemon
+e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa  /etc/systemd/system/johnny-daemon.service" | sudo sha256sum -c - &&
+now_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ) &&
+now_epoch=$(date -u +%s) &&
+gate_epoch=$(TZ=America/Chicago date -d "2026-11-21 15:33:00" +%s) &&
+echo "DATE-UTC $now_utc BOOT-ID $(cat /proc/sys/kernel/random/boot_id)" &&
+if ! [[ "$now_epoch" =~ ^[0-9]+$ ]] || ! [[ "$gate_epoch" =~ ^[0-9]+$ ]] || [ "$now_epoch" -lt "$gate_epoch" ]; then
+  echo "STOP-exit-NOT-YET now=$now_utc gate=2026-11-21T21:33:00Z (2026-11-21 15:33 CT)" >&2
+  exit 1
+fi &&
+cutover_epoch=$(date -u -d "2026-11-17T21:30:30Z" +%s) &&
+btime=$(sed -n "s/^btime //p" /proc/stat) &&
+if ! [[ "$cutover_epoch" =~ ^[0-9]+$ ]] || ! [[ "$btime" =~ ^[0-9]+$ ]] || [ "$btime" -gt "$cutover_epoch" ]; then
+  echo "STOP-exit-rebooted btime=$btime cutover=2026-11-17T21:30:30Z" >&2
+  exit 1
+fi &&
+st_xdp=$(sudo systemctl is-active johnny-capture-xdp-records.service 2>/dev/null || true) &&
+st_rs=$(sudo systemctl is-active johnny-daemon.service 2>/dev/null || true) &&
+st_py=$(sudo systemctl is-active johnny-m1s2b-reader.service 2>/dev/null || true) &&
+if [ "$st_xdp" != "active" ] || [ "$st_rs" != "active" ] || [ "$st_py" != "inactive" ]; then
+  echo "STOP-exit-units xdp=$st_xdp rs=$st_rs py=$st_py" >&2
+  exit 1
+fi &&
+nrestarts=$(sudo systemctl show johnny-daemon.service -p NRestarts --value 2>/dev/null || true) &&
+result=$(sudo systemctl show johnny-daemon.service -p Result --value 2>/dev/null || true) &&
+active_enter=$(sudo systemctl show johnny-daemon.service -p ActiveEnterTimestamp --value 2>/dev/null || true) &&
+inv_id=$(sudo systemctl show johnny-daemon.service -p InvocationID --value 2>/dev/null || true) &&
+active_epoch=$(date -u -d "$active_enter" +%s 2>/dev/null || true) &&
+echo "DAEMON-STATE nrestarts=$nrestarts result=$result active_enter=\"$active_enter\" active_epoch=$active_epoch invocation=$inv_id" &&
+if [ "$nrestarts" != "0" ] || [ "$result" != "success" ] || [ -z "$inv_id" ] || [ -z "$active_enter" ] || ! [[ "$active_enter" =~ [0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2} ]] || ! [[ "$active_epoch" =~ ^[0-9]+$ ]] || [ "$active_epoch" -lt "$btime" ] || [ "$active_epoch" -gt "$cutover_epoch" ]; then
+  echo "STOP-exit-daemon-restarted nrestarts=$nrestarts result=$result active_enter=\"$active_enter\" cutover=2026-11-17T21:30:30Z" >&2
+  exit 1
+fi &&
+if ! status_out=$(sudo bash /root/m1s2b/module1-slice2b-boot.sh status); then
+  echo "STOP-exit-ctl-UNREADABLE status-failed" >&2
+  exit 1
+fi &&
+{ echo "$status_out" | grep -E "^(ATTACH|UNIT-|PINS|STATS|CTL|CFG|NOTE-)" || true; } &&
+ctl_seen=$(echo "$status_out" | sed -n "s/^CTL seen //p") &&
+ctl_so=$(echo "$status_out" | sed -n "s/^CTL sampled_out //p") &&
+ctl_rl=$(echo "$status_out" | sed -n "s/^CTL rate_limited //p") &&
+ctl_rb=$(echo "$status_out" | sed -n "s/^CTL rb_full //p") &&
+ctl_emit=$(echo "$status_out" | sed -n "s/^CTL emitted //p") &&
+ctl_disc=$(echo "$status_out" | sed -n "s/^CTL discarded //p") &&
+if echo "$status_out" | grep -q "^NOTE-ctl-unreadable$" ||
+   ! [[ "$ctl_seen" =~ ^[0-9]+$ ]] ||
+   ! [[ "$ctl_so" =~ ^[0-9]+$ ]] ||
+   ! [[ "$ctl_rl" =~ ^[0-9]+$ ]] ||
+   ! [[ "$ctl_rb" =~ ^[0-9]+$ ]] ||
+   ! [[ "$ctl_emit" =~ ^[0-9]+$ ]] ||
+   ! [[ "$ctl_disc" =~ ^[0-9]+$ ]]; then
+  echo "STOP-exit-ctl-UNREADABLE seen=$ctl_seen sampled_out=$ctl_so rate_limited=$ctl_rl rb_full=$ctl_rb emitted=$ctl_emit discarded=$ctl_disc" >&2
+  exit 1
+fi &&
+{ [ "$ctl_rl" = "18217138" ] || { echo "STOP-exit-rate_limited-changed got=$ctl_rl base=18217138" >&2; exit 1; }; } &&
+{ [ "$ctl_rb" = "0" ] || { echo "STOP-exit-rb_full-changed got=$ctl_rb base=0" >&2; exit 1; }; } &&
+{ [ "$ctl_disc" = "0" ] || { echo "STOP-exit-discarded-changed got=$ctl_disc base=0" >&2; exit 1; }; } &&
+if [ "$ctl_seen" -le 168066737 ]; then
+  echo "STOP-exit-seen-not-increased seen=$ctl_seen base=168066737" >&2
+  exit 1
+fi &&
+newest_bin=$(sudo find /var/lib/johnny/m1s2b -maxdepth 1 -type f -name "run-*.bin" 2>/dev/null | sort | tail -n1) &&
+if [ -z "$newest_bin" ]; then
+  echo "STOP-exit-runfile-UNREADABLE newest_bin=none" >&2
+  exit 1
+fi &&
+newest_mtime=$(sudo stat -c %Y "$newest_bin" 2>/dev/null || true) &&
+now_check=$(date -u +%s) &&
+if ! [[ "$newest_mtime" =~ ^[0-9]+$ ]] || ! [[ "$now_check" =~ ^[0-9]+$ ]]; then
+  echo "STOP-exit-runfile-UNREADABLE file=$newest_bin mtime=$newest_mtime" >&2
+  exit 1
+fi &&
+run_age=$((now_check - newest_mtime)) &&
+echo "NEWEST-RUNFILE file=$newest_bin mtime=$newest_mtime age_secs=$run_age" &&
+if [ "$run_age" -gt 600 ] || [ "$run_age" -lt -5 ]; then
+  echo "STOP-exit-runfile-stale file=$newest_bin age_secs=$run_age max_secs=600" >&2
+  exit 1
+fi &&
+if ! j_out=$(sudo journalctl -u johnny-daemon.service -b --no-pager -o cat); then
+  echo "STOP-exit-journal-UNREADABLE" >&2
+  exit 1
+fi &&
+if ! echo "$j_out" | grep -q "\"event\":\"reader-begin\""; then
+  echo "STOP-exit-journal-UNREADABLE missing=reader-begin" >&2
+  exit 1
+fi &&
+j_stops=$(echo "$j_out" | grep -c "STOP-" || true) &&
+if [ "$j_stops" != "0" ]; then
+  echo "STOP-exit-journal-stops count=$j_stops" >&2
+  exit 1
+fi &&
+echo STAGE1-EXIT-CHECK-DONE'
+```
+
+Expect three `OK` hash lines, current time at or after `2026-11-21 15:33 CT` (`2026-11-21T21:33:00Z`; `STOP-exit-NOT-YET` before then), `/proc/stat` `btime` at or before cutover `2026-11-17T21:30:30Z` (`STOP-exit-rebooted` on any reboot since cutover), units xdp `active` / daemon `active` / Python reader `inactive` (`STOP-exit-units` otherwise), `johnny-daemon.service` `NRestarts=0` + `Result=success` + `ActiveEnterTimestamp` at or before `2026-11-17T21:30:30Z` (`STOP-exit-daemon-restarted` on any restart), all six `CTL` counters readable and parsed as integers (`STOP-exit-ctl-UNREADABLE` if unreadable, missing, or non-integer) with `rate_limited 18217138`, `rb_full 0`, `discarded 0` (`STOP-exit-*-changed` only when a parsed counter differs) and `seen > 168066737` (`STOP-exit-seen-not-increased`), newest `/var/lib/johnny/m1s2b/run-*.bin` readable (`STOP-exit-runfile-UNREADABLE`) with `mtime` age `<= 600` s (`STOP-exit-runfile-stale`), `journalctl -u johnny-daemon.service -b` readable with `"event":"reader-begin"` present (`STOP-exit-journal-UNREADABLE`) and zero `STOP-` lines (`STOP-exit-journal-stops`), and **`STAGE1-EXIT-CHECK-DONE`**. S1-6 is the first runbook paste to use bash `[[ ]]` over SSH (`[[: not found means aj's login shell is not bash; send it back.` — it fails safe before `STAGE1-EXIT-CHECK-DONE` can be reached). `STOP-exit-journal-UNREADABLE missing=reader-begin` can mean journald deleted (rotated away) the 11-17 entries. That is a false stop, not a Stage 1 failure. Any `STOP-exit-*` means Stage 1 has not exited; send the full output back.
+
 ---
 
 ## Rollback (not part of the paste sequence above)
