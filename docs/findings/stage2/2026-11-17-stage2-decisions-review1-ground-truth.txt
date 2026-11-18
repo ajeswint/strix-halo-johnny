@@ -1,0 +1,8 @@
+AJ, 7:59 PM CT 2026-11-17: "follow claude recs" = accept these as AJ-DECIDED 2026-11-17:
+- O27 = B: Stage 1 and Stage 2 overlap; Stage 2 may start now; Stage 1 exits after a longer zero-drop window set by AJ. Window length PENDING AJ.
+- O28 = C: observe-only except one enforcing test cgroup. Whether BPF LSM can scope a check to a cgroup is UNVERIFIED; a Fast Path test must confirm before any enforcement.
+- O17 = Ed25519 signatures verified in userspace before any map write. Private key not a plain file on Rock Box: FIDO2 key via ssh-keygen -Y if AJ owns one, else minisign. Which = PENDING (AJ hasn't said if he owns FIDO2).
+- O21 = K3 three-state. Unknown = executable SHA-256 on neither signed allow list nor deny list. No promotion via parent process. Interpreters (python3, bash, etc.) known gap: acceptable while observe-only, plan required before enforcing.
+- Read-only result: AJ ran `cat /sys/kernel/security/lockdown` on Rock Box ~7:58 PM CT -> `[none] integrity confidentiality`; lockdown none, doesn't limit BPF kernel reads. Fast Path item Claude flagged, not a gate.
+- Handoff line: PRs #38-#45 (and this one) merged into claude/practical-ritchie-4c6vvf, not main; origin/main still at handoff rev 52 (2026-11-04); merging to main is AJ's call.
+- Handoff rev 121, session note, session CSV following existing pattern. Record nothing beyond what AJ decided. The CSV's last row is intentionally written in its final post-merge state (MERGED) per AJ's instruction; it only lands if this PR is merged on APPROVE*.

@@ -1,4 +1,15 @@
-# Johnny — OS Handoff (rev 120, 2026-11-17 America/Chicago)
+# Johnny — OS Handoff (rev 121, 2026-11-17 America/Chicago)
+
+## Rev 121 (2026-11-17 America/Chicago): Stage 2 decisions O17/O21/O27/O28 recorded; Rock Box lockdown check (docs only)
+- **Status:** **RECORDED (docs only). Nothing changed on Rock Box or Johnny. No Stage 2 writer started.** **AJ-DECIDED 2026-11-17** (AJ, 7:59 PM CT: "follow claude recs"), recorded in `docs/architecture/architecture-rev2.md` (Stage 2 entry criteria and §7).
+- **O27 = B:** Stages 1 and 2 overlap; Stage 2 may start now; Stage 1 exits after a longer zero-drop window set by AJ. Window length **PENDING AJ**.
+- **O28 = C:** observe-only, except one enforcing test cgroup. Whether BPF LSM can scope a check to a cgroup is **UNVERIFIED**; a Fast Path test must confirm it before any enforcement.
+- **O17:** Ed25519 signatures, verified in userspace before any map write. Private key not stored as a plain file on Rock Box: FIDO2 key via `ssh-keygen -Y` if AJ owns one, otherwise minisign. Which: **PENDING AJ** (FIDO2 ownership not stated).
+- **O21:** K3 three-state. Unknown = executable SHA-256 on neither the signed allow list nor the deny list. No promotion via the parent process. Interpreters (`python3`, `bash`, etc.) are a known gap: acceptable while observe-only; a plan is required before enforcing.
+- **Lockdown (Fast Path item, not a gate):** AJ ran `cat /sys/kernel/security/lockdown` on Rock Box ~7:58 PM CT: `[none] integrity confidentiality`. Lockdown is `none`, so it does not limit BPF kernel reads (`docs/findings/stage2/2026-11-17-rockbox-lockdown.md`).
+- **Branch note:** PRs #38 through #45, and this one, merged into `claude/practical-ritchie-4c6vvf`, not `main` (PR #44 landed as squash `8a4ed7e`, whose subject lacks the `(#44)` suffix). `origin/main` is still at handoff rev 52 (2026-11-04). Merging to `main` is AJ's call.
+- **Session:** `docs/sessions/2026-11-17-stage2-decisions.md`, `docs/sessions/Johnny_Stage2Decisions_Session_Log_2026-11-17.csv`.
+- **Johnny:** unchanged since rev 119.
 
 ## Rev 120 (2026-11-17 America/Chicago): Rock Box §3 filesystem + BPF LSM check recorded (docs only)
 - **Status:** **RECORDED (docs only). Nothing changed on Rock Box or Johnny.** AJ ran the read-only `docs/architecture/architecture-rev2.md` §3 block on Rock Box at ~5:04 PM CT; it ran **unreviewed** (§3 said "not yet reviewed", no adversarial review happened; read-only, so no harm). Raw output: `docs/findings/stage2/2026-11-17-rockbox-fs-check.md`.
