@@ -1,6 +1,6 @@
 # Johnny Architecture Rev 2: AJ Decisions and Stages
 
-Rev 2, 2026-11-17 America/Chicago. Status: AJ DECISIONS RECORDED + STAGE 1 APPLIED AND VERIFIED ON JOHNNY 2026-11-17 + ROCK BOX §3 CHECK RECORDED 2026-11-17 (`docs/findings/stage2/2026-11-17-rockbox-fs-check.md`, `docs/os-handoff.md` rev 120, `docs/sessions/2026-11-17-stage2-rockbox-fs-check.md`; Stage 1: `docs/os-handoff.md` rev 119, `docs/sessions/2026-11-17-stage1-cutover-applied.md`)
+Rev 2, 2026-11-17 America/Chicago. Status: AJ DECISIONS RECORDED + STAGE 1 APPLIED AND VERIFIED ON JOHNNY 2026-11-17 + ROCK BOX §3 CHECK RECORDED 2026-11-17 + STAGE 2 DECISIONS O17/O21/O27/O28 AJ-DECIDED 2026-11-17 (`docs/os-handoff.md` rev 121, `docs/sessions/2026-11-17-stage2-decisions.md`; `docs/findings/stage2/2026-11-17-rockbox-fs-check.md`, `docs/os-handoff.md` rev 120, `docs/sessions/2026-11-17-stage2-rockbox-fs-check.md`; Stage 1: `docs/os-handoff.md` rev 119, `docs/sessions/2026-11-17-stage1-cutover-applied.md`)
 
 This file supersedes the decision brief `docs/architecture/architecture-pass.md` (rev 3) for every item it decides. Items it does not decide stay open, and each one says **AJ decides.**
 
@@ -101,7 +101,7 @@ It also resolves brief Decision 3 / Item A (`docs/architecture/architecture-pass
 Notes:
 - The reference design's own risk table already says tighten, never loosen (`docs/JOHNNY_ Executive Architectural Summary.md:166`). The reason is prompt injection: a string in a filename or command line could talk a model into an ALLOW (same row; MITRE ATLAS AML.T0051, https://atlas.mitre.org/techniques/AML.T0051).
 - The brief's Option 1 had one cost: false positives need an administrator (`docs/architecture/architecture-pass.md:40`). AJ-signed rules are that administrator path.
-- The signature scheme is not picked here. **AJ decides.** (O17)
+- The signature scheme: **AJ-DECIDED 2026-11-17** (AJ, 7:59 PM CT: "follow claude recs"): Ed25519, see O17. Tool choice (FIDO2 `ssh-keygen -Y` vs minisign) is **PENDING AJ**. (O17)
 - What counts as "tighter" must be written down for each threshold and each verdict transition before the AI may change one. The per-PID thresholds in the reference design are `chi_sq_scaled_max` and `entropy_q16_min` (`docs/JOHNNY_ Executive Architectural Summary.md:96-108`). **AJ decides.** (O18)
 - Where a "suggest" goes and how AJ sees it was not stated. **AJ decides.** (O19)
 - Repo lines that still carry the old rule are listed in §6.
@@ -184,7 +184,7 @@ Brief = `docs/architecture/architecture-pass.md`. For open rows the brief's opti
 | Decision 1: scope (Item C) | `:399-407` | **Decided** | §1.1, §1.4: hybrid. Option C-like scope, staged. Johnny stays the network sensor. Linux agents first, Windows in Stage 4. | Option B (host LSM on Johnny itself, `:403`). **AJ decides.** (O1) |
 | Decision 2: containment path (Item E) | `:409-417` | **Still open** | Nothing. Stage 2's "network gating for Unknown processes" is on the endpoint, inside the agent. It does not touch the switch. | Options A–D at `:412-415`. **AJ decides.** (O20) |
 | Decision 3: SLM role (Item A) | `:419-426` | **Decided** for authority. **Partly decided** for placement. | §1.5 fix 1: tighten or suggest only; loosening only by AJ-signed rules. §1.2 item 5: inference is a separate process, or on the MAX over gRPC. §1.3: async, off the hot path. | Whether any model runs on Johnny itself, its RAM budget (`README.md:25`), model choice. **AJ decides.** (O16) Signature scheme. **AJ decides.** (O17) |
-| Decision 4: verdict model (Item F) | `:428-435` | **Still open** | One limit only: the AI cannot loosen (fix 1). AJ's Stage 2 scope uses the word "Unknown" for processes. | States, transitions, who may make each transition, network entities vs processes. Options A–C at `:431-433`. **AJ decides.** (O21) |
+| Decision 4: verdict model (Item F) | `:428-435` | **Partly decided** | The AI cannot loosen (fix 1). **AJ-DECIDED 2026-11-17** (AJ, 7:59 PM CT: "follow claude recs"): K3 three-state for Stage 2 processes; Unknown = executable SHA-256 on neither the signed allow list nor the deny list; no promotion via the parent process; interpreters are a known gap (see O21). | Transitions and who may make each transition beyond the above; network entities. Options A–C at `:431-433`. **AJ decides.** (O21) |
 | Decision 5: file rollback (Item D) | `:437-444` | **Partly decided** | §1.5 fix 2: rollback on Rock Box follows Rock Box's filesystem: **verified 2026-11-17** as one ext4 partition, no reflink, so full-copy shadow (`docs/findings/stage2/2026-11-17-rockbox-fs-check.md`). | Rollback on Johnny itself (Options A–C at `:440-442`); which stage builds rollback; shadow store location and disk cap. **AJ decides.** (O22) |
 | Decision 6: upstream (Item B) | `:446-453` | **Partly decided** | §1.1: the backend is on the MAX. §1.2 item 11: logs go to the MAX over TLS 1.3. §1.2 item 5: AI calls use gRPC. | Client authentication (mTLS), WireGuard, certificate issuance, MLS / fleet keying, any cloud scope. Options A–C at `:449-451`. **AJ decides.** (O23) |
 
@@ -336,10 +336,11 @@ The stages replace the brief's build order (`docs/architecture/architecture-pass
 Rollback is not in AJ's Stage 2 scope list. Its mechanism follows fix 2. Which stage builds it: **AJ decides.** (O22)
 
 **Entry criteria.**
-1. Stage 1 exit. **Open (O27):** Stage 1 is applied and verified on Johnny (2026-11-17), but its exit thresholds are not set. AJ either declares Stage 1 exited, or decides to start Stage 2 alongside it. **AJ decides.**
+1. Stage 1 exit. **AJ-DECIDED 2026-11-17** (AJ, 7:59 PM CT: "follow claude recs") (O27 = B): Stages 1 and 2 overlap. Stage 2 may start now; Stage 1 exits after a longer zero-drop window set by AJ. Window length: **PENDING AJ**.
 2. The Rock Box filesystem check (§3) has been run and its output is recorded in the repo (fix 2). **Met 2026-11-17** (`docs/findings/stage2/2026-11-17-rockbox-fs-check.md`): one ext4 partition for `/` and `/home`, no reflink, so full-copy shadow.
 3. BPF LSM availability on Rock Box has been checked read-only: `CONFIG_BPF_LSM` in the kernel config, and `bpf` in the active LSM list (https://docs.kernel.org/bpf/bpf_lsm.html). The same §3 block covers it. **Met 2026-11-17** (`docs/findings/stage2/2026-11-17-rockbox-fs-check.md`): `CONFIG_BPF_LSM=y` and `bpf` is in the active list `lockdown,capability,landlock,yama,apparmor,bpf,ima,evm`. No kernel command-line change or reboot is needed for BPF LSM.
-4. Assumption: two open items must be answered before agent code is written, because the scope depends on them: the signature scheme for AJ-signed rules (O17) and enough of the verdict model to define "Unknown" (O21). **AJ decides.**
+4. The signature scheme for AJ-signed rules (O17) and enough of the verdict model to define "Unknown" (O21) are answered before agent code is written. **AJ-DECIDED 2026-11-17** (AJ, 7:59 PM CT: "follow claude recs"): O17 = Ed25519, verified in userspace before any map write (signing tool **PENDING AJ**); O21 = K3 three-state with Unknown defined by executable SHA-256 (see §7).
+5. Fast Path read-only item (not a gate): kernel lockdown on Rock Box is `none` (`cat /sys/kernel/security/lockdown` → `[none] integrity confidentiality`, AJ ~7:58 PM CT 2026-11-17, `docs/findings/stage2/2026-11-17-rockbox-lockdown.md`), so lockdown does not limit BPF kernel reads.
 
 **Exit criteria.** Targets. Thresholds: **AJ decides.** (O28)
 1. **Target:** exec lineage is recorded for processes started during an AJ-chosen test.
@@ -352,7 +353,7 @@ Rollback is not in AJ's Stage 2 scope list. Its mechanism follows fix 2. Which s
 - Thresholds live in maps and rules, not in compiled code, so they change by rule reload.
 - **Target:** each hook (exec, write, network) is its own BPF program, so one can be removed without the others.
 - **Target:** the rollback store sits behind one interface, so reflink and full-copy are interchangeable. The §3 result (2026-11-17) is one ext4 partition with no reflink, so full-copy is the backend Rock Box can use today.
-- Rock Box is AJ's workstation. It also hosts the relay bot and the DMT Console (`AGENTS.md:11`, `docs/os-handoff.md:298`), and every Johnny paste is typed there. Whether the agent starts observe-only (log, do not deny), which cannot cut those off, or enforcing from the start is AJ's choice; neither is a default. **AJ decides.** (O28)
+- Rock Box is AJ's workstation. It also hosts the relay bot and the DMT Console (`AGENTS.md:11`, `docs/os-handoff.md:298`), and every Johnny paste is typed there. Observe-only vs enforcing: **AJ-DECIDED 2026-11-17** (AJ, 7:59 PM CT: "follow claude recs") (O28 = C): observe-only (log, do not deny), which cannot cut those off, except one enforcing test cgroup. Whether BPF LSM can scope a check to a cgroup is **UNVERIFIED**; a Fast Path test must confirm it before any enforcement. (O28)
 
 **Open items.** O2, O10, O12, O17, O18, O21, O22, O28. **AJ decides.**
 
@@ -474,13 +475,13 @@ Code shape:
 
 AI:
 - **O16.** Whether any model runs on Johnny itself, its RAM budget (`README.md:25`), and the model. **AJ decides.**
-- **O17.** Signature scheme for AJ-signed rules; where the private key lives; which component verifies; key rotation. **AJ decides.**
+- **O17.** Signature scheme for AJ-signed rules; where the private key lives; which component verifies; key rotation. **AJ-DECIDED 2026-11-17** (AJ, 7:59 PM CT: "follow claude recs"): Ed25519 signatures, verified in userspace before any map write. The private key is not stored as a plain file on Rock Box: a FIDO2 key via `ssh-keygen -Y` if AJ owns one, otherwise minisign. Which of the two: **PENDING AJ** (whether AJ owns a FIDO2 key is not stated). Still open: key rotation. **AJ decides.**
 - **O18.** The written definition of "tighten" and "loosen" for each threshold and each verdict transition. **AJ decides.**
 - **O19.** Where an AI "suggest" goes and how AJ sees it. **AJ decides.**
 
 Brief decisions still open:
 - **O20.** Decision 2 / Item E: the quarantine path (`docs/architecture/architecture-pass.md:409-417`). **AJ decides.**
-- **O21.** Decision 4 / Item F: verdict model states, transitions, and authority (`docs/architecture/architecture-pass.md:428-435`). **AJ decides.**
+- **O21.** Decision 4 / Item F: verdict model states, transitions, and authority (`docs/architecture/architecture-pass.md:428-435`). **AJ-DECIDED 2026-11-17** (AJ, 7:59 PM CT: "follow claude recs"): K3 three-state. Unknown = the executable's SHA-256 is on neither the signed allow list nor the deny list. No promotion via the parent process. Interpreters (`python3`, `bash`, etc.) are a known gap: acceptable while observe-only; a plan is required before enforcing. Still open: other transitions and who may make them; network entities. **AJ decides.**
 - **O22.** Decision 5 / Item D: file rollback on Johnny itself (`docs/architecture/architecture-pass.md:437-444`); which stage builds rollback on Rock Box; shadow store location and disk cap (Rock Box is one ext4 partition with no reflink, so full copies: a store on `/` shares space with the OS and its cap must protect free space on `/`; a store may sit on another disk, since `EXDEV` limits only clones; `docs/findings/stage2/2026-11-17-rockbox-fs-check.md`); what to do on a filesystem fix 2 does not name. **AJ decides.**
 - **O23.** Decision 6 / Item B beyond TLS 1.3 logs: client authentication, WireGuard, certificate issuance, MLS / fleet keying, any cloud scope (`docs/architecture/architecture-pass.md:446-453`). **AJ decides.**
 - **O24.** Where the brief's milestones 4–6 go (K3 engine, ingress filtering, Suricata / Zeek; `docs/architecture/architecture-pass.md:471-479`). **AJ decides.**
@@ -488,8 +489,8 @@ Brief decisions still open:
 - **O26.** Single Packet Authorization (`docs/architecture/architecture-pass.md:314-315`). **AJ decides.**
 
 Stage thresholds:
-- **O27.** Stage 1: what "parity" means, the zero-drop window length, and when the Python reader is retired. **AJ decides.**
-- **O28.** Stage 2: exit thresholds; observe-only or enforcing from the start (AJ's choice, no default); how writes shorter than 4096 bytes are handled. (BPF LSM is active on Rock Box as of 2026-11-17, `docs/findings/stage2/2026-11-17-rockbox-fs-check.md`, so the not-active fallback is moot unless that changes.) **AJ decides.**
+- **O27.** Stage 1: what "parity" means, the zero-drop window length, and when the Python reader is retired. **AJ-DECIDED 2026-11-17** (AJ, 7:59 PM CT: "follow claude recs") (= B): Stages 1 and 2 overlap; Stage 2 may start now; Stage 1 exits after a longer zero-drop window set by AJ. Window length: **PENDING AJ**. Still open: what "parity" means, Python reader retirement. **AJ decides.**
+- **O28.** Stage 2: exit thresholds; observe-only or enforcing from the start; how writes shorter than 4096 bytes are handled. **AJ-DECIDED 2026-11-17** (AJ, 7:59 PM CT: "follow claude recs") (= C): observe-only, except one enforcing test cgroup; whether BPF LSM can scope a check to a cgroup is **UNVERIFIED** and a Fast Path test must confirm it before any enforcement. Still open: exit thresholds, writes shorter than 4096 bytes. (BPF LSM is active on Rock Box as of 2026-11-17, `docs/findings/stage2/2026-11-17-rockbox-fs-check.md`, so the not-active fallback is moot unless that changes.) **AJ decides.**
 - **O29.** Stage 3: exit thresholds; whether it overlaps Stage 2; how the "90%+" Target is measured. **AJ decides.**
 - **O30.** Stage 4: exit thresholds; the Microsoft signing path; who holds the EV certificate; whether Stage 4 waits for Stage 3. **AJ decides.**
 

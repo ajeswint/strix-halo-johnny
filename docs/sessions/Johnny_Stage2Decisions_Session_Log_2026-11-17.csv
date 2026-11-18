@@ -1,0 +1,4 @@
+Timestamp (CT),Host,Seat,Action,Target,Result,Notes
+2026-11-17 19:58,Rock Box,AJ,Read-only check,/sys/kernel/security/lockdown,DONE,"cat /sys/kernel/security/lockdown -> [none] integrity confidentiality; lockdown none, does not limit BPF kernel reads; Fast Path item, not a gate"
+2026-11-17 19:59,Rock Box,AJ,Decision,docs/architecture/architecture-rev2.md,APPROVED,"""follow claude recs"": O27=B (overlap; window PENDING AJ), O28=C (observe-only + one enforcing test cgroup; cgroup scoping UNVERIFIED), O17=Ed25519 userspace-verified (FIDO2 ssh-keygen -Y vs minisign PENDING AJ), O21=K3 with SHA-256 Unknown, no parent promotion, interpreter gap"
+2026-11-17 20:10,Rock Box,executor (Grok Bot),Record,docs/architecture/architecture-rev2.md,MERGED,"Recorded decisions + lockdown finding; os-handoff rev 121; branch claude/stage2-decisions squash-merged into claude/practical-ritchie-4c6vvf after Grok 4.7 high APPROVE*"
