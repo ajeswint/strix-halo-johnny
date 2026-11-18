@@ -1,0 +1,3 @@
+Timestamp (CT),Host,Seat,Action,Target,Result,Notes
+2026-11-17 17:04,Rock Box,AJ,Read-only check,docs/architecture/architecture-rev2.md §3,DONE,"Ran §3 block unreviewed (read-only, no harm); ROCKBOX-FS-CHECK-DONE. Kernel 7.3.0-10-generic; / and /home one ext4 partition /dev/nvme0n1p2, no reflink (full-copy shadow); CONFIG_BPF_LSM=y, bpf active"
+2026-11-17 17:35,Rock Box,executor (Grok Bot),Record,docs/findings/stage2/2026-11-17-rockbox-fs-check.md,DRAFTED,"Raw output committed; architecture-rev2 fix 2 / §3 / Stage 2 entry 1-3 / O22 / O28 updated; os-handoff rev 120; branch claude/stage2-rockbox-fs-check"
