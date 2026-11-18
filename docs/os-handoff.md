@@ -7,7 +7,7 @@
 - **O17:** Ed25519 signatures, verified in userspace before any map write. Private key not stored as a plain file on Rock Box: FIDO2 key via `ssh-keygen -Y` if AJ owns one, otherwise minisign. Which: **PENDING AJ** (FIDO2 ownership not stated).
 - **O21:** K3 three-state. Unknown = executable SHA-256 on neither the signed allow list nor the deny list. No promotion via the parent process. Interpreters (`python3`, `bash`, etc.) are a known gap: acceptable while observe-only; a plan is required before enforcing.
 - **Lockdown (Fast Path item, not a gate):** AJ ran `cat /sys/kernel/security/lockdown` on Rock Box ~7:58 PM CT: `[none] integrity confidentiality`. Lockdown is `none`, so it does not limit BPF kernel reads (`docs/findings/stage2/2026-11-17-rockbox-lockdown.md`).
-- **Branch note:** PRs #38 through #45, and this one, merged into `claude/practical-ritchie-4c6vvf`, not `main`. `origin/main` is still at handoff rev 52 (2026-11-04). Merging to `main` is AJ's call.
+- **Branch note:** PRs #38 through #45, and this one, merged into `claude/practical-ritchie-4c6vvf`, not `main` (PR #44 landed as squash `8a4ed7e`, whose subject lacks the `(#44)` suffix). `origin/main` is still at handoff rev 52 (2026-11-04). Merging to `main` is AJ's call.
 - **Session:** `docs/sessions/2026-11-17-stage2-decisions.md`, `docs/sessions/Johnny_Stage2Decisions_Session_Log_2026-11-17.csv`.
 - **Johnny:** unchanged since rev 119.
 

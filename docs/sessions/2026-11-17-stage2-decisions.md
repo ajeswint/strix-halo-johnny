@@ -6,6 +6,7 @@
   - **O17:** Ed25519, verified in userspace before any map write; private key not a plain file on Rock Box; FIDO2 `ssh-keygen -Y` if AJ owns one, else minisign (**PENDING AJ**).
   - **O21:** K3 three-state; Unknown = executable SHA-256 on neither the signed allow list nor the deny list; no parent-process promotion; interpreters are a known gap, acceptable while observe-only, plan required before enforcing.
 - **Lockdown check:** AJ ran `cat /sys/kernel/security/lockdown` on Rock Box ~7:58 PM CT → `[none] integrity confidentiality` (`docs/findings/stage2/2026-11-17-rockbox-lockdown.md`). Fast Path item, not a gate.
-- **Branch note:** PRs #38–#45 and this one merged into `claude/practical-ritchie-4c6vvf`, not `main`; `origin/main` is at handoff rev 52 (2026-11-04); merging to `main` is AJ's call.
-- **Still PENDING AJ (from these decisions):** Stage 1 exit zero-drop window length (O27); FIDO2 vs minisign (O17); a cgroup-scoping Fast Path test result before any enforcement (O28); an interpreter plan before enforcing (O21).
+- **Branch note:** PRs #38–#45 and this one merged into `claude/practical-ritchie-4c6vvf`, not `main` (PR #44 is squash `8a4ed7e`, subject without `(#44)`); `origin/main` is at handoff rev 52 (2026-11-04); merging to `main` is AJ's call.
+- **PENDING AJ:** Stage 1 exit zero-drop window length (O27); FIDO2 `ssh-keygen -Y` vs minisign (O17).
+- **UNVERIFIED / required before enforcing (not AJ decisions):** BPF LSM cgroup scoping, to be confirmed by a Fast Path test before any enforcement (O28); an interpreter plan (O21).
 - **Handoff:** `docs/os-handoff.md` rev 121. Docs only; no Johnny commands, no sudo, `main` untouched, no Stage 2 writer started.
