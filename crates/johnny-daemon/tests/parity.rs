@@ -744,6 +744,10 @@ want_bin_sha = json.loads(sbom_raw.decode("utf-8"))["metadata"]["component"]["ha
 text = open(doc_path, encoding="utf-8").read()
 assert "DO NOT RUN BEFORE PASTE W" in text, "missing Paste W hold banner"
 assert "2026-11-21 15:33 CT" in text, "missing week-test end timestamp"
+assert "Claude reviewed 7dee6ad: APPROVE-WITH-NITS n1–n3" in text, "missing S1-6 Claude review state"
+assert "UNREVIEWED" not in text, "runbook still contains UNREVIEWED"
+assert "[[: not found" in text, "missing n1 Expect note"
+assert "STOP-exit-journal-UNREADABLE missing=reader-begin" in text, "missing n2 Expect note"
 
 lines = text.splitlines()
 blocks = []
