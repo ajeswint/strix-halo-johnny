@@ -1,6 +1,8 @@
-# relay — standing seats (2026-11-05)
+# relay — standing seats (2026-11-17; 2026-11-05 and earlier pins historical)
 
-Standing seats are now **two Claude Code instances** (Sonnet, medium effort): **code-writer** drafts, **adversarial-reviewer** reviews. ROCK-BOX-BOT relays. Prefer `claude --model sonnet --effort medium --agent code-writer|adversarial-reviewer`. The Grok draft loop below remains for historical CIS batch scoring; do not treat `GROK_MODEL` as the standing writer seat.
+Current standing seats (AJ, 2026-11-17 10:50 PM CT; replaces the Claude Fable writer as of 2026-11-15): **Writer** (**code-writer**) is Antigravity `agy` with `gemini-4-argon-high` (high effort, auto mode) — drafts, commands, repo edits; **Reviewer** (**adversarial-reviewer**) is Grok 4.7 high via `cursor-agent` — reviews only, does not edit the draft. ROCK-BOX-BOT relays. See `AGENTS.md` and `docs/agent-team.md` Rev 11.
+
+Historical note (2026-11-05, superseded): standing seats on 2026-11-05 were two Claude Code instances (Sonnet, medium effort: `claude --model sonnet --effort medium --agent code-writer|adversarial-reviewer`), later replaced by the Claude Fable writer (until 2026-11-15) and then the 2026-11-17 standing seats above. Earlier Grok-writer pins (2026-11-03 and earlier 2026-11-05) and the Grok draft loop / `GROK_MODEL` values below remain for historical CIS batch scoring only; do not treat `GROK_MODEL` or the 2026-11-05 Sonnet pin as the current standing seats.
 
 ---
 

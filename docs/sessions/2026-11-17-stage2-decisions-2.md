@@ -26,5 +26,6 @@
     - **Writer (`code-writer`):** Antigravity `agy` with `gemini-4-argon-high` (high effort, auto mode).
     - **Reviewer (`adversarial-reviewer`):** Grok 4.7 high via `cursor-agent`.
   - Kept: the writer does not review their own work; AJ decides and runs sudo; domain ownership in `docs/agent-team.md` is unchanged; earlier seat pins (Grok-writer, two Claude Code Sonnet medium instances, Claude Fable writer) remain as historical revision text.
+  - Applied Grok 4.7 high's `APPROVE-WITH-NITS` review nit on `741f738`: marked the present-tense 2026-11-05 Sonnet pins in `tools/relay/README.md`, `.claude/agents/code-writer.md`, and `.claude/agents/adversarial-reviewer.md` as historical and recorded the current 2026-11-17 standing seats there.
 - **Test change:** `cutover_runbook_audit` in `crates/johnny-daemon/tests/parity.rs` now expects 7 runbook bash blocks (adds `STAGE1-EXIT-CHECK-DONE`) and asserts the S1-6 B1/B2/N1/N2 tokens (including `STOP-exit-NOT-YET` and `STOP-exit-ctl-UNREADABLE`) plus the `Claude reviewed 7dee6ad: APPROVE-WITH-NITS n1–n3` review state and `n1`/`n2` Expect notes. Test-only; release binary unchanged.
 - **Handoff:** `docs/os-handoff.md` rev 122. Docs and test only; no Johnny commands, no sudo, `main` untouched, no keys created, no Stage 2 writer started. PR left open (not merged).
