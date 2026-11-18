@@ -1,0 +1,10 @@
+AJ 9:01 PM CT 2026-11-17:
+- O27 window = A: Stage 1 exits at 2026-11-21 15:33 CT (~4 days on Rust daemon, no reboot); B and C declined.
+- O17 = minisign; key on both a USB stick AND Rock Box for now. AJ: "keep it on both the usb drive and rock box, for now. this isnt fort knox". Accepted risk: lockdown none (Secure Boot assumed off, UNVERIFIED) -> root on Rock Box can sign rules. O25 note: lockdown none means root can change the kernel and the agent.
+- Fix PR #46 nits: N1 DMT Console cite must point at the current os-handoff.md DMT Console bullet; N2 interpreter plan (required before enforcing) is AJ-decided, only cgroup scoping UNVERIFIED.
+- Remove PENDING from those items. Handoff rev 122, session note, final-state CSV.
+Claude requirements (relayed by AJ):
+- R1: REPLACE (not append next to) the PR #46 "private key is not a plain file on Rock Box" text in: O17 §7, lock-in row 4, §2.1 Decision 3 row, Stage 2 entry 4. Leave docs/sessions/2026-11-17-stage2-decisions.md unchanged as history (so N2 is recorded in the new note).
+- R2: Stage 1 exit depends on a passing check, not the date. Baseline CTL-START seen=168066737 sampled_out=0 rate_limited=18217138 rb_full=0 emitted=149849599 discarded=0 (docs/sessions/2026-11-17-stage1-cutover-applied.md:36). Read-only paste after 2026-11-21 15:33 CT (Run on Rock Box, ssh to Johnny, sudo only for read-only status) checking rate_limited/rb_full/discarded unchanged; own paste in the runbook, marked unreviewed until Claude reviews.
+- R3: AJ creates the key pair himself; agents create no keys (cutover doc :65-72). minisign default password prompt, not -W. Public key may be committed; private never. Rotation open. List "no cold boot tested under the Rust daemon" as an open gap AJ accepted with window A.
+- PR is NOT merged (Claude reviews next); CSV final row PR-OPEN is correct.
