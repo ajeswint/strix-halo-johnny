@@ -321,7 +321,7 @@ The stages replace the brief's build order (`docs/architecture/architecture-pass
 - Assumption: only one process drains a BPF ring at a time (one consumer position; https://docs.kernel.org/bpf/ringbuf.html, to confirm). So the two readers are swapped, not run side by side. The earlier cutover had a few-second capture gap (`docs/tool-install/module1-slice2b-boot-unit.md:25`).
 - The `aya` crate is isolated in `crates/johnny-daemon/src/bpf.rs:1-322` (imported only at `:28`; `attach` at `:235-277`, `probe` at `:283-322`), and the data plane talks to map pins through the `KernelMaps` trait (`crates/johnny-daemon/src/data/mod.rs:15-23`; `Ring` consumer at `crates/johnny-daemon/src/data/ring.rs:24-152`), so the BPF attachment layer can be swapped later without touching `johnny-record-v1` or `RotatingWriter` (`crates/johnny-daemon/src/data/writer.rs:78-265`).
 
-**Open items.** O13 (beyond Stage 1's single-process `src/control/` and `src/data/` module boundary wired in `src/daemon.rs:70-128`), O27 (Johnny cutover window length and Python reader retirement date). **AJ decides.**
+**Open items.** O13 (beyond Stage 1's single-process `src/control/` and `src/data/` module boundary wired in `src/daemon.rs:70-128`), O27 remainder (what "parity" means, Python reader retirement date; the window is decided, see Stage 2 entry 1 and §7 O27). **AJ decides.**
 
 ### Stage 2: Rock Box Linux agent
 
