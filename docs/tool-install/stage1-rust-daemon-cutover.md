@@ -235,6 +235,41 @@ Expect `window 60` passing with zero drops (`OK-no-drops-window`, `M1S2B-WINDOW-
 
 Note: `module1-slice2b-boot.sh verify` (`docs/tool-install/module1-slice2b-boot.sh:698-702`) asserts `johnny-m1s2b-reader.service` is `enabled` and `active`, so Paste S1-5 uses `boot.sh window 60` + `boot.sh status` while `johnny-daemon.service` is active, and the Rollback section below runs `boot.sh verify` once `johnny-m1s2b-reader.service` is re-enabled.
 
+### Paste S1-6: Stage 1 exit check — drop counters unchanged since cutover (read-only; run after 2026-11-21 15:33 CT)
+
+**Review state: UNREVIEWED — DRAFT.** Do not run until Claude has reviewed this block. AJ decided O27 window A on 2026-11-17 9:01 PM CT (`docs/architecture/architecture-rev2.md` O27): Stage 1 exits when this check passes after 2026-11-21 15:33 CT, not on the date alone. Open gap AJ accepted with window A: no cold boot has been tested under the Rust daemon.
+
+Baseline (cutover, daemon-written run file `CTL-START`, `docs/sessions/2026-11-17-stage1-cutover-applied.md:36`): `seen=168066737 sampled_out=0 rate_limited=18217138 rb_full=0 emitted=149849599 discarded=0`. The CTL counters are cumulative since `j_xdp_records` loaded, so "unchanged" means `rate_limited` is still `18217138` and `rb_full` and `discarded` are still `0`.
+
+Read-only: `sudo` is used only for `sha256sum -c`, `systemctl is-active`, `module1-slice2b-boot.sh status` (takes no lock and writes nothing), and `journalctl`. Nothing is started, stopped, installed, or written on Johnny.
+
+***<u>Run on Rock Box</u>***
+
+```bash
+ssh -t aj@192.168.50.152 'sudo -v &&
+echo "a4d4dfa4c7d6ba3c9ffb64810a54952f4e7ce652889a2fe6f628adadef1bf9eb  /root/m1s2b/module1-slice2b-boot.sh
+08e96c19b83edc6662684d0c4a7902675def5837a769d1592f06dc082c1681ac  /usr/local/libexec/johnny/johnny-daemon
+e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa  /etc/systemd/system/johnny-daemon.service" | sudo sha256sum -c - &&
+st_xdp=$(sudo systemctl is-active johnny-capture-xdp-records.service 2>/dev/null || true) &&
+st_rs=$(sudo systemctl is-active johnny-daemon.service 2>/dev/null || true) &&
+st_py=$(sudo systemctl is-active johnny-m1s2b-reader.service 2>/dev/null || true) &&
+if [ "$st_xdp" != "active" ] || [ "$st_rs" != "active" ] || [ "$st_py" != "inactive" ]; then
+  echo "STOP-exit-units xdp=$st_xdp rs=$st_rs py=$st_py" >&2
+  exit 1
+fi &&
+echo "DATE-UTC $(date -u +%Y-%m-%dT%H:%M:%SZ) BOOT-ID $(cat /proc/sys/kernel/random/boot_id)" &&
+status_out=$(sudo bash /root/m1s2b/module1-slice2b-boot.sh status) &&
+echo "$status_out" | grep -E "^(ATTACH|UNIT-|STATS|CTL|CFG) " &&
+{ echo "$status_out" | grep -qx "CTL rate_limited 18217138" || { echo "STOP-exit-rate_limited-changed" >&2; exit 1; }; } &&
+{ echo "$status_out" | grep -qx "CTL rb_full 0" || { echo "STOP-exit-rb_full-changed" >&2; exit 1; }; } &&
+{ echo "$status_out" | grep -qx "CTL discarded 0" || { echo "STOP-exit-discarded-changed" >&2; exit 1; }; } &&
+j_stops=$(sudo journalctl -u johnny-daemon.service -b --no-pager -o cat | grep -c "STOP-" || true) &&
+[ "$j_stops" = "0" ] &&
+echo STAGE1-EXIT-CHECK-DONE'
+```
+
+Expect three `OK` hash lines, units xdp `active` / daemon `active` / Python reader `inactive`, the `CTL` lines with `rate_limited 18217138`, `rb_full 0`, `discarded 0`, zero `STOP-` lines in the daemon journal this boot, and **`STAGE1-EXIT-CHECK-DONE`**. Any `STOP-exit-*` means Stage 1 has not exited; send the full output back.
+
 ---
 
 ## Rollback (not part of the paste sequence above)

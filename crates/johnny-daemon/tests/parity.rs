@@ -783,6 +783,7 @@ expected_tokens = [
     "STAGE1-PROBE-INSTALL-DONE",
     "STAGE1-CUTOVER-DONE",
     "STAGE1-VERIFY-DONE",
+    "STAGE1-EXIT-CHECK-DONE",
     "STAGE1-ROLLBACK-DONE",
 ]
 assert len(blocks) == len(expected_tokens), f"got {len(blocks)} blocks, want {len(expected_tokens)}"
