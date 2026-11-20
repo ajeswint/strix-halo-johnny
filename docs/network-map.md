@@ -2,16 +2,18 @@
 
 Audited 2026-10-29 19:45–20:05 CT. Sources: CRS309 `/interface bridge host print`, `/interface ethernet monitor` loop, `/export terse`, `/interface ethernet switch port-isolation print` (pasted by AJ from the laptop on ether1); LAN ping sweep + ARP + IEEE OUI lookup from rock-box; AJ for where each cable runs. **Physical cabling is the truth; docs follow it.**
 
+**Updated 2026-11-19/20 CT (AJ, laptop on ether1):** rock-box moved SFP+4 → **SFP+3** (living-room wall jack). SFP+4 is empty. AMT isolation re-pointed SFP+6 → SFP+3. See § Rock-box move (2026-11-20) and § Reaching the switch.
+
 ## CRS309 ports (as cabled)
 | Port | Link | Module | Learned MAC(s) | Runs to | In `bridge` | Isolation |
 |---|---|---|---|---|---|---|
 | ether1 | up, 1G | built-in RJ45 | n/a (not bridged) | AJ's laptop: **OOB switch mgmt**, switch side 192.168.88.1/24 | no (list `MGMT`) | n/a |
 | SFP+1 | up, 1G | OEM `SFP-GE-T` (SFP-to-RJ45) | `A0:AD:9F:6B:E9:D0` + 7 LAN clients | **RT-BE88U router** (everything behind the router is learned here) | yes | none |
 | SFP+2 | up, 1G | OEM `SFP-GE-T` | `38:05:25:3A:A3:71` | **Johnny `eno3`** (RTL8127, host mgmt) | yes | none |
-| SFP+3 | no link | OEM `SFP-GE-T` | none | **Wall drop → primary bedroom → unmanaged switch** (nothing up on it at audit) | yes | none (mistaken override removed 2026-10-29) |
-| SFP+4 | up, 1G | OEM `SFP-GE-T` | `9C:6B:00:D0:49:29` | **rock-box** | yes | none (full LAN) |
+| SFP+3 | up (2026-11-20; laptop test on the jack 1000 Mb/s) | OEM `SFP-GE-T` (module present; vendor string not re-read) | `9C:6B:00:D0:49:29` | **rock-box**, via the **living-room wall jack** (AJ's "wire A", plugged into SFP+3 2026-11-20). Was "wall drop → primary bedroom → unmanaged switch", no link at the 2026-10-29 audit and again on 2026-11-19 | yes | none (it is the AMT forwarding target; see SFP+6) |
+| SFP+4 | empty (rock-box left 2026-11-20; link not re-read after the move) | OEM `SFP-GE-T` (not re-checked) | none | **empty** | yes | none; a device here cannot reach AMT |
 | SFP+5 | up, 1G | OEM `SFP-GE-T` | `9C:BF:0D:01:F9:5C` | **Framework** laptop (192.168.50.188) | yes | none |
-| SFP+6 | up, 1G (Johnny side: 1000 full, 01:06 UTC) | OEM `SFP-GE-T` | not checked | **Johnny `eno4`** (I226-LM, AMT only, `38:05:25:3a:a3:70`) | yes | **forwards only to SFP+4** (verified) |
+| SFP+6 | up, 1G (Johnny side: 1000 full, 01:06 UTC) | OEM `SFP-GE-T` | not checked | **Johnny `eno4`** (I226-LM, AMT only, `38:05:25:3a:a3:70`) | yes | **forwards only to SFP+3** (applied and printed 2026-11-20; was SFP+4) |
 | SFP+7 | up, 10G (Johnny side: 10000, 2026-10-30) | **10G DAC** OEM `SFP-H10GB-CU3M` | n/a (mirror target) | **Johnny `eno1np0`** (E810 left cage): **mirror target** | no (removed L1-2) | none |
 | SFP+8 | **disabled** | **10G DAC** OEM `SFP-H10GB-CU3M` | none | E810 right cage (Johnny end **out**; reserved for inline) | no (removed L1-2) | none |
 
@@ -23,7 +25,7 @@ Audited 2026-10-29 19:45–20:05 CT. Sources: CRS309 `/interface bridge host pri
 - **LAN address:** DHCP client on `bridge` (comment "L1-2 uplink via ASUS") → 192.168.50.221. `ip-forward=no`. Pingable from the LAN, not manageable from it.
 - **Bridge:** one default `bridge`, SFP+1–6 (`defconf`), hardware offloaded (host flags E). No VLAN filtering. SFP+7/8 removed (L1-2); `sfp-sfpplus8` disabled.
 - **Port mirror (L1-2, 2026-10-30):** `mirror-ingress=yes` on SFP+1/3/4/5; `switch1` `mirror-target=sfp-sfpplus7` (check: `:put [/interface ethernet switch get switch1 mirror-target]`; plain `print` doesn't show it).
-- **Port isolation:** `/interface ethernet switch port-isolation`, per-port `forwarding-override` (one-way: frames entering the port may leave only via the listed ports). Verified 2026-10-29 with `print`: SFP+6 → SFP+4; every other port, incl. `switch1-cpu`, unset; no invalid flag. Two-way isolation (other ports excluding SFP+6) not applied; effect on `switch1-cpu` / .221 unverified.
+- **Port isolation:** `/interface ethernet switch port-isolation`, per-port `forwarding-override` (one-way: frames entering the port may leave only via the listed ports). Verified 2026-10-29 with `print`: SFP+6 → SFP+4. **Re-pointed 2026-11-20 to SFP+3** (rock-box's new port); `print` the same day: only `sfp-sfpplus6` has `forwarding-override=sfp-sfpplus3`; every other port, incl. `switch1-cpu`, unset; no invalid flag. Two-way isolation (other ports excluding SFP+6) not applied; effect on `switch1-cpu` / .221 unverified.
 - NTP client → time.cloudflare.com, TZ America/Chicago. Boot setup key = Delete.
 - IPv6: default ND entry only; rock-box gets no IPv6 route from it (checked).
 
@@ -34,6 +36,13 @@ Audited 2026-10-29 19:45–20:05 CT. Sources: CRS309 `/interface bridge host pri
 /interface ethernet switch port-isolation print
 ```
 History: 2026-10-29, SFP+3 → SFP+4 was applied and verified, then SFP+3 turned out to be the bedroom drop; moved to SFP+6. `eno4` was cabled ~minutes before the SFP+6 override went in (no host IP on `eno4`; AMT TLS-only).
+
+2026-11-20 (rock-box moved to SFP+3):
+```
+/interface ethernet switch port-isolation set sfp-sfpplus6 forwarding-override=sfp-sfpplus3
+/interface ethernet switch port-isolation print
+```
+Rollback (rock-box back on SFP+4): `/interface ethernet switch port-isolation set sfp-sfpplus6 forwarding-override=sfp-sfpplus4`.
 
 ## LAN hosts (192.168.50.0/24, ping sweep + ARP)
 | IP | MAC | OUI vendor | Switch port | Likely device |
@@ -47,12 +56,12 @@ History: 2026-10-29, SFP+3 → SFP+4 was applied and verified, then SFP+3 turned
 | .184 | 64:db:a0:f6:2d:08 | Select Comfort | SFP+1 (behind router) | Sleep Number bed |
 | .188 | 9c:bf:0d:01:f9:5c | Framework | SFP+5 | Framework laptop |
 | .193 | 30:d1:6b:0e:d7:3a | Liteon | SFP+1 (behind router) | Hisense Roku TV (router reservation name `60HisenseRokuTV`) |
-| .211 | 3c:7c:3f:4e:14:7d | ASUSTek | not checked | ableton_box (`ableton_box.local`); added 2026-10-31 from rock-box ARP + mDNS. Record: `docs/hosts/ableton_box.md` |
+| .211 | 3c:7c:3f:4e:14:7d | ASUSTek | SFP+5 (seen 2026-11-19, with the Framework) | ableton_box (`ableton_box.local`); added 2026-10-31 from rock-box ARP + mDNS. Two hosts on SFP+5 suggest a small switch or hub downstream (inferred; not checked). Record: `docs/hosts/ableton_box.md` |
 | .221 | d0:ea:11:df:35:18 | Routerboard.com | (switch itself) | CRS309 |
-| .223 | 9c:6b:00:d0:49:29 | ASRock | SFP+4 | rock-box |
+| .223 | 9c:6b:00:d0:49:29 | ASRock | SFP+3 (since 2026-11-20; was SFP+4) | rock-box |
 | .233 | 84:a9:3e:cc:bf:43 | Hewlett Packard | SFP+1 (behind router) | HP (likely printer) |
 
-No unknown MACs on the switch at the 2026-10-29 audit: every learned MAC mapped to a host above. (.211 appeared later; its port is not checked.)
+No unknown MACs on the switch at the 2026-10-29 audit: every learned MAC mapped to a host above. (.211 appeared later; 2026-11-19 it was learned on SFP+5.)
 
 ### Router DHCP (RT-BE88U, LAN → DHCP Server, checked 2026-10-30)
 Pool 192.168.50.2–.254, lease 86400 s. **Enable Manual Assignment was No** (listed entries were inactive; rock-box's .223 was a sticky lease). Turned on 2026-10-30 (Claude via Chrome extension, AJ approved Apply); verified on reload. Each entry matched the host's current address, so no host moved. **Apply on this page restarts the router's Wi-Fi** (~40 s: laptop `wlo1` disconnected 20:52:15 CT, `ssid-not-found` 20:52:30, back 20:52:58); Wi-Fi clients, incl. a browser driving the UI, drop.
@@ -82,13 +91,29 @@ network:
 
 **Negative test (2026-10-30):** temporary 192.168.51.3/24 on Johnny `eno3` (SFP+2): ping 0/3, ARP for 192.168.51.10 INCOMPLETE → FAILED, TCP 16993/16995/664 no answer. One-way isolation holds: AMT's replies cannot leave SFP+6 except to SFP+4. Temp address removed, verified.
 
+## Rock-box move (2026-11-19/20 CT)
+Timeline (AJ moved cables; the agent session ran read-only checks from the laptop; AJ ran the switch commands from the laptop on ether1):
+1. AJ moved rock-box to the living-room wall jack. It was off the network: not in the switch host table (`9C:6B:00:D0:49:29` absent), not in the router's wired client list, `.223` unreachable, ARP INCOMPLETE. Switch then: SFP+3 and SFP+4 **no link**; links up on ether1, SFP+1/2/5/6/7. SFP+8 disabled by design. SFP+3: enabled, in `bridge`, SFP module present, `no-link`, no rx-loss or tx-fault. Conclusion (AJ): the living-room jack was **not patched to the switch**. While SFP+4 was empty, AMT was unreachable by anything (isolation target dead; safe, not exposed).
+2. rock-box moved back to SFP+4: `.223` answered, MAC correct; AMT reachable from rock-box (ping 0% loss).
+3. AJ then patched the living-room jack ("wire A", one of three candidate wires) into **SFP+3**. AJ's laptop on the jack (before rock-box): carrier, 1000 Mb/s, DHCP 192.168.50.120, router ping 0.2 ms, 0% loss, no loop symptoms. First attempt showed no link (36 s); a re-seat linked.
+4. Isolation re-pointed to SFP+3 (§ Isolation commands), then rock-box plugged into the living-room jack.
+5. Verified: switch `/interface bridge host print where mac-address=9C:6B:00:D0:49:29` → `sfp-sfpplus3`. From rock-box: `ping 192.168.51.10` 2/2, 0% loss; `ip neigh` → `38:05:25:3a:a3:70` REACHABLE on `enp11s0`. From the laptop: `.223` ping 0% loss, MAC `9c:6b:00:d0:49:29`; TCP 22 and 3389 open.
+Not tested: that a device on SFP+4 (now empty) cannot reach AMT (follows from the isolation rule). Mirror: SFP+3 already had `mirror-ingress=yes`; no mirror change.
+
+## Reaching the switch (from AJ's laptop, aj-Thin-15-B13VE)
+- Cable the laptop's Ethernet (`enp3s0`) to **ether1**. The switch side is 192.168.88.1/24; ether1 is not bridged, so on that cable the laptop reaches only the switch. Wi-Fi (`wlo1`) stays on the LAN for Johnny, rock-box and GitHub.
+- Laptop NetworkManager profile `switch-mgmt` (created 2026-11-19; `autoconnect no`): `nmcli connection add type ethernet ifname enp3s0 con-name switch-mgmt ipv4.method manual ipv4.addresses 192.168.88.2/24 ipv6.method disabled autoconnect no`, then `nmcli connection up switch-mgmt`. Assumed: the switch gives no DHCP lease on ether1.
+- Log in: `ssh admin@192.168.88.1` (username from AJ; the RouterOS default is `admin`). Winbox also works from that subnet. Never record the password.
+- Back to the LAN: `nmcli connection down switch-mgmt`, cable back on the LAN.
+- Useful read-only checks: `/interface ethernet print where running`; `/interface bridge host print`; `/interface ethernet switch port-isolation print`; `/interface ethernet monitor sfp-sfpplus3 once` (one port at a time; multi-port output truncates at the right edge).
+
 ## Plan (2026-10-20) vs. physical
 | Plan | Physical |
 |---|---|
 | SFP+1 router 10G DAC | SFP+1 router, 1G `SFP-GE-T` (LAN is 1G by design) |
 | SFP+2 E810 mirror target (DAC) | Johnny `eno3` |
-| SFP+3 Johnny mgmt | bedroom drop |
-| SFP+4 vPro OOB | rock-box |
+| SFP+3 Johnny mgmt | bedroom drop (no link) → since 2026-11-20 the living-room jack, rock-box |
+| SFP+4 vPro OOB | rock-box until 2026-11-20; now empty |
 | SFP+5 rock-box | Framework |
 | SFP+6 Framework/MAX | AMT `eno4` |
 | (unplanned) | SFP+7/8 E810 DACs |
@@ -103,8 +128,8 @@ Goal: hardware port mirror (SPAN) of the LAN into one E810 port, with both DAC p
 |---|---|---|
 | Mirror target | **SFP+7**, standalone (removed from `bridge`) | DAC already in it. A standalone target carries only mirrored copies, never LAN forwarding or floods. |
 | SFP+8 | Removed from `bridge` **and disabled** | Second DAC, reserved (inline later). Disabled = can't link even if its Johnny end goes in. Matches "second E810 port admin-down". |
-| Mirror sources | **Ingress** on SFP+1 (router), SFP+3 (bedroom), SFP+4 (rock-box), SFP+5 (Framework) | Ingress-only on every LAN-facing port mirrors each frame once, at the port it entered: north-south and east-west, no duplicates. |
-| Not mirrored | SFP+2 (Johnny `eno3`), SFP+6 (AMT) | Sensor doesn't mirror its own outbound mgmt; AMT's outbound only goes to rock-box. Their inbound halves are still seen at the sender's ingress (e.g. rock-box → Johnny at SFP+4). |
+| Mirror sources | **Ingress** on SFP+1 (router), SFP+3 (rock-box since 2026-11-20; was the bedroom drop), SFP+4 (empty since 2026-11-20; flag still set), SFP+5 (Framework) | Ingress-only on every LAN-facing port mirrors each frame once, at the port it entered: north-south and east-west, no duplicates. |
+| Not mirrored | SFP+2 (Johnny `eno3`), SFP+6 (AMT) | Sensor doesn't mirror its own outbound mgmt; AMT's outbound only goes to rock-box. Their inbound halves are still seen at the sender's ingress (e.g. rock-box → Johnny at its ingress, SFP+3 since 2026-11-20). |
 | Johnny capture port | SFP+7 DAC → **left cage = `eno1np0`** | Netplan already: no addressing, `optional: true`. Capture tuning (promisc, `arp off`, XDP) stays OS next step 11. |
 | Bandwidth | ≤ 4 × 1G ingress = 4 Gb/s into a 10G DAC | No oversubscription. |
 
