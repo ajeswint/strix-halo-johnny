@@ -84,7 +84,7 @@ Notes:
 Notes:
 - The first Linux endpoint is Rock Box (Stage 2, §4). Rock Box is the Ubuntu workstation on SFP+4 (`README.md:24`, `docs/network-map.md:12`).
 - Which other Linux hosts get an agent, and in what order, was not stated. **AJ decides.** (O2)
-- `docs/hosts/ableton_box.md:3` records AJ (2026-10-31): the box gets a new OS, and its role is not decided. `docs/os-handoff.md:413-415` parks three decisions about it, one of them an Ubuntu Server install. Stage 4 needs Windows on that box. These two records and this decision are not yet reconciled. **AJ decides.** (O3)
+- `docs/hosts/ableton_box.md:3` records AJ (2026-10-31): the box gets a new OS, and its role is not decided. `docs/os-handoff.md:494-497` parks three decisions about it, one of them an Ubuntu Server install. Stage 4 needs Windows on that box. These two records and this decision are not yet reconciled. **AJ decides.** (O3)
 
 ### 1.5 Four fixes (AJ-approved corrections)
 
@@ -354,7 +354,7 @@ Fast Path read-only item (not an entry gate): kernel lockdown on Rock Box is `no
 - Thresholds live in maps and rules, not in compiled code, so they change by rule reload.
 - **Target:** each hook (exec, write, network) is its own BPF program, so one can be removed without the others.
 - **Target:** the rollback store sits behind one interface, so reflink and full-copy are interchangeable. The §3 result (2026-11-17) is one ext4 partition with no reflink, so full-copy is the backend Rock Box can use today.
-- Rock Box is AJ's workstation. It also hosts the relay bot and the DMT Console (`AGENTS.md:11`, `docs/os-handoff.md:330`), and every Johnny paste is typed there. Observe-only vs enforcing: **AJ-DECIDED 2026-11-17** (AJ, 7:59 PM CT: "follow claude recs") (O28 = C): observe-only (log, do not deny), which cannot cut those off, except one enforcing test cgroup. Whether BPF LSM can scope a check to a cgroup is **UNVERIFIED**; a Fast Path test must confirm it before any enforcement. (O28)
+- Rock Box is AJ's workstation. It also hosts the relay bot and the DMT Console (`AGENTS.md:11`, `docs/os-handoff.md:336`), and every Johnny paste is typed there. Observe-only vs enforcing: **AJ-DECIDED 2026-11-17** (AJ, 7:59 PM CT: "follow claude recs") (O28 = C): observe-only (log, do not deny), which cannot cut those off, except one enforcing test cgroup. Whether BPF LSM can scope a check to a cgroup is **UNVERIFIED**; a Fast Path test must confirm it before any enforcement. (O28)
 
 **Open items.** O2, O10, O12, O18, O22, plus the remainders of O17 (key rotation), O21 (other transitions and authority, network entities), and O28 (exit thresholds, writes shorter than 4096 bytes). Ed25519 with minisign, K3, and observe-only-plus-one-test-cgroup are decided (2026-11-17). **AJ decides.**
 
@@ -442,7 +442,7 @@ Not edited in this commit (outside the task's edit list). Each is superseded by 
 | File | Line says |
 |---|---|
 | `docs/agent-team.md:85` | `runtime-control`: thresholds "tighter or looser (full function for now)". |
-| `docs/os-handoff.md:334` | "On-box SLM: yes, full function for now". |
+| `docs/os-handoff.md:425` | "On-box SLM: yes, full function for now". |
 | `.claude/agents/slm.md:30`, `:41` | Same `runtime-control` text; "has full function for now". |
 | `.claude/agents/daemon.md:41` | "Apply its changes; don't filter them." |
 | `.claude/agents/architect.md:42` | "Don't design limits into it." |
@@ -458,8 +458,8 @@ Each line below is **AJ decides.**
 Scope and hosts:
 - **O1.** Host LSM self-protection on Johnny itself (brief Decision 1 Option B, `docs/architecture/architecture-pass.md:403`). **AJ decides.**
 - **O2.** Which Linux hosts get an agent after Rock Box, and in what order. **AJ decides.**
-- **O3.** ABLETON_BOX: reconcile "gets a new OS, role not decided" (`docs/hosts/ableton_box.md:3`) and the parked Ubuntu option (`docs/os-handoff.md:413-415`) with a Windows agent in Stage 4. **AJ decides.**
-- **O4.** The MAX: host record (hardware, OS, address), and how the parked Security Onion pattern (`docs/os-handoff.md:404`) relates to "backend on the MAX". **AJ decides.**
+- **O3.** ABLETON_BOX: reconcile "gets a new OS, role not decided" (`docs/hosts/ableton_box.md:3`) and the parked Ubuntu option (`docs/os-handoff.md:494-497`) with a Windows agent in Stage 4. **AJ decides.**
+- **O4.** The MAX: host record (hardware, OS, address), and how the parked Security Onion pattern (`docs/os-handoff.md:495`) relates to "backend on the MAX". **AJ decides.**
 
 Code shape:
 - **O5.** **Decided for Stage 1 (AJ, 2026-11-14 10:56 PM CT):** `aya` (`=0.16.0`, `default-features = false`) in userspace only (`crates/johnny-daemon/Cargo.toml:9`), attaching to existing pinned maps (`m2_rb`, `m2_cfg`, `m2_ctl`) in `crates/johnny-daemon/src/bpf.rs:1-322` (`attach` at `:235-277`, `probe` at `:283-322`) or loading the existing compiled C object in userspace. Still open for Stage 2: whether Stage 2's Rock Box BPF-LSM loader also uses `aya` or pre-compiled C objects. **AJ decides.**
