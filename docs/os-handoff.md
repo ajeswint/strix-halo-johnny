@@ -1,4 +1,10 @@
-# Johnny — OS Handoff (rev 123, 2026-11-21 America/Chicago)
+# Johnny — OS Handoff (rev 124, 2026-11-21 America/Chicago)
+
+## Rev 124 (2026-11-21 America/Chicago): PR reviewer seat -> Claude Code Opus medium (docs only)
+- **Status:** **DOCS ONLY.** Nothing changed on Johnny or Rock Box. No code change. `main` untouched. `crates/johnny-daemon/tests/parity.rs` untouched. Runbook paste fences in `docs/tool-install/stage1-rust-daemon-cutover.md` byte-identical.
+- **Seats (AJ, 2026-11-21 9:15 PM CT):** Writer = Gemini 4 Neon high via Antigravity `agy` (`agy --model gemini-4-neon-high --effort high --mode auto --dangerously-skip-permissions --new-project --print "<prompt>"`). PR reviewer (`adversarial-reviewer`) = Claude Code Opus medium. Decision reviewer = Claude Code Opus medium. Grok 4.7 high (`cursor-agent`) PR reviewer is historical (reason: Grok tokens running thin). Argon high (`gemini-4-argon-high`) remains historical (shared quota exhausted until ~2026-11-24 22:03 CST). Writer does not review their own work; AJ decides and runs sudo; domain ownership unchanged.
+- **Docs updated:** `AGENTS.md`, `docs/agent-team.md` rev 13 (rev 12 kept as historical), `.claude/agents/code-writer.md`, `.claude/agents/adversarial-reviewer.md`, header of `tools/relay/README.md`, `docs/os-handoff.md` rev 124, and shifted living `docs/os-handoff.md` line cites in `docs/architecture/architecture-rev2.md` and `docs/tool-install/stage1-rust-daemon-cutover.md`. (`docs/architecture/architecture-rev2.md` status line does not name seats.)
+- **Branch:** `docs/seat-pr-reviewer-opus-2026-11-21` into `claude/practical-ritchie-4c6vvf` (not `main`), **not merged**.
 
 ## Rev 123 (2026-11-21 America/Chicago): Stage 1 EXITED (Paste S1-6 passed); seats updated (docs only)
 - **Status:** **STAGE 1 EXITED (docs record).** AJ ran read-only Paste S1-6 at `2026-11-22T01:22:21Z` (2026-11-21 7:22 PM CST). Final line `STAGE1-EXIT-CHECK-DONE`. Nothing in this rev changed Johnny. No code change. `main` untouched. `crates/johnny-daemon/tests/parity.rs` untouched. Paste S1-6 text and the review-state string `Claude reviewed 7dee6ad: APPROVE-WITH-NITS n1–n3` are unchanged.
