@@ -1,4 +1,12 @@
-# Johnny — OS Handoff (rev 124, 2026-11-21 America/Chicago)
+# Johnny — OS Handoff (rev 125, 2026-11-21 America/Chicago)
+
+## Rev 125 (2026-11-21 America/Chicago): Stage 2 prep drafts — cgroup-scoping test runbook + interpreter plan questions (docs only)
+- **Status:** **DOCS ONLY (DRAFT).** Nothing changed on Johnny or Rock Box. No sudo executed. No BPF program compiled or loaded. `main` untouched. `crates/johnny-daemon/tests/parity.rs` untouched. Runbook paste fences in `docs/tool-install/stage1-rust-daemon-cutover.md` byte-identical.
+- **Deliverables (under `docs/stage2/`):**
+  - `docs/stage2/cgroup-scoping-test-runbook.md`: read-only probe pastes (`S2-0A` unprivileged, `S2-0B` privileged `bpftool feature probe kernel` with `sudo -v` first line, both labeled `***<u>Run on Rock Box</u>***`), minimal feasibility test design proving O28 C (deny only inside one test cgroup, observe elsewhere) with PASS/STOP tokens, and idempotent Rollback section (not part of the paste sequence). Awaiting adversarial-reviewer (Claude Code Opus medium) review before AJ runs any sudo paste.
+  - `docs/stage2/interpreter-plan-questions.md`: O21 interpreter gap framed as six architectural questions (`Q1–Q6`) with honest tradeoffs and options for AJ (not a finalized design; AJ dictates architecture).
+- **Session:** `docs/sessions/2026-11-21-stage2-prep-cgroup-interpreter.md`, `docs/sessions/Johnny_Stage2Prep_Session_Log_2026-11-21.csv`.
+- **Branch:** `stage2/prep-cgroup-interpreter` (stacked on PR #49 `docs/seat-pr-reviewer-opus-2026-11-21`) into `claude/practical-ritchie-4c6vvf` (not `main`), **not merged**.
 
 ## Rev 124 (2026-11-21 America/Chicago): PR reviewer seat -> Claude Code Opus medium (docs only)
 - **Status:** **DOCS ONLY.** Nothing changed on Johnny or Rock Box. No code change. `main` untouched. `crates/johnny-daemon/tests/parity.rs` untouched. Runbook paste fences in `docs/tool-install/stage1-rust-daemon-cutover.md` byte-identical.
