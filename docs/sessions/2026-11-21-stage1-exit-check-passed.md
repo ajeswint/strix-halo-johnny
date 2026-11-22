@@ -1,0 +1,33 @@
+# 2026-11-21 America/Chicago: Paste S1-6 passed; Stage 1 EXITED (docs only)
+
+- **When:** AJ ran Paste S1-6 at `2026-11-22T01:22:21Z` (2026-11-21 7:22 PM CST).
+- **Where:** read-only Paste S1-6 in `docs/tool-install/stage1-rust-daemon-cutover.md` (rev 4; paste text unchanged). Review state on that paste remains `Claude reviewed 7dee6ad: APPROVE-WITH-NITS n1–n3`.
+- **Result:** final line `STAGE1-EXIT-CHECK-DONE`. Stage 1 EXITED.
+- **Baseline:** `seen=168066737 rate_limited=18217138 rb_full=0 discarded=0`.
+- **Accepted open gap:** no cold boot tested under the Rust daemon.
+- **Seats (AJ, 2026-11-21 7:24 PM CT):**
+  - **Writer (`code-writer`):** Gemini 4 Neon high via Antigravity `agy` (`agy --model gemini-4-neon-high --effort high --mode auto --dangerously-skip-permissions --new-project --print "<prompt>"`).
+  - **PR reviewer (`adversarial-reviewer`):** Grok 4.7 high (`cursor-agent`).
+  - **Decision reviewer:** Claude Code Opus medium.
+  - Argon high (`gemini-4-argon-high`) is historical (shared quota exhausted until ~2026-11-24 22:03 CST).
+- **Docs:** `AGENTS.md`; `docs/agent-team.md` rev 12 (rev 11 kept as historical); `.claude/agents/code-writer.md`; `.claude/agents/adversarial-reviewer.md`; header of `tools/relay/README.md`; `docs/os-handoff.md` rev 123; `docs/sessions/Johnny_Stage1ExitCheck_Session_Log_2026-11-21.csv`. Domain ownership unchanged.
+- **Constraints kept:** docs only. No code change. `crates/johnny-daemon/tests/parity.rs` untouched. `docs/architecture/architecture-rev2.md` untouched. `main` untouched. Branch `docs/stage1-exited-seats-2026-11-21` into `claude/practical-ritchie-4c6vvf`, not merged.
+
+## Check lines
+
+- sha256 OK:
+  - `/root/m1s2b/module1-slice2b-boot.sh` `a4d4dfa4c7d6ba3c9ffb64810a54952f4e7ce652889a2fe6f628adadef1bf9eb`
+  - `/usr/local/libexec/johnny/johnny-daemon` `08e96c19b83edc6662684d0c4a7902675def5837a769d1592f06dc082c1681ac`
+  - `/etc/systemd/system/johnny-daemon.service` `e3c8df9c8c2fd225bffaf83701f4d39d1a4d74918fe4e236d540058de35dbffa`
+- `BOOT-ID e9476f51-151b-4593-aa88-811e397794d1`
+- `DAEMON-STATE nrestarts=0 result=success active_enter="Tue 2026-11-17 21:30:30 UTC" active_epoch=1794951030 invocation=18aff40941174f09aed9d448c45a3520`
+- `ATTACH records 78`
+- `UNIT-2B enabled=enabled active=active`
+- `UNIT-READER enabled=disabled active=inactive`
+- `UNIT-1C enabled=disabled active=inactive`
+- `PINS m1_rxq m1_stats m2_cfg m2_ctl m2_rb m2_state prog`
+- `STATS pkts=439762239 bytes=427880041629`
+- `CTL seen 439762242, sampled_out 0, rate_limited 18217138, rb_full 0, emitted 421545104, discarded 0`
+- `CFG ver=1 sample_every=1 rate=1000000 burst=100000`
+- `NEWEST-RUNFILE /var/lib/johnny/m1s2b/run-20261122T010852Z.bin mtime=1795310542 age_secs=0`
+- final line `STAGE1-EXIT-CHECK-DONE`
