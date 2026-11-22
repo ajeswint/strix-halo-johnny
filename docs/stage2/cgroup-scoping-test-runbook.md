@@ -327,24 +327,36 @@ To keep blast radius effectively zero on Rock Box:
 sudo -v &&
 (
   set -eu
-  sudo rm -rf /sys/fs/bpf/johnny_s2_cgtest 2>/dev/null || true
+  sudo rm -rf /sys/fs/bpf/johnny_s2_cgtest || true
   if [ -d /sys/fs/cgroup/johnny-stage2-test/nested-child ]; then
-    sudo rmdir /sys/fs/cgroup/johnny-stage2-test/nested-child 2>/dev/null || true
+    sudo rmdir /sys/fs/cgroup/johnny-stage2-test/nested-child || true
   fi
   if [ -d /sys/fs/cgroup/johnny-stage2-test ]; then
-    sudo rmdir /sys/fs/cgroup/johnny-stage2-test 2>/dev/null || true
+    sudo rmdir /sys/fs/cgroup/johnny-stage2-test || true
   fi
   for d in /run/johnny-s2-cgtest.*; do
     if [ -e "$d" ]; then
-      sudo rm -rf -- "$d" 2>/dev/null || true
+      sudo rm -rf -- "$d" || true
     fi
   done
   python3 -I - <<'PY'
 import glob, os, subprocess, sys
 
 bad = []
-if os.path.exists("/sys/fs/bpf/johnny_s2_cgtest"):
-    bad.append("pin-dir-exists")
+try:
+    p_pin = subprocess.run(
+        ["sudo", "test", "-e", "/sys/fs/bpf/johnny_s2_cgtest"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+except OSError as exc:
+    bad.append(f"pin-check-oserror={exc.errno}")
+else:
+    if p_pin.returncode == 0:
+        bad.append("pin-dir-exists")
+    elif p_pin.returncode != 1 or p_pin.stderr.strip():
+        bad.append(f"pin-check-rc={p_pin.returncode}")
 if os.path.exists("/sys/fs/cgroup/johnny-stage2-test/nested-child"):
     bad.append("cgroup-nested-exists")
 if os.path.exists("/sys/fs/cgroup/johnny-stage2-test"):
@@ -353,10 +365,11 @@ if glob.glob("/run/johnny-s2-cgtest.*"):
     bad.append("sentinel-dir-exists")
 
 checks = (
-    ("prog", ["sudo", "bpftool", "prog", "list"], "j_s2_cgtest"),
-    ("link", ["sudo", "bpftool", "link", "list", "-f"], "johnny_s2_cgtest"),
+    ("prog", ["sudo", "bpftool", "prog", "list"], ("j_s2_cgtest",)),
+    ("link", ["sudo", "bpftool", "link", "list", "-f"], ("johnny_s2_cgtest",)),
+    ("map", ["sudo", "bpftool", "map", "list", "-f"], ("johnny_s2_cgtest", "j_s2_cgtest")),
 )
-for subcmd, cmd, needle in checks:
+for subcmd, cmd, needles in checks:
     try:
         p = subprocess.run(
             cmd,
@@ -372,8 +385,10 @@ for subcmd, cmd, needle in checks:
         continue
     if p.returncode != 0:
         bad.append(f"bpftool-{subcmd}-rc={p.returncode}")
-    elif needle in p.stdout:
-        bad.append(f"residual-{subcmd}-{needle}")
+    else:
+        for needle in needles:
+            if needle in p.stdout:
+                bad.append(f"residual-{subcmd}-{needle}")
 
 if bad:
     print("STOP-rollback-residual " + ",".join(bad))
