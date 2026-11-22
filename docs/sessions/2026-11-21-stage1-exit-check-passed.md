@@ -12,6 +12,7 @@
   - Argon high (`gemini-4-argon-high`) is historical (shared quota exhausted until ~2026-11-24 22:03 CST).
 - **Docs:** `AGENTS.md`; `docs/agent-team.md` rev 12 (rev 11 kept as historical); `.claude/agents/code-writer.md`; `.claude/agents/adversarial-reviewer.md`; header of `tools/relay/README.md`; `docs/os-handoff.md` rev 123; `docs/sessions/Johnny_Stage1ExitCheck_Session_Log_2026-11-21.csv`. Domain ownership unchanged.
 - **Constraints kept:** docs only. No code change. `crates/johnny-daemon/tests/parity.rs` untouched. `docs/architecture/architecture-rev2.md` untouched. `main` untouched. Branch `docs/stage1-exited-seats-2026-11-21` into `claude/practical-ritchie-4c6vvf`, not merged.
+- **Review (Grok 4.7 high, `71751d6`, APPROVE-WITH-NITS, not merged):** N1's runbook half applied here. The historical hold banner's Paste W supersession cite now points at `docs/os-handoff.md:45` (rev 119 status). The `docs/architecture/architecture-rev2.md` cite retargets and the rev 123 status line (N2) stay out of this PR.
 
 ## Check lines
 
