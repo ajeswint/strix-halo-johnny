@@ -14,10 +14,11 @@ Review state: **DRAFT — awaiting adversarial-reviewer (Claude Code Opus medium
 
 ### What is already verified on Rock Box
 - **2026-11-17 §3 check** (`docs/findings/stage2/2026-11-17-rockbox-fs-check.md`):
-  - Kernel: `7.3.0-10-generic` (Ubuntu 26.10).
+  - Kernel: `7.3.0-10-generic`.
   - Filesystem: `/` and `/home` are one ext4 partition (`/dev/nvme0n1p2`, `rw,relatime`), no reflink.
   - Active LSM list (`/sys/kernel/security/lsm`): `lockdown,capability,landlock,yama,apparmor,bpf,ima,evm`.
   - Kernel config: `CONFIG_BPF_LSM=y`, `CONFIG_LSM="landlock,lockdown,yama,integrity,apparmor,bpf"`. No kernel command-line change or reboot is needed to enable BPF LSM.
+- **Rock Box `/etc/os-release`:** `Ubuntu 26.10` (`PRETTY_NAME="Ubuntu 26.10"`).
 - **2026-11-17 lockdown check** (`docs/findings/stage2/2026-11-17-rockbox-lockdown.md`):
   - `/sys/kernel/security/lockdown`: `[none] integrity confidentiality`. Lockdown is `none`.
 
@@ -98,7 +99,11 @@ Checks kernel version, `bpf` in `/sys/kernel/security/lsm`, lockdown state, `/sy
     fi
   done
   if command -v bpftool >/dev/null 2>&1; then
-    echo "BPFTOOL_VERSION $(bpftool version 2>/dev/null | sed -n '1p')"
+    if bpftool_out=$(bpftool version 2>/dev/null) && [ -n "$bpftool_out" ]; then
+      echo "BPFTOOL_VERSION $(printf '%s\n' "$bpftool_out" | sed -n '1p')"
+    else
+      echo "NOTE-bpftool-version-failed"
+    fi
   fi
   echo "STAGE2-PROBE-RO-DONE"
 )
@@ -113,7 +118,7 @@ Checks kernel version, `bpf` in `/sys/kernel/security/lsm`, lockdown state, `/sy
 
 ## 3. Paste S2-0B: Privileged Read-Only `bpftool feature` + BTF Probe (Requires Sudo; Review Gate Before Running)
 
-Runs `sudo bpftool feature probe kernel full` (read-only kernel capability probes; loads no persistent BPF program, attaches nothing, pins nothing) and checks BTF symbols in `/sys/kernel/btf/vmlinux` for `BPF_PROG_TYPE_LSM`, `BPF_LSM_MAC`, `BPF_LSM_CGROUP`, `BPF_MAP_TYPE_CGROUP_ARRAY`, `BPF_MAP_TYPE_CGRP_STORAGE`, and the cgroup helpers (`bpf_get_current_cgroup_id`, `bpf_get_current_ancestor_cgroup_id`, `bpf_current_task_under_cgroup`).
+Runs `sudo bpftool feature probe kernel` (read-only kernel capability probes; loads no persistent BPF program, attaches nothing, pins nothing) and checks BTF symbols in `/sys/kernel/btf/vmlinux` (read unprivileged, since `/sys/kernel/btf/vmlinux` is `0444`) for `BPF_PROG_TYPE_LSM`, `BPF_LSM_MAC`, `BPF_LSM_CGROUP`, `BPF_MAP_TYPE_CGROUP_ARRAY`, `BPF_MAP_TYPE_CGRP_STORAGE`, and the cgroup helpers (`bpf_get_current_cgroup_id`, `bpf_get_current_ancestor_cgroup_id`, `bpf_current_task_under_cgroup`).
 
 **Important `bpftool` caveat (documented in `libbpf` / `bpftool`):** `bpftool feature probe kernel` often omits or leaves empty the per-helper list for `BPF_PROG_TYPE_LSM` (as well as `tracing`, `struct_ops`, and `ext`) because probing a `BPF_PROG_TYPE_LSM` program requires a concrete kernel hook BTF ID (`attach_btf_id`) rather than a generic stub load. Therefore, Paste S2-0B checks `program_type lsm` and cgroup map types from `bpftool feature probe`, reports any `lsm` helpers if `bpftool` lists them (printing `NOTE-lsm-helpers-not-probed-by-bpftool` instead of false-stopping if omitted), prints reference helper availability on `kprobe`/`tracepoint`/`cgroup_skb`, and verifies the exact helper/attach-type enum entries in `/sys/kernel/btf/vmlinux`. Definitive verifier confirmation of an LSM program calling those helpers happens in **Phase 2 (Paste S2-1)**.
 
@@ -129,7 +134,7 @@ sudo -v &&
   fi
   tmp_probe=$(mktemp /tmp/johnny-s2-bpftool-probe.XXXXXX)
   trap 'rm -f "$tmp_probe"' EXIT
-  sudo bpftool feature probe kernel full >"$tmp_probe" 2>&1 || {
+  sudo bpftool feature probe kernel >"$tmp_probe" 2>&1 || {
     echo "STOP-probe-bpftool-failed"
     cat "$tmp_probe"
     exit 1
@@ -164,9 +169,11 @@ for ln in text.splitlines():
         blocks[cur] = []
         continue
     if cur is not None:
-        if ln.startswith("\t") or ln.startswith("  "):
-            blocks[cur].append(ln.strip())
-        elif ln.strip() == "":
+        if ln.startswith("\t") or ln.startswith("  ") or ln.lstrip().startswith("- "):
+            item = re.sub(r"^-\s+", "", ln.strip())
+            if item:
+                blocks[cur].append(item)
+        else:
             cur = None
 
 wanted = [
@@ -195,12 +202,16 @@ PY
   python3 -I - <<'PY'
 import subprocess, sys
 
-p = subprocess.run(
-    ["sudo", "bpftool", "btf", "dump", "file", "/sys/kernel/btf/vmlinux", "format", "c"],
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
-    text=True,
-)
+try:
+    p = subprocess.run(
+        ["bpftool", "btf", "dump", "file", "/sys/kernel/btf/vmlinux", "format", "c"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+except OSError as exc:
+    print(f"STOP-probe-btf-dump-oserror errno={exc.errno}")
+    sys.exit(1)
 if p.returncode != 0:
     print(f"STOP-probe-btf-dump-failed rc={p.returncode}")
     sys.exit(1)
@@ -236,25 +247,30 @@ PY
 
 Once AJ runs Pastes S2-0A and S2-0B and approves the design below, Fast Path drafts the tiny C BPF program and reviewed **Paste S2-1** in a follow-up implementation PR. No code is compiled or loaded in this draft.
 
-### 4.1 Two Kernel Mechanisms to Evaluate
+### 4.1 Two Kernel Mechanisms — Selection for S2-1
 
 | Mechanism | Attach Type | How scoping works | Observe + Deny in O28 C | Tradeoffs / Caveats |
 |---|---|---|---|---|
-| **Mechanism 1 (Primary candidate): Global `SEC("lsm/<hook>")` + in-program cgroup check** | `BPF_LSM_MAC` | Program checks `bpf_current_task_under_cgroup(&cg_array, 0)` (or `bpf_get_current_ancestor_cgroup_id(target_level) == target_cgid`, plus leaf `bpf_get_current_cgroup_id() == target_cgid`). | **Single program:** returns `0` (allow) and increments `observed_outside` outside the test cgroup; returns `-EPERM` and increments `denied_inside` inside the test cgroup. | Must get subtree matching right (leaf `bpf_get_current_cgroup_id()` alone misses child cgroups spawned inside the test slice). Runs on every hook invocation host-wide, so the fast-path reject (outside cgroup) must be O(1) and fail-open (`return 0`) on any map/config error. |
-| **Mechanism 2 (Alternative): Cgroup-attached `SEC("lsm_cgroup/<hook>")`** | `BPF_LSM_CGROUP` | Kernel attaches the enforcing LSM program directly to the test cgroup v2 directory fd; the kernel itself invokes the hook only for tasks/sockets in that cgroup subtree. | **Two programs:** global observe-only `SEC("lsm/<hook>")` always returns `0`; separate `SEC("lsm_cgroup/<hook>")` attached to the test cgroup returns `0` (deny) or `1` (allow). | Strongest kernel-enforced isolation (the denying code physically never executes outside the test cgroup). **Caveats:** inverted return value (`1` allow / `0` deny vs global `0` allow / `-EPERM` deny), non-sleepable programs only (`BPF_F_SLEEPABLE` rejected), and per-hook support for `BPF_LSM_CGROUP` must be verified on `7.3.0-10-generic` (`socket_*` hooks are standard; `bprm_check_security` support under `BPF_LSM_CGROUP` is **UNVERIFIED**). |
+| **Mechanism 1 (S2-1 primary): Global `SEC("lsm/<hook>")` + in-program subtree cgroup check** | `BPF_LSM_MAC` | Program checks `bpf_current_task_under_cgroup(&cg_array, 0)` (or `bpf_get_current_ancestor_cgroup_id(target_level) == target_cgid`, plus leaf `bpf_get_current_cgroup_id()` for telemetry). | **Single program:** returns `0` (allow) and increments `observed_outside` outside the test cgroup; returns `-EPERM` and increments `denied_inside` inside the test cgroup. | Must use subtree matching (leaf `bpf_get_current_cgroup_id()` alone misses child cgroups). Runs on every hook invocation host-wide, so the fast-path reject (outside cgroup) must be O(1) and fail-open (`return 0`) on any map/config error. |
+| **Mechanism 2 (Informational verifier check only in S2-1): Cgroup-attached `SEC("lsm_cgroup/<hook>")`** | `BPF_LSM_CGROUP` | Kernel attaches the enforcing LSM program directly to the test cgroup v2 directory fd; the kernel itself invokes the hook only for tasks/sockets in that cgroup subtree. | **Two programs:** global observe-only `SEC("lsm/<hook>")` always returns `0`; separate `SEC("lsm_cgroup/<hook>")` attached to the test cgroup returns `0` (deny) or `1` (allow). | Strongest kernel-enforced isolation (the denying code physically never executes outside the test cgroup). **Caveats:** inverted return value (`1` allow / `0` deny vs global `0` allow / `-EPERM` deny), non-sleepable programs only (`BPF_F_SLEEPABLE` rejected), and per-hook support for `BPF_LSM_CGROUP` on `bprm_check_security` is **UNVERIFIED** on `7.3.0-10-generic` (`socket_*` hooks are standard). |
+
+**S2-1 choice:** S2-1 proves O28 C using **Mechanism 1** (`SEC("lsm/bprm_check_security")` + subtree helper: `bpf_current_task_under_cgroup` or `bpf_get_current_ancestor_cgroup_id`), because `BPF_LSM_CGROUP` support for `bprm_check_security` is UNVERIFIED and may be rejected by the verifier. Separately, S2-1 records whether kernel `7.3.0-10-generic`'s verifier accepts a one-shot load of Mechanism 2 (`SEC("lsm_cgroup/bprm_check_security")`, no persistent attach) as an informational `NOTE-lsm-cgroup-bprm=accepted|rejected` line without gating the O28 C proof on it.
 
 ### 4.2 Minimal Test Program & Double-Gated Target
 
 To keep blast radius effectively zero on Rock Box:
-1. **Dedicated test cgroup:** a transient cgroup v2 subtree created solely for the test:
-   - Parent test cgroup: `/sys/fs/cgroup/johnny-stage2-test.slice` (or `systemd-run --slice=johnny-stage2-test.slice ...`).
-   - Nested child cgroup (for Case C subtree proof): `/sys/fs/cgroup/johnny-stage2-test.slice/nested-child`.
-2. **Double-gated sentinel target (choose one hook for S2-1; default recommendation = Hook A):**
-   - **Hook A (`lsm/bprm_check_security`, directly tests Stage 2 exec hook):**
-     - Copy `/bin/true` to `/tmp/johnny-s2-test-sentinel` (`0755`) and record its `(st_dev, st_ino)` into a config map `s2_cfg` alongside `target_cgid` / `target_level` (and/or cgroup fd in `BPF_MAP_TYPE_CGROUP_ARRAY`).
+1. **Dedicated test cgroup (single creation method — raw cgroupfs only):**
+   - Use raw root-made cgroupfs directories (**not** `systemd-run` / `*.slice`, respecting systemd's single-writer rule and ensuring Case B runs directly in the parent cgroup rather than an implicit child unit scope):
+     - Parent test cgroup: `/sys/fs/cgroup/johnny-stage2-test` (`sudo mkdir -p /sys/fs/cgroup/johnny-stage2-test`).
+     - Nested child cgroup (for Case C subtree proof): `/sys/fs/cgroup/johnny-stage2-test/nested-child` (`sudo mkdir -p /sys/fs/cgroup/johnny-stage2-test/nested-child`).
+   - Enter the test cgroups **only** from a short-lived throwaway subshell (`sudo sh -c 'echo $$ > /sys/fs/cgroup/johnny-stage2-test/cgroup.procs && cat /proc/self/cgroup && exec "$1"' _ "$sentinel"`, and identically into `.../nested-child/cgroup.procs` for Case C). **Never** write AJ's interactive shell PID into `cgroup.procs` (otherwise `rmdir` hits `EBUSY` and AJ's shell stays inside the enforcing cgroup).
+2. **Double-gated sentinel target (Hook A = S2-1 default; Hook B = optional second test):**
+   - **Hook A (`SEC("lsm/bprm_check_security")`, Mechanism 1, directly tests Stage 2 exec hook):**
+     - Create a root-owned private temporary directory under `/run` (not world-writable `/tmp`): `sentinel_dir=$(sudo mktemp -d /run/johnny-s2-cgtest.XXXXXX)` with `chmod 0755 "$sentinel_dir"` (owned `root:root`, so no non-root user can write or replace entries while unprivileged Case A can traverse it; `/run` on Rock Box is `tmpfs` `rw,nosuid,nodev,mode=755` with no `noexec`). Copy `/bin/true` to `"$sentinel_dir/sentinel"` (`0755`, `root:root`) and verify it runs cleanly before attaching the LSM hook.
+     - **Kernel `s_dev` encoding requirement:** userspace `stat(2)` `st_dev` uses glibc/Linux `makedev` encoding (`major` at bit 8, split `minor` above 255), whereas kernel `bprm->file->f_inode->i_sb->s_dev` (`dev_t` in `include/linux/kdev_t.h`) uses `MKDEV(major, minor) = (major << 20) | minor` (`MINORBITS = 20`). They match only when `major == 0` and `minor < 256` (e.g., `tmpfs`), and differ on block devices such as NVMe (`259:x`). Userspace **must** pack `sentinel_sdev = (major(st_dev) << 20) | minor(st_dev)` (e.g., Python `(os.major(st.st_dev) << 20) | os.minor(st.st_dev)`) when populating `s2_cfg`, alongside `sentinel_ino = st.st_ino` and `target_cgid` / `target_level` (and/or cgroup fd in `BPF_MAP_TYPE_CGROUP_ARRAY`).
      - In `j_s2_cgtest_bprm`:
        1. If `s2_cfg.enabled == 0` or `s2_cfg.sentinel_ino == 0` or `s2_cfg.target_cgid == 0`: **fail open (`return 0`)**.
-       2. Check `bprm->file->f_inode->i_ino == s2_cfg.sentinel_ino` (and matching `s_dev`). If not the sentinel binary: **`return 0` immediately** (zero effect on any real process anywhere on Rock Box).
+       2. Check `bprm->file->f_inode->i_ino == s2_cfg.sentinel_ino` and `bprm->file->f_inode->i_sb->s_dev == s2_cfg.sentinel_sdev`. If not the sentinel binary: **`return 0` immediately** (zero effect on any real process anywhere on Rock Box).
        3. Check cgroup membership (subtree check via `bpf_current_task_under_cgroup` or `bpf_get_current_ancestor_cgroup_id(target_level) == target_cgid`, plus record leaf `bpf_get_current_cgroup_id()` in stats).
        4. If **outside** the test cgroup: increment `stats.observed_outside`, emit/record, **`return 0` (allow)**.
        5. If **inside** the test cgroup: increment `stats.denied_inside`, **`return -EPERM` (deny)**.
@@ -266,12 +282,12 @@ To keep blast radius effectively zero on Rock Box:
 
 ### 4.3 Four-Case Proof Matrix (Required for `STAGE2-CGROUP-SCOPE-PASS`)
 
-| Case | Where the sentinel runs | Expected execution result | Expected BPF map counters | Failure / STOP token |
+| Case | Where the sentinel runs (proved via `/proc/self/cgroup`) | Expected execution result | Expected BPF map counters | Failure / STOP token |
 |---|---|---|---|---|
-| **A — Outside test cgroup (observe-only)** | AJ's normal shell cgroup (outside `johnny-stage2-test.slice`) | Exits `0` (allowed, **never** `-EPERM`) | `observed_outside >= 1`, `denied_outside == 0` | `STOP-denied-outside-cgroup` (if exit != 0 or `denied_outside > 0`), `STOP-not-observed-outside` (if `observed_outside == 0`) |
-| **B — Inside test cgroup (enforcing)** | Inside `johnny-stage2-test.slice` | Fails with `EPERM` (`Operation not permitted`) | `denied_inside >= 1` | `STOP-not-denied-inside-cgroup` (if sentinel exited `0` or `denied_inside == 0`) |
-| **C — Nested child cgroup (subtree escape check)** | Inside `johnny-stage2-test.slice/nested-child` | Fails with `EPERM` (proves child cgroups cannot bypass enforcement) | `denied_inside` increments by `>= 1` again | `STOP-subtree-escape` (documents that leaf-only `bpf_get_current_cgroup_id()` is insufficient and subtree matching is required) |
-| **D — Detach & post-cleanup verification** | After removing `/sys/fs/bpf/johnny_s2_cgtest` and test cgroup | Sentinel exits `0` again; `bpftool prog list` and `bpftool link list` show zero `j_s2_cgtest` entries | Pin dir absent; test slice absent | `STOP-cleanup-residual` (if any prog/link/pin/slice remains) |
+| **A — Outside test cgroup (observe-only)** | AJ's normal shell cgroup; print `/proc/self/cgroup` for the outside run and **assert** it is neither `0::/johnny-stage2-test` nor under `0::/johnny-stage2-test/` | Exits `0` (allowed, **never** `-EPERM`) | `observed_outside >= 1`, `denied_outside == 0` | `STOP-case-a-in-test-cgroup` (if `/proc/self/cgroup` is inside test cgroup), `STOP-denied-outside-cgroup` (if exit != 0 or `denied_outside > 0`), `STOP-not-observed-outside` (if `observed_outside == 0`) |
+| **B — Inside test cgroup (enforcing)** | Throwaway subshell after `echo $$ > /sys/fs/cgroup/johnny-stage2-test/cgroup.procs`; print `/proc/self/cgroup` and **assert** exact `0::/johnny-stage2-test` before `exec "$sentinel"` | Fails with `EPERM` (`Operation not permitted`) | `denied_inside >= 1` | `STOP-case-b-wrong-cgroup` (if `/proc/self/cgroup` != `0::/johnny-stage2-test`), `STOP-not-denied-inside-cgroup` (if sentinel exited `0` or `denied_inside == 0`) |
+| **C — Nested child cgroup (subtree escape check)** | Throwaway subshell after `echo $$ > /sys/fs/cgroup/johnny-stage2-test/nested-child/cgroup.procs`; print `/proc/self/cgroup` and **assert** exact `0::/johnny-stage2-test/nested-child` before `exec "$sentinel"` | Fails with `EPERM` (proves child cgroups cannot bypass enforcement) | `denied_inside` increments by `>= 1` again | `STOP-case-c-wrong-cgroup` (if `/proc/self/cgroup` != `0::/johnny-stage2-test/nested-child`), `STOP-subtree-escape` (documents that leaf-only `bpf_get_current_cgroup_id()` is insufficient and subtree matching is required) |
+| **D — Detach & post-cleanup verification** | After removing `/sys/fs/bpf/johnny_s2_cgtest`, `/sys/fs/cgroup/johnny-stage2-test`, and `/run/johnny-s2-cgtest.*` | Sentinel runs cleanly before final sentinel dir removal (exits `0`); `bpftool prog list` and `bpftool link list -f` show zero `j_s2_cgtest` / `johnny_s2_cgtest` entries | Pin dir absent; test cgroup absent; sentinel dir absent | `STOP-cleanup-residual` (if any prog/link/pin/cgroup/sentinel remains) |
 
 ### 4.4 PASS / STOP Token Contract
 
@@ -284,25 +300,26 @@ To keep blast radius effectively zero on Rock Box:
 | `PASS-probe-lsm-prog-type` | S2-0B | `bpftool feature probe kernel` reports `program_type lsm` available. |
 | `PASS-probe-btf-cgroup-syms` | S2-0B | Kernel BTF exports `BPF_FUNC_get_current_cgroup_id` (and prints status of ancestor/under-cgroup/`BPF_LSM_CGROUP` symbols). |
 | `STAGE2-CGROUP-PROBE-DONE` | S2-0B | Privileged read-only probe completed cleanly. |
-| `PASS-case-a-observe-outside` | S2-1 (planned) | Outside test cgroup: allowed (`exit 0`), `observed_outside >= 1`, `denied_outside == 0`. |
-| `PASS-case-b-deny-inside` | S2-1 (planned) | Inside test cgroup: denied (`EPERM`), `denied_inside >= 1`. |
-| `PASS-case-c-deny-subtree` | S2-1 (planned) | Nested child cgroup: denied (`EPERM`), proving subtree coverage. |
-| `PASS-case-d-clean-detach` | S2-1 (planned) | Detach verified, sentinel runs cleanly again, zero residual BPF objects. |
+| `PASS-case-a-observe-outside` | S2-1 (planned) | Outside test cgroup (`/proc/self/cgroup` verified): allowed (`exit 0`), `observed_outside >= 1`, `denied_outside == 0`. |
+| `PASS-case-b-deny-inside` | S2-1 (planned) | Inside `/johnny-stage2-test` (`/proc/self/cgroup` verified): denied (`EPERM`), `denied_inside >= 1`. |
+| `PASS-case-c-deny-subtree` | S2-1 (planned) | Inside `/johnny-stage2-test/nested-child` (`/proc/self/cgroup` verified): denied (`EPERM`), proving subtree coverage. |
+| `PASS-case-d-clean-detach` | S2-1 (planned) | Detach verified, sentinel runs cleanly again, zero residual BPF objects, test cgroups, or sentinel dirs. |
 | `STAGE2-CGROUP-SCOPE-PASS` | S2-1 (planned) | All four cases passed; O28 C cgroup scoping is **VERIFIED** on Rock Box. |
 | `STOP-probe-*` | S2-0A / S2-0B | Prerequisite missing or probe command failed; do not proceed to S2-1. |
+| `STOP-case-{a,b,c}-*` | S2-1 (planned) | `/proc/self/cgroup` assertion failed (test process was not in the expected cgroup). |
 | `STOP-denied-outside-cgroup` | S2-1 (planned) | **Critical safety stop:** hook denied outside the test cgroup; immediate detach + rollback. |
 | `STOP-not-observed-outside` | S2-1 (planned) | Hook failed to observe execution outside test cgroup. |
 | `STOP-not-denied-inside-cgroup` | S2-1 (planned) | Hook failed to deny sentinel inside test cgroup. |
 | `STOP-subtree-escape` | S2-1 (planned) | Nested child cgroup bypassed the check; switch to subtree helper or `BPF_LSM_CGROUP`. |
-| `STOP-cleanup-residual` / `STOP-rollback-residual` | S2-1 / Rollback | Residual BPF program, link, pin dir, or test cgroup still present after cleanup. |
-| `STAGE2-CGTEST-ROLLBACK-DONE` | Rollback | Clean idempotent rollback verified. |
+| `STOP-cleanup-residual` / `STOP-rollback-residual` | S2-1 / Rollback | Residual BPF program, link, pin dir, test cgroup, or sentinel dir still present after cleanup (or `bpftool` verification failed). |
+| `STAGE2-CGTEST-ROLLBACK-DONE` | Rollback | Clean idempotent rollback verified (zero residual pins, BPF progs/links, test cgroups, or sentinel dirs). |
 
 ---
 
 ## 5. Rollback (not part of the paste sequence above)
 
 - **For Pastes S2-0A and S2-0B:** read-only; no system state is modified, so no rollback is required.
-- **For the future Paste S2-1 feasibility test:** if S2-1 is ever interrupted before its `EXIT` trap runs, this standalone idempotent rollback block removes the test pin directory (which detaches any pinned test BPF links/programs), cleans up the test cgroup and sentinel file, and verifies zero residual test objects remain.
+- **For the future Paste S2-1 feasibility test:** if S2-1 is ever interrupted before its `EXIT` trap runs, this standalone idempotent rollback block removes the test pin directory (which detaches any pinned test BPF links/programs), removes the raw test cgroups and root-owned `/run/johnny-s2-cgtest.*` sentinel directory, and verifies zero residual test objects remain. If any artifact remains (for example, `rmdir` hit `EBUSY` because a process is still inside the test cgroup) or `bpftool` fails, it prints `STOP-rollback-residual ...` and exits non-zero instead of `STAGE2-CGTEST-ROLLBACK-DONE`. Rollback never kills processes.
 
 ***<u>Run on Rock Box</u>***
 
@@ -310,32 +327,54 @@ To keep blast radius effectively zero on Rock Box:
 sudo -v &&
 (
   set -eu
-  sudo rm -rf /sys/fs/bpf/johnny_s2_cgtest
-  sudo systemctl stop johnny-stage2-test.slice 2>/dev/null || true
-  if [ -d /sys/fs/cgroup/johnny-stage2-test.slice/nested-child ]; then
-    sudo rmdir /sys/fs/cgroup/johnny-stage2-test.slice/nested-child 2>/dev/null || true
+  sudo rm -rf /sys/fs/bpf/johnny_s2_cgtest 2>/dev/null || true
+  if [ -d /sys/fs/cgroup/johnny-stage2-test/nested-child ]; then
+    sudo rmdir /sys/fs/cgroup/johnny-stage2-test/nested-child 2>/dev/null || true
   fi
-  if [ -d /sys/fs/cgroup/johnny-stage2-test.slice ]; then
-    sudo rmdir /sys/fs/cgroup/johnny-stage2-test.slice 2>/dev/null || true
+  if [ -d /sys/fs/cgroup/johnny-stage2-test ]; then
+    sudo rmdir /sys/fs/cgroup/johnny-stage2-test 2>/dev/null || true
   fi
-  rm -f /tmp/johnny-s2-test-sentinel
+  for d in /run/johnny-s2-cgtest.*; do
+    if [ -e "$d" ]; then
+      sudo rm -rf -- "$d" 2>/dev/null || true
+    fi
+  done
   python3 -I - <<'PY'
-import os, subprocess, sys
+import glob, os, subprocess, sys
 
 bad = []
 if os.path.exists("/sys/fs/bpf/johnny_s2_cgtest"):
     bad.append("pin-dir-exists")
-for subcmd, needle in (("prog", "j_s2_cgtest"), ("link", "johnny_s2_cgtest")):
-    p = subprocess.run(
-        ["sudo", "bpftool", subcmd, "list"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
+if os.path.exists("/sys/fs/cgroup/johnny-stage2-test/nested-child"):
+    bad.append("cgroup-nested-exists")
+if os.path.exists("/sys/fs/cgroup/johnny-stage2-test"):
+    bad.append("cgroup-root-exists")
+if glob.glob("/run/johnny-s2-cgtest.*"):
+    bad.append("sentinel-dir-exists")
+
+checks = (
+    ("prog", ["sudo", "bpftool", "prog", "list"], "j_s2_cgtest"),
+    ("link", ["sudo", "bpftool", "link", "list", "-f"], "johnny_s2_cgtest"),
+)
+for subcmd, cmd, needle in checks:
+    try:
+        p = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except FileNotFoundError:
+        bad.append(f"bpftool-{subcmd}-missing")
+        continue
+    except OSError as exc:
+        bad.append(f"bpftool-{subcmd}-oserror={exc.errno}")
+        continue
     if p.returncode != 0:
         bad.append(f"bpftool-{subcmd}-rc={p.returncode}")
     elif needle in p.stdout:
         bad.append(f"residual-{subcmd}-{needle}")
+
 if bad:
     print("STOP-rollback-residual " + ",".join(bad))
     sys.exit(1)
@@ -349,7 +388,7 @@ PY
 ## 6. Assumptions and Sources
 
 ### Marked assumptions
-- **Assumption:** `bpftool feature probe kernel full` emits `eBPF program_type lsm is available`, `eBPF map_type cgroup_array is available`, and `eBPF map_type cgrp_storage is available` in the standard `bpftool` text format on Rock Box's installed `bpftool` version. Paste S2-0A prints `BPFTOOL_VERSION`, and if `bpftool` text phrasing differs, S2-0B prints the exact status rather than silently passing.
+- **Assumption:** `bpftool feature probe kernel` emits `eBPF program_type lsm is available`, `eBPF map_type cgroup_array is available`, and `eBPF map_type cgrp_storage is available` in the standard `bpftool` text format on Rock Box's installed `bpftool` version. Paste S2-0A prints `BPFTOOL_VERSION`, and if `bpftool` text phrasing differs, S2-0B prints the exact status rather than silently passing.
 - **Assumption:** `clang` / `llvm-strip` and `minisign` may not yet be installed on Rock Box; S2-0A inventories them without installing anything.
 - **Assumption:** Whether `BPF_LSM_CGROUP` supports `bprm_check_security` (in addition to `socket_*` hooks) on kernel `7.3.0-10-generic` is **UNVERIFIED** until tested in S2-1.
 

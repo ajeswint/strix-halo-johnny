@@ -5,7 +5,7 @@
 - **Drafts written under `docs/stage2/`:**
   1. `docs/stage2/cgroup-scoping-test-runbook.md`: Rock Box BPF LSM cgroup-scoping feasibility test runbook addressing O28 C's **UNVERIFIED** prerequisite (`docs/architecture/architecture-rev2.md` §4 Stage 2, §7 O28). Includes:
      - Paste S2-0A: unprivileged read-only probe (`uname -r`, `bpf` in `/sys/kernel/security/lsm`, `/sys/kernel/btf/vmlinux`, `cgroup2` mount, kernel config, toolchain inventory).
-     - Paste S2-0B: privileged read-only `sudo bpftool feature probe kernel full` + BTF enum check (`sudo -v` first line, labeled `***<u>Run on Rock Box</u>***`, explicitly noting the `libbpf`/`bpftool` LSM helper-probe caveat).
+     - Paste S2-0B: privileged read-only `sudo bpftool feature probe kernel` + unprivileged BTF enum check (`sudo -v` first line, labeled `***<u>Run on Rock Box</u>***`, explicitly noting the `libbpf`/`bpftool` LSM helper-probe caveat).
      - Phase 2 minimal test design (double-gated sentinel target + 4-case proof matrix covering observe-outside, deny-inside, nested child cgroup subtree escape check, and clean detach) with PASS/STOP token contract.
      - Standalone idempotent Rollback section (`not part of the paste sequence above`, `sudo -v` first line, labeled `***<u>Run on Rock Box</u>***`).
      - Review state: **DRAFT — awaiting adversarial-reviewer (Claude Code Opus medium) review before AJ runs any sudo paste.**
