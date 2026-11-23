@@ -71,7 +71,7 @@ _Static_assert(__builtin_offsetof(struct j_s2_cgtest_cfg, enabled) == 20, "enabl
 enum {
 	ST_OBSERVED_OUTSIDE = 0,
 	ST_DENIED_INSIDE = 1,
-	ST_DENIED_OUTSIDE = 2,
+	ST_DENIED_OUTSIDE = 2, /* sentinel saw prior ret != 0 outside test cgroup */
 	ST_CG_HELPER_ERR = 3,
 	ST_LAST_CGID_OUT = 4,
 	ST_LAST_CGID_IN = 5,
@@ -160,27 +160,30 @@ int j_s2_cgtest_m1(u64 *ctx)
 	long under;
 	__u64 leaf_cgid;
 
-	if (ret != 0)
-		return ret;
-
 	cfg = bpf_map_lookup_elem(&j_s2_cgtest_cfg, &zero);
 	if (!cfg || cfg->enabled == 0 || cfg->sentinel_ino == 0 || cfg->target_cgid == 0)
-		return 0;
+		return ret;
 
 	if (!is_sentinel(bprm, cfg))
-		return 0;
+		return ret;
 
 	under = bpf_current_task_under_cgroup(&j_s2_cgtest_cg, 0);
 	leaf_cgid = bpf_get_current_cgroup_id();
 
 	if (under < 0) {
 		st_inc(ST_CG_HELPER_ERR);
-		return 0; /* fail open on cgroup helper / unpopulated map error */
+		return ret; /* fail open on cgroup helper / unpopulated map error */
 	}
 	if (under == 1) {
 		st_inc(ST_DENIED_INSIDE);
 		st_set(ST_LAST_CGID_IN, leaf_cgid);
-		return -EPERM;
+		return ret != 0 ? ret : -EPERM;
+	}
+
+	if (ret != 0) {
+		st_inc(ST_DENIED_OUTSIDE);
+		st_set(ST_LAST_CGID_OUT, leaf_cgid);
+		return ret;
 	}
 
 	st_inc(ST_OBSERVED_OUTSIDE);
@@ -225,17 +228,23 @@ int j_s2_cgtest_obs(u64 *ctx)
 	__u32 zero = 0;
 	struct j_s2_cgtest_cfg *cfg;
 
-	if (ret != 0)
-		return ret;
-
 	cfg = bpf_map_lookup_elem(&j_s2_cgtest_cfg, &zero);
 	if (!cfg || cfg->enabled == 0 || cfg->sentinel_ino == 0 || cfg->target_cgid == 0)
-		return 0;
+		return ret;
 
 	if (!is_sentinel(bprm, cfg))
-		return 0;
+		return ret;
 
 	st_inc(ST_OBS_SEEN);
+	if (ret != 0) {
+		__u32 m2_key = ST_M2_SEEN;
+		__u64 *m2_cnt = bpf_map_lookup_elem(&j_s2_cgtest_st, &m2_key);
+
+		/* Only attribute prior ret != 0 to outside denial when M2 has not fired. */
+		if (!m2_cnt || *m2_cnt == 0)
+			st_inc(ST_DENIED_OUTSIDE);
+		return ret;
+	}
 	st_inc(ST_OBSERVED_OUTSIDE);
 	return 0;
 }

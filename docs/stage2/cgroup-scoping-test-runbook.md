@@ -287,7 +287,7 @@ Every map and program name is prefixed `j_s2_cgtest_` and fits inside `BPF_OBJ_N
    - Nested child cgroup (Case C subtree proof): `/sys/fs/cgroup/johnny-stage2-test/nested-child`.
    - Entered **only** by short-lived throwaway subshells (`sudo sh -c 'echo $$ > "$1/cgroup.procs" && exec python3 -I ...'`). **Never** writes AJ's interactive shell PID into `cgroup.procs`.
 2. **Double-gated sentinel target (Hook A = `bprm_check_security`; optional Hook B `socket_connect` deferred until Hook A passes):**
-   - Root-owned private temporary directory under `/run`: `sentinel_dir=$(sudo mktemp -d /run/johnny-s2-cgtest.XXXXXX)` (`0755 root:root`), copy `/bin/true` to `"$sentinel_dir/sentinel"` (`0755 root:root`), verified runnable unprivileged before attach.
+   - Root-owned private temporary directory under `/run`: `sentinel_dir=$(sudo mktemp -d /run/johnny-s2-cgtest.XXXXXX)` (`0755 root:root`), copy `/bin/true` to `"$sentinel_dir/true"` (`0755 root:root`; keeps basename `true` because `/bin/true` on Rock Box is the rust-coreutils multi-call binary keyed on `argv[0]`), verified runnable unprivileged before attach.
    - **Kernel `s_dev` encoding:** userspace `stat(2)` `st_dev` uses glibc `makedev`, whereas kernel `i_sb->s_dev` uses `MKDEV(major, minor) = (major << 20) | minor`. `loader.py` packs `(os.major(st.st_dev) << 20) | os.minor(st.st_dev)` (verified in `self-test` for both tmpfs `0:42` and NVMe `259:2`).
    - **Fail-open:** if `enabled == 0`, `sentinel_ino == 0`, or `target_cgid == 0` (or `bpf_current_task_under_cgroup` returns `< 0` in M1), the hook returns allow (`0` in M1/OBS, `1` in M2).
    - **Double-gated deny:** any binary whose `(i_ino, i_sb->s_dev)` does not match the throwaway sentinel returns allow immediately.
@@ -314,16 +314,15 @@ Verifies SHA-256 of the four `stage2/cgtest/` files, compiles `j_s2_cgtest.bpf.o
 sudo -v &&
 (
   set -eu
-  repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo /home/aj/Projects/strix-halo-johnny)
-  if [ ! -f "$repo_root/stage2/cgtest/run_s2_1.sh" ]; then
-    echo "STOP-missing-stage2-cgtest-files root=$repo_root"
+  if [ ! -f /home/aj/Projects/strix-halo-johnny/stage2/cgtest/run_s2_1.sh ]; then
+    echo "STOP-missing-stage2-cgtest-files root=/home/aj/Projects/strix-halo-johnny"
     exit 1
   fi
-  cd "$repo_root"
-  echo "455f6d76fd77aa7b83b93e9fd8126e4a7168bed608cd6f3418dc5870913e6beb  stage2/cgtest/j_s2_cgtest.bpf.c
+  cd /home/aj/Projects/strix-halo-johnny
+  echo "34388557dc2cdb616244a739d04c10d1998bca04289f6d95866a46d3f1c56e72  stage2/cgtest/j_s2_cgtest.bpf.c
 d033c78664d49b6a6824aa2975b1ae98c84cb69f5eebd34d187017bd680173f3  stage2/cgtest/build.sh
-e56392cdde5b4508de7e3b0d0995d7e9f111f590bdc6eb69df6447dc11d0a04b  stage2/cgtest/loader.py
-69cb38581b73e9b4ba633cfd8cd25230c763f0f9da49d62f35ff956db89621d9  stage2/cgtest/run_s2_1.sh" | sha256sum -c -
+2d30df1ba7a6f15f30dd68550346dcc64f5983ab3ea4b3435ed22783bf452728  stage2/cgtest/loader.py
+6953e1e0be278cf103bc95f59f2ff7bc3540319944fd729ab102bbcf7cd70acc  stage2/cgtest/run_s2_1.sh" | sha256sum -c -
   bash stage2/cgtest/build.sh
   python3 -I stage2/cgtest/loader.py self-test --obj stage2/cgtest/build/j_s2_cgtest.bpf.o
   bash stage2/cgtest/run_s2_1.sh
@@ -347,31 +346,52 @@ e56392cdde5b4508de7e3b0d0995d7e9f111f590bdc6eb69df6447dc11d0a04b  stage2/cgtest/
 | `PASS-probe-lsm-bpf` | S2-0A | `bpf` is present in `/sys/kernel/security/lsm`. |
 | `PASS-probe-btf` | S2-0A | `/sys/kernel/btf/vmlinux` exists and is non-empty. |
 | `PASS-probe-cgroup2` | S2-0A | `/sys/fs/cgroup` is mounted as unified `cgroup2`. |
+| `NOTE-lockdown-unreadable`, `NOTE-config-unreadable`, `NOTE-sysctl-unreadable`, `NOTE-bpftool-version-failed` | S2-0A | Non-fatal informational note when an optional diagnostic file or `bpftool version` could not be read. |
 | `STAGE2-PROBE-RO-DONE` | S2-0A | Unprivileged probe completed with all S2-0A prerequisites met. |
 | `PASS-probe-lsm-prog-type` | S2-0B | `bpftool feature probe kernel` reports `program_type lsm` available. |
+| `PASS-probe-lsm-cgroup-id` | S2-0B | `bpftool feature probe kernel` explicitly listed `bpf_get_current_cgroup_id` under `lsm`. |
+| `NOTE-lsm-cgroup-id-not-listed-in-bpftool`, `NOTE-lsm-helpers-not-probed-by-bpftool` | S2-0B | Informational note when `bpftool feature probe` omits or marks `lsm` cgroup helpers absent; S2-1 verifier check settles definitively. |
 | `PASS-probe-btf-cgroup-syms` | S2-0B | Kernel BTF exports `BPF_FUNC_get_current_cgroup_id` (and prints status of ancestor/under-cgroup/`BPF_LSM_CGROUP` symbols). |
 | `STAGE2-CGROUP-PROBE-DONE` | S2-0B | Privileged read-only probe completed cleanly. |
 | `S2-CGTEST-BUILD-OK` | S2-1 | Unprivileged build generated `vmlinux.h` and compiled `j_s2_cgtest.bpf.o`. |
 | `S2-CGTEST-LOADER-SELFTEST-OK` | S2-1 | Unprivileged `loader.py self-test` verified `libbpf.so.1`, ABI packing, N12 name limits, and ELF metadata without loading. |
+| `SHELL_CGROUP` | S2-1 | Records AJ's outer shell `/proc/self/cgroup` during preflight before any test cgroup is created. |
+| `SENTINEL_PRECHECK_OK` | S2-1 | Pre-attach sanity check confirmed the root-owned sentinel copy under `/run` executes cleanly unprivileged (`rc=0`). |
+| `TARGET` | S2-1 | Records resolved sentinel path, `i_ino`, `st_dev`, kernel-packed `s_dev`, cgroup path, and `target_cgid`. |
 | `VERIFIER-M1=accepted\|rejected` | S2-1 | Kernel verifier result for Mechanism 1 (`SEC("lsm/bprm_check_security")` + `bpf_current_task_under_cgroup`), accompanied by `VERIFIER-M1-LOG:` tail lines. |
 | `VERIFIER-M2=accepted\|rejected` | S2-1 | Kernel verifier result for Mechanism 2 (`SEC("lsm_cgroup/bprm_check_security")`), accompanied by `VERIFIER-M2-LOG:` tail lines. |
-| `VERIFIER-M2-OBS=accepted\|rejected` | S2-1 | Verifier result for M2's global observe-only companion (`j_s2_cgtest_obs`, no cgroup helpers), logged only when M1 is rejected and M2 is selected. |
+| `VERIFIER-M2-OBS=accepted\|rejected` | S2-1 | Verifier result for M2's global observe-only companion (`j_s2_cgtest_obs`, no cgroup helpers), logged only when M1 is rejected and M2 is selected, accompanied by `VERIFIER-M2-OBS-LOG:` tail lines. |
 | `ACTIVE_MECHANISM=M1\|M2` | S2-1 | Mechanism selected for Cases A–D (prefers `M1` if both load; falls back to `M2` with inverted `1`-allow/`0`-deny if only M2 loads). |
+| `ATTACH-DONE` | S2-1 | Selected BPF program(s) loaded, config/cgroup maps populated, links attached, and pins created under `/sys/fs/bpf/johnny_s2_cgtest`. |
+| `SELECTED` | S2-1 | Driver echo of the parsed `ATTACH-DONE` `mechanism=<M1\|M2>` and `obs=<na\|yes\|no>` fields before running Cases A–D. |
+| `SELF_CGROUP`, `CGROUP_MISMATCH`, `EXEC_RESULT`, `STATS` / `CASE_{A,B,C}_STATS` | S2-1 | Per-case diagnostic lines from `loader.py exec-check` / `read-stats` proving `/proc/self/cgroup`, `os.execv` errno (`EPERM`), and BPF map counters. |
+| `NOTE-case-a-m2-no-global-observer` | S2-1 | Informational note in Case A when `ACTIVE_MECHANISM=M2` and `VERIFIER-M2-OBS=rejected`, so Case A verifies `m2_seen == 0` without a global observer count. |
 | `PASS-case-a-observe-outside` | S2-1 | Outside test cgroup (`/proc/self/cgroup` verified): allowed (`exit 0`), `denied_outside == 0`, `denied_inside == 0`, `m2_seen == 0`, and `observed_outside >= 1` (for M1 or M2+OBS). |
 | `PASS-case-b-deny-inside` | S2-1 | Inside `/johnny-stage2-test` (`/proc/self/cgroup` verified): denied (`EPERM`, exit `126`), `denied_inside` incremented. |
 | `PASS-case-c-deny-subtree` | S2-1 | Inside `/johnny-stage2-test/nested-child` (`/proc/self/cgroup` verified): denied (`EPERM`, exit `126`), proving subtree coverage. |
+| `POST_DETACH_SENTINEL_OK` | S2-1 | Case D verified sentinel runs cleanly (`rc=0`) both outside and inside `/johnny-stage2-test` immediately after unpinning `/sys/fs/bpf/johnny_s2_cgtest`. |
 | `PASS-case-d-clean-detach` | S2-1 | Detach verified, sentinel runs cleanly outside & inside test cgroup before cleanup, zero residual pins (`sudo test -e`), test cgroups, sentinel dirs, or BPF progs/links/maps (`bpftool prog list`, `link list -f`, `map list -f` — N13). |
+| `CLEANUP-ON-STOP-OK` | S2-1 | `EXIT` trap emergency/abort cleanup completed after an earlier `STOP-*` and verified zero residual pins, cgroups, sentinel dirs, or BPF objects. |
 | `STAGE2-CGROUP-SCOPE-PASS` | S2-1 | All four cases passed; O28 C cgroup scoping is **VERIFIED** on Rock Box (prints `mechanism=M1` or `mechanism=M2`). |
-| `STOP-probe-*` | S2-0A / S2-0B | Prerequisite missing or probe command failed; do not proceed to S2-1. |
+| `STOP-probe-uname`, `STOP-probe-lsm-unreadable`, `STOP-probe-no-bpf-lsm`, `STOP-probe-no-btf`, `STOP-probe-not-cgroup2`, `STOP-probe-no-bpftool`, `STOP-probe-bpftool-failed`, `STOP-probe-no-lsm-prog-type`, `STOP-probe-btf-dump-oserror`, `STOP-probe-btf-dump-failed`, `STOP-probe-btf-no-cgroup-id-helper` | S2-0A / S2-0B | Prerequisite missing or probe command failed; do not proceed to S2-1. |
+| `STOP-missing-stage2-cgtest-files` | S2-1 | Paste S2-1 could not find `stage2/cgtest/run_s2_1.sh` under `/home/aj/Projects/strix-halo-johnny`. |
+| `STOP-build-missing-tool`, `STOP-build-no-vmlinux-btf` | S2-1 | `build.sh` missing `bpftool`/`clang`/`llvm-strip` or unreadable `/sys/kernel/btf/vmlinux`. |
+| `STOP-selftest-missing-obj`, `STOP-selftest-missing-section`, `STOP-selftest-missing-symbol`, `STOP-selftest-libbpf-open-failed`, `STOP-selftest-libbpf-missing-prog`, `STOP-selftest-libbpf-prog-meta`, `STOP-selftest-libbpf-missing-map` | S2-1 | Unprivileged `loader.py self-test` failed ELF/BTF/libbpf verification; halts before any privileged BPF call. |
+| `STOP-missing-bpf-obj`, `STOP-missing-loader` | S2-1 | `run_s2_1.sh` preflight did not find compiled `stage2/cgtest/build/j_s2_cgtest.bpf.o` or `stage2/cgtest/loader.py`. |
 | `STOP-preflight-residual` | S2-1 | Pre-existing test pins, cgroups, sentinel dirs, or BPF progs/links/maps found before S2-1 started; inspect or run Rollback first. |
+| `STOP-sentinel-precheck-failed` | S2-1 | Throwaway sentinel copy failed unprivileged execution before attach; `EXIT` trap cleans up and halts. |
+| `STOP-loader-missing-obj`, `STOP-loader-missing-cgroup`, `STOP-loader-missing-sentinel` | S2-1 | `loader.py probe-and-attach` received a missing `--obj`, `--cgroup-dir`, or `--sentinel` path. |
 | `STOP-verifier-both-rejected` | S2-1 | Kernel verifier rejected **both** M1 and M2; immediate cleanup + rollback, never emits `STAGE2-CGROUP-SCOPE-PASS`. |
-| `STOP-attach-failed` | S2-1 | Loading, map population, pinning, or attaching the selected mechanism failed; immediate cleanup + rollback. |
-| `STOP-case-{a,b,c}-*` | S2-1 | `/proc/self/cgroup` assertion failed (test process was not in the expected cgroup). |
-| `STOP-denied-outside-cgroup` | S2-1 | **Critical safety stop:** hook denied (or M2 fired) outside the test cgroup; immediate detach + rollback. |
+| `STOP-attach-failed` | S2-1 | Loading, map population, pinning, or attaching the selected mechanism failed (or was interrupted by Ctrl-C); loader cleans its own pins and `EXIT` trap verifies zero residuals. |
+| `STOP-probe-and-attach-failed` | S2-1 | `loader.py probe-and-attach` exited non-zero or without `ATTACH-DONE` before emitting a more specific `STOP-*` token (e.g., Python/ctypes error). |
+| `STOP-read-stats-open-failed`, `STOP-read-stats-lookup-failed` | S2-1 | `loader.py read-stats` could not open pinned `j_s2_cgtest_st` or look up a stat slot. |
+| `STOP-exec-check-bad-mode` | S2-1 | `loader.py exec-check` received an invalid `--mode` value. |
+| `STOP-case-a-in-test-cgroup`, `STOP-case-b-wrong-cgroup`, `STOP-case-c-wrong-cgroup` | S2-1 | `/proc/self/cgroup` assertion failed (test process was not in the expected cgroup). |
+| `STOP-denied-outside-cgroup` | S2-1 | **Critical safety stop:** hook denied (or M2 fired, or `denied_outside > 0`) outside the test cgroup; immediate detach + rollback. |
 | `STOP-not-observed-outside` | S2-1 | Hook failed to observe execution outside test cgroup. |
 | `STOP-not-denied-inside-cgroup` | S2-1 | Hook failed to deny sentinel inside test cgroup. |
 | `STOP-subtree-escape` | S2-1 | Nested child cgroup bypassed the check. |
-| `STOP-cleanup-residual` / `STOP-rollback-residual` | S2-1 / Rollback | Residual BPF program, link, **map** (`bpftool map list -f` — N13), pin dir (`sudo test -e`), test cgroup, or sentinel dir still present after cleanup (or `bpftool` verification failed). |
+| `STOP-cleanup-residual` / `STOP-rollback-residual` | S2-1 / Rollback | Residual BPF program, link, **map** (`bpftool map list -f` — N13), pin dir (`sudo test -e`), test cgroup, or sentinel dir still present after cleanup (or `bpftool` verification failed, or sentinel failed post-detach). |
 | `STAGE2-CGTEST-ROLLBACK-DONE` | Rollback | Clean idempotent rollback verified (zero residual pins, BPF progs/links/maps, test cgroups, or sentinel dirs). |
 
 ---
@@ -379,7 +399,7 @@ e56392cdde5b4508de7e3b0d0995d7e9f111f590bdc6eb69df6447dc11d0a04b  stage2/cgtest/
 ## 5. Rollback (not part of the paste sequence above)
 
 - **For Pastes S2-0A and S2-0B:** read-only; no system state is modified, so no rollback is required.
-- **For Paste S2-1:** if S2-1 is ever interrupted before its `EXIT` trap runs, this standalone idempotent rollback block removes the test pin directory (which detaches any pinned test BPF links/programs), removes the raw test cgroups and root-owned `/run/johnny-s2-cgtest.*` sentinel directory, and verifies zero residual test objects remain (including `sudo test -e /sys/fs/bpf/johnny_s2_cgtest`, `sudo bpftool prog list`, `sudo bpftool link list -f`, and `sudo bpftool map list -f`). If any artifact remains (for example, `rmdir` hit `EBUSY` because a process is still inside the test cgroup) or `bpftool` fails, it prints `STOP-rollback-residual ...` and exits non-zero instead of `STAGE2-CGTEST-ROLLBACK-DONE`. Rollback never kills processes.
+- **For Paste S2-1:** if S2-1 is ever interrupted before its `EXIT` trap runs, this standalone idempotent rollback block removes the test pin directory (which detaches any pinned test BPF links/programs), removes the raw test cgroups and root-owned `/run/johnny-s2-cgtest.*` sentinel directory, and verifies zero residual test objects remain (including `sudo test -e /sys/fs/bpf/johnny_s2_cgtest`, `sudo bpftool prog list`, `sudo bpftool link list -f`, and `sudo bpftool map list -f`, with a bounded 3-second settle/retry loop for kernel RCU teardown of BPF progs/links/maps). If any artifact remains (for example, `rmdir` hit `EBUSY` because a process is still inside the test cgroup) or `bpftool` fails, it prints `STOP-rollback-residual ...` and exits non-zero instead of `STAGE2-CGTEST-ROLLBACK-DONE`. Rollback never kills processes.
 
 ***<u>Run on Rock Box</u>***
 
@@ -400,60 +420,72 @@ sudo -v &&
     fi
   done
   python3 -I - <<'PY'
-import glob, os, subprocess, sys
+import glob, os, subprocess, sys, time
 
-bad = []
-try:
-    p_pin = subprocess.run(
-        ["sudo", "test", "-e", "/sys/fs/bpf/johnny_s2_cgtest"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-except OSError as exc:
-    bad.append(f"pin-check-oserror={exc.errno}")
-else:
-    if p_pin.returncode == 0:
-        bad.append("pin-dir-exists")
-    elif p_pin.returncode != 1 or p_pin.stderr.strip():
-        bad.append(f"pin-check-rc={p_pin.returncode}")
-if os.path.exists("/sys/fs/cgroup/johnny-stage2-test/nested-child"):
-    bad.append("cgroup-nested-exists")
-if os.path.exists("/sys/fs/cgroup/johnny-stage2-test"):
-    bad.append("cgroup-root-exists")
-if glob.glob("/run/johnny-s2-cgtest.*"):
-    bad.append("sentinel-dir-exists")
+deadline = time.monotonic() + 3.0
 
-checks = (
-    ("prog", ["sudo", "bpftool", "prog", "list"], ("j_s2_cgtest",)),
-    ("link", ["sudo", "bpftool", "link", "list", "-f"], ("johnny_s2_cgtest",)),
-    ("map", ["sudo", "bpftool", "map", "list", "-f"], ("johnny_s2_cgtest", "j_s2_cgtest")),
-)
-for subcmd, cmd, needles in checks:
+def scan():
+    bad = []
     try:
-        p = subprocess.run(
-            cmd,
+        p_pin = subprocess.run(
+            ["sudo", "test", "-e", "/sys/fs/bpf/johnny_s2_cgtest"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
         )
-    except FileNotFoundError:
-        bad.append(f"bpftool-{subcmd}-missing")
-        continue
     except OSError as exc:
-        bad.append(f"bpftool-{subcmd}-oserror={exc.errno}")
-        continue
-    if p.returncode != 0:
-        bad.append(f"bpftool-{subcmd}-rc={p.returncode}")
+        bad.append(f"pin-check-oserror={exc.errno}")
     else:
-        for needle in needles:
-            if needle in p.stdout:
-                bad.append(f"residual-{subcmd}-{needle}")
+        if p_pin.returncode == 0:
+            bad.append("pin-dir-exists")
+        elif p_pin.returncode != 1 or p_pin.stderr.strip():
+            bad.append(f"pin-check-rc={p_pin.returncode}")
+    if os.path.exists("/sys/fs/cgroup/johnny-stage2-test/nested-child"):
+        bad.append("cgroup-nested-exists")
+    if os.path.exists("/sys/fs/cgroup/johnny-stage2-test"):
+        bad.append("cgroup-root-exists")
+    if glob.glob("/run/johnny-s2-cgtest.*"):
+        bad.append("sentinel-dir-exists")
 
-if bad:
+    checks = (
+        ("prog", ["sudo", "bpftool", "prog", "list"], ("j_s2_cgtest",)),
+        ("link", ["sudo", "bpftool", "link", "list", "-f"], ("johnny_s2_cgtest",)),
+        ("map", ["sudo", "bpftool", "map", "list", "-f"], ("johnny_s2_cgtest", "j_s2_cgtest")),
+    )
+    for subcmd, cmd, needles in checks:
+        try:
+            p = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except FileNotFoundError:
+            bad.append(f"bpftool-{subcmd}-missing")
+            continue
+        except OSError as exc:
+            bad.append(f"bpftool-{subcmd}-oserror={exc.errno}")
+            continue
+        if p.returncode != 0:
+            bad.append(f"bpftool-{subcmd}-rc={p.returncode}")
+        else:
+            for needle in needles:
+                if needle in p.stdout:
+                    bad.append(f"residual-{subcmd}-{needle}")
+    return bad
+
+# Allow brief kernel RCU teardown after unpinning trampoline-attached LSM links.
+while True:
+    bad = scan()
+    if not bad:
+        print("STAGE2-CGTEST-ROLLBACK-DONE")
+        sys.exit(0)
+    only_rcu = all(item.startswith("residual-prog-") or item.startswith("residual-link-") or item.startswith("residual-map-") for item in bad)
+    if only_rcu and time.monotonic() < deadline:
+        time.sleep(0.2)
+        continue
     print("STOP-rollback-residual " + ",".join(bad))
     sys.exit(1)
-print("STAGE2-CGTEST-ROLLBACK-DONE")
 PY
 )
 ```

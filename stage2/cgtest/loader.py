@@ -363,11 +363,12 @@ def cmd_probe_and_attach(args: argparse.Namespace) -> int:
             f"sentinel_ino={sentinel_ino} sentinel_sdev=0x{sentinel_sdev:x} target_cgid={target_cgid}"
         )
         return 0
-    except Exception as exc:
-        print(f"STOP-attach-failed detail={exc}")
+    except BaseException as exc:
+        detail = str(exc) or type(exc).__name__
+        print(f"STOP-attach-failed detail={detail}")
         if pin_dir_created and os.path.exists(args.pin_dir):
             shutil.rmtree(args.pin_dir, ignore_errors=True)
-        return 1
+        return 130 if isinstance(exc, KeyboardInterrupt) else 1
     finally:
         # Closing link fds after pinning leaves the bpffs pins holding the links alive.
         for link in links:

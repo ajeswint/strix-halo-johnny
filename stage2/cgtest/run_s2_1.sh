@@ -183,7 +183,7 @@ sudo mkdir -p "$CG_ROOT"
 sudo mkdir -p "$CG_CHILD"
 SENTINEL_DIR=$(sudo mktemp -d /run/johnny-s2-cgtest.XXXXXX)
 sudo chmod 0755 "$SENTINEL_DIR"
-SENTINEL="$SENTINEL_DIR/sentinel"
+SENTINEL="$SENTINEL_DIR/true"
 sudo install -o root -g root -m 0755 /bin/true "$SENTINEL"
 
 # Pre-attach sanity check: sentinel must run cleanly unprivileged before hook attach.
@@ -206,6 +206,9 @@ printf '%s\n' "$probe_out"
 attach_line=$(printf '%s\n' "$probe_out" | grep '^ATTACH-DONE ' | tail -n 1 || true)
 
 if [ "$probe_rc" -ne 0 ] || [ -z "$attach_line" ]; then
+  if ! printf '%s\n' "$probe_out" | grep -q '^STOP-'; then
+    echo "STOP-probe-and-attach-failed rc=$probe_rc"
+  fi
   exit 1
 fi
 
