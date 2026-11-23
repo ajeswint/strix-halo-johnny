@@ -12,3 +12,5 @@ docs/CIS_*.pdf
 docs/cis-local/
 # Paperclip task worktrees (agent branches live here)
 .paperclip/
+# Stage 2 cgroup-scoping test build outputs (vmlinux.h generated from /sys/kernel/btf/vmlinux)
+stage2/cgtest/build/
