@@ -71,7 +71,7 @@ _Static_assert(__builtin_offsetof(struct j_s2_cgtest_cfg, enabled) == 20, "enabl
 enum {
 	ST_OBSERVED_OUTSIDE = 0,
 	ST_DENIED_INSIDE = 1,
-	ST_DENIED_OUTSIDE = 2, /* sentinel saw prior ret != 0 outside test cgroup */
+	ST_DENIED_OUTSIDE = 2, /* defensive; expected unreachable (fmod_ret short-circuits on ret != 0) */
 	ST_CG_HELPER_ERR = 3,
 	ST_LAST_CGID_OUT = 4,
 	ST_LAST_CGID_IN = 5,
@@ -180,6 +180,7 @@ int j_s2_cgtest_m1(u64 *ctx)
 		return ret != 0 ? ret : -EPERM;
 	}
 
+	/* Defensive check; expected unreachable (fmod_ret always passes ret=0 and short-circuits on non-zero). */
 	if (ret != 0) {
 		st_inc(ST_DENIED_OUTSIDE);
 		st_set(ST_LAST_CGID_OUT, leaf_cgid);
@@ -236,6 +237,7 @@ int j_s2_cgtest_obs(u64 *ctx)
 		return ret;
 
 	st_inc(ST_OBS_SEEN);
+	/* Defensive check; expected unreachable (fmod_ret always passes ret=0 and short-circuits on non-zero). */
 	if (ret != 0) {
 		__u32 m2_key = ST_M2_SEEN;
 		__u64 *m2_cnt = bpf_map_lookup_elem(&j_s2_cgtest_st, &m2_key);

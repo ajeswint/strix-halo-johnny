@@ -299,7 +299,7 @@ Every map and program name is prefixed `j_s2_cgtest_` and fits inside `BPF_OBJ_N
 
 | Case | Where the sentinel runs (proved via `/proc/self/cgroup`) | Expected execution result | Expected BPF map counters | Failure / STOP token |
 |---|---|---|---|---|
-| **A — Outside test cgroup (observe-only)** | AJ's normal shell cgroup (unprivileged); prints `/proc/self/cgroup` and **asserts** it is neither `0::/johnny-stage2-test` nor under `0::/johnny-stage2-test/` | Exits `0` (allowed, **never** `-EPERM`) | **M1:** `observed_outside >= 1`, `denied_outside == 0`, `denied_inside == 0`. **M2:** `m2_seen == 0`, `denied_inside == 0`, `denied_outside == 0`, plus `observed_outside >= 1` (`obs_seen >= 1`) when `VERIFIER-M2-OBS=accepted` | `STOP-case-a-in-test-cgroup`, `STOP-denied-outside-cgroup` (**critical safety stop** — immediate detach + rollback), `STOP-not-observed-outside` |
+| **A — Outside test cgroup (observe-only)** | AJ's normal shell cgroup (unprivileged); prints `/proc/self/cgroup` and **asserts** it is neither `0::/johnny-stage2-test` nor under `0::/johnny-stage2-test/` | Exits `0` (allowed, **never** `-EPERM`) | **M1:** `observed_outside >= 1`, `denied_outside == 0` (defensive/unreachable check; `fmod_ret` always sees `ret=0`), `denied_inside == 0`. **M2:** `m2_seen == 0`, `denied_inside == 0`, `denied_outside == 0` (defensive/unreachable check), plus `observed_outside >= 1` (`obs_seen >= 1`) when `VERIFIER-M2-OBS=accepted` | `STOP-case-a-in-test-cgroup`, `STOP-denied-outside-cgroup` (**critical safety stop** — immediate detach + rollback), `STOP-not-observed-outside` |
 | **B — Inside test cgroup (enforcing)** | Throwaway subshell after `echo $$ > /sys/fs/cgroup/johnny-stage2-test/cgroup.procs`; prints `/proc/self/cgroup` and **asserts** exact `0::/johnny-stage2-test` before `os.execv(sentinel)` | Fails with `EPERM` (`errno=1`, exit `126`) | `denied_inside >= 1` (incremented vs before Case B) | `STOP-case-b-wrong-cgroup`, `STOP-not-denied-inside-cgroup` |
 | **C — Nested child cgroup (subtree escape check)** | Throwaway subshell after `echo $$ > /sys/fs/cgroup/johnny-stage2-test/nested-child/cgroup.procs`; prints `/proc/self/cgroup` and **asserts** exact `0::/johnny-stage2-test/nested-child` before `os.execv(sentinel)` | Fails with `EPERM` (`errno=1`, exit `126`) — proves child cgroups cannot bypass enforcement | `denied_inside` increments by `>= 1` again | `STOP-case-c-wrong-cgroup`, `STOP-subtree-escape` |
 | **D — Detach & post-cleanup verification (N13)** | Unpins `/sys/fs/bpf/johnny_s2_cgtest`; runs sentinel outside & inside `/johnny-stage2-test` before removing test cgroups and `/run/johnny-s2-cgtest.*` | Sentinel exits `0` both outside and inside `/johnny-stage2-test` after detach; `sudo test -e /sys/fs/bpf/johnny_s2_cgtest` fails absent; `sudo bpftool prog list`, `sudo bpftool link list -f`, and `sudo bpftool map list -f` show zero `j_s2_cgtest` / `johnny_s2_cgtest` entries | Pin dir absent; test cgroups absent; sentinel dir absent; zero residual BPF progs/links/maps | `STOP-cleanup-residual` |
@@ -319,7 +319,7 @@ sudo -v &&
     exit 1
   fi
   cd /home/aj/Projects/strix-halo-johnny
-  echo "34388557dc2cdb616244a739d04c10d1998bca04289f6d95866a46d3f1c56e72  stage2/cgtest/j_s2_cgtest.bpf.c
+  echo "4ebb76508e1841eceedc7638bbf70fa71dec172879217587aba605ca3a0592ea  stage2/cgtest/j_s2_cgtest.bpf.c
 d033c78664d49b6a6824aa2975b1ae98c84cb69f5eebd34d187017bd680173f3  stage2/cgtest/build.sh
 2d30df1ba7a6f15f30dd68550346dcc64f5983ab3ea4b3435ed22783bf452728  stage2/cgtest/loader.py
 6953e1e0be278cf103bc95f59f2ff7bc3540319944fd729ab102bbcf7cd70acc  stage2/cgtest/run_s2_1.sh" | sha256sum -c -
@@ -366,7 +366,7 @@ d033c78664d49b6a6824aa2975b1ae98c84cb69f5eebd34d187017bd680173f3  stage2/cgtest/
 | `SELECTED` | S2-1 | Driver echo of the parsed `ATTACH-DONE` `mechanism=<M1\|M2>` and `obs=<na\|yes\|no>` fields before running Cases A–D. |
 | `SELF_CGROUP`, `CGROUP_MISMATCH`, `EXEC_RESULT`, `STATS` / `CASE_{A,B,C}_STATS` | S2-1 | Per-case diagnostic lines from `loader.py exec-check` / `read-stats` proving `/proc/self/cgroup`, `os.execv` errno (`EPERM`), and BPF map counters. |
 | `NOTE-case-a-m2-no-global-observer` | S2-1 | Informational note in Case A when `ACTIVE_MECHANISM=M2` and `VERIFIER-M2-OBS=rejected`, so Case A verifies `m2_seen == 0` without a global observer count. |
-| `PASS-case-a-observe-outside` | S2-1 | Outside test cgroup (`/proc/self/cgroup` verified): allowed (`exit 0`), `denied_outside == 0`, `denied_inside == 0`, `m2_seen == 0`, and `observed_outside >= 1` (for M1 or M2+OBS). |
+| `PASS-case-a-observe-outside` | S2-1 | Outside test cgroup (`/proc/self/cgroup` verified): allowed (`exit 0`), `denied_outside == 0` (defensive/unreachable check; `fmod_ret` always sees `ret=0`), `denied_inside == 0`, `m2_seen == 0`, and `observed_outside >= 1` (for M1 or M2+OBS). |
 | `PASS-case-b-deny-inside` | S2-1 | Inside `/johnny-stage2-test` (`/proc/self/cgroup` verified): denied (`EPERM`, exit `126`), `denied_inside` incremented. |
 | `PASS-case-c-deny-subtree` | S2-1 | Inside `/johnny-stage2-test/nested-child` (`/proc/self/cgroup` verified): denied (`EPERM`, exit `126`), proving subtree coverage. |
 | `POST_DETACH_SENTINEL_OK` | S2-1 | Case D verified sentinel runs cleanly (`rc=0`) both outside and inside `/johnny-stage2-test` immediately after unpinning `/sys/fs/bpf/johnny_s2_cgtest`. |
@@ -387,7 +387,7 @@ d033c78664d49b6a6824aa2975b1ae98c84cb69f5eebd34d187017bd680173f3  stage2/cgtest/
 | `STOP-read-stats-open-failed`, `STOP-read-stats-lookup-failed` | S2-1 | `loader.py read-stats` could not open pinned `j_s2_cgtest_st` or look up a stat slot. |
 | `STOP-exec-check-bad-mode` | S2-1 | `loader.py exec-check` received an invalid `--mode` value. |
 | `STOP-case-a-in-test-cgroup`, `STOP-case-b-wrong-cgroup`, `STOP-case-c-wrong-cgroup` | S2-1 | `/proc/self/cgroup` assertion failed (test process was not in the expected cgroup). |
-| `STOP-denied-outside-cgroup` | S2-1 | **Critical safety stop:** hook denied (or M2 fired, or `denied_outside > 0`) outside the test cgroup; immediate detach + rollback. |
+| `STOP-denied-outside-cgroup` | S2-1 | **Critical safety stop:** hook denied (`rc != 0`), `denied_inside > 0`, `m2_seen > 0`, or defensive/unreachable `denied_outside > 0` (`fmod_ret` always sees `ret=0`) outside the test cgroup; immediate detach + rollback. |
 | `STOP-not-observed-outside` | S2-1 | Hook failed to observe execution outside test cgroup. |
 | `STOP-not-denied-inside-cgroup` | S2-1 | Hook failed to deny sentinel inside test cgroup. |
 | `STOP-subtree-escape` | S2-1 | Nested child cgroup bypassed the check. |
@@ -421,8 +421,6 @@ sudo -v &&
   done
   python3 -I - <<'PY'
 import glob, os, subprocess, sys, time
-
-deadline = time.monotonic() + 3.0
 
 def scan():
     bad = []
@@ -475,11 +473,15 @@ def scan():
     return bad
 
 # Allow brief kernel RCU teardown after unpinning trampoline-attached LSM links.
+# Start the 3 s window after the first scan so its sudo calls do not eat the budget.
+deadline = None
 while True:
     bad = scan()
     if not bad:
         print("STAGE2-CGTEST-ROLLBACK-DONE")
         sys.exit(0)
+    if deadline is None:
+        deadline = time.monotonic() + 3.0
     only_rcu = all(item.startswith("residual-prog-") or item.startswith("residual-link-") or item.startswith("residual-map-") for item in bad)
     if only_rcu and time.monotonic() < deadline:
         time.sleep(0.2)
