@@ -1,8 +1,10 @@
 # Stage 2: Rock Box BPF LSM Cgroup-Scoping Feasibility Test Runbook
 
-Rev 2, 2026-11-22 America/Chicago. Status: **S2-0A & S2-0B PASSED (`docs/sessions/2026-11-22-stage2-probes-s2-0.md`); PASTE S2-1 DRAFTED — NOT YET REVIEWED, NOT RUN.** BPF object compiled unprivileged on Rock Box (`stage2/cgtest/build/j_s2_cgtest.bpf.o`, gitignored); never loaded, attached, or pinned. Johnny (`192.168.50.152`) untouched.
+Rev 3, 2026-11-23 America/Chicago. Status: **S2-1 APPLIED 2026-11-23, PASS `mechanism=M1`** (`STAGE2-CGROUP-SCOPE-PASS mechanism=M1`; commit `c90ba226b44715d3c0e34456c615eac3df4cab82`). Record: [`docs/sessions/2026-11-23-stage2-s21-applied.md`](../sessions/2026-11-23-stage2-s21-applied.md). Runbook body and paste blocks below are unchanged.
 
-Review state: **Paste S2-1 DRAFT — awaiting adversarial-reviewer (Claude Code Opus medium) review before AJ runs it (`AGENTS.md:13`).**
+Rev 2, 2026-11-22 America/Chicago (historical). Status: **S2-0A & S2-0B PASSED (`docs/sessions/2026-11-22-stage2-probes-s2-0.md`); PASTE S2-1 DRAFTED — NOT YET REVIEWED, NOT RUN.** BPF object compiled unprivileged on Rock Box (`stage2/cgtest/build/j_s2_cgtest.bpf.o`, gitignored); never loaded, attached, or pinned. Johnny (`192.168.50.152`) untouched.
+
+Review state (historical): **Paste S2-1 DRAFT — awaiting adversarial-reviewer (Claude Code Opus medium) review before AJ runs it (`AGENTS.md:13`).**
 
 Rev 1, 2026-11-21 America/Chicago (historical): initial S2-0A/S2-0B probe runbook and Phase 2 spec (`PR #50`).
 
