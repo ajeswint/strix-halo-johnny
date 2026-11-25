@@ -24,7 +24,7 @@
 - **M2 + global observer (`j_s2_cgtest_obs`):** full labeled pass (`mechanism=M2 obs=yes`).
 - **Bare M2 without observer (`obs=no`):** emit `STAGE2-CGROUP-SCOPE-PARTIAL mechanism=M2 obs=no` with a **non-zero exit**, while still requiring Case A safety checks (`exec rc=0`, `denied_inside=0`, `denied_outside=0`, `m2_seen=0`).
 - **Agent startup gate:** try **M1**, then **M2 + observer**, otherwise **refuse to arm enforcement**.
-- **Enforce-only tier:** not an automatic fallback. If an enforce-only tier is ever wanted, it is AJ's call as an explicit signed profile (per O17 / `docs/architecture/architecture-rev2.md`), not an automatic fallback.
+- **Enforce-only tier:** not an automatic fallback. If an enforce-only tier is ever wanted, it is AJ's call as an explicit signed profile, not an automatic fallback.
 
 **Known gap (do not edit the pinned runner):**
 - The SHA-pinned `stage2/cgtest/run_s2_1.sh` (SHA-256 `6953e1e0be278cf103bc95f59f2ff7bc3540319944fd729ab102bbcf7cd70acc`, lines `253–256` and `328`) currently emits `NOTE-case-a-m2-no-global-observer` and can emit `STAGE2-CGROUP-SCOPE-PASS` on `M2` with `obs=no`.
@@ -43,7 +43,7 @@
 **AJ decision (2026-11-24):**
 - Hook B (`socket_connect`, deferred from S2-1) gets its own **S2-2** feasibility test before Stage 2 agent design.
 
-**Note:**
+**Note (reviewer rationale, not AJ's words):**
 - S2-1 verified Hook A (`bprm_check_security`) only. Testing Hook B in a dedicated S2-2 pass before locking agent design confirms kernel verifier acceptance and cgroup-scoping behavior for `socket_connect` directly rather than assuming Hook A behavior carries over.
 
 ---
@@ -54,12 +54,12 @@
 - Use **`aya =0.16.0`** (already pinned from Stage 1 / O5 in `crates/johnny-daemon/Cargo.toml:9`, `default-features = false`) as the Rust userspace loader, and **keep clang-built C BPF objects** (consistent with `docs/architecture/architecture-rev2.md` §1.2: C stays in-kernel for BPF; Rust for userspace).
 - **Parity gate (`S2-1R`):** gated on an `aya`-loader parity re-run of S2-1 Cases A–D on Rock Box kernel `7.3.0-10-generic` (**"S2-1R"**) before locking agent design.
 - **Revisit triggers** — reconsider `aya` vs `libbpf-rs` if any of the following occurs:
-  1. S2-1R parity fails non-trivially;
+  1. S2-1R parity fails;
   2. Kernel-verified signed BPF becomes required (`libbpf` light skeletons; **UNVERIFIED**); or
   3. A needed BPF attach type is missing in `aya` `0.16.0`.
 
 **Rationale (Opus decision-reviewer recommendation):**
-- Reusing `aya =0.16.0` keeps one pure-Rust userspace loader across Stage 1 (`johnny-daemon`) and Stage 2 without adding a C `libbpf-dev` build dependency (`libbpf-dev` is not installed on Rock Box) or maintaining two separate loader stacks, while keeping clang-built C BPF objects for kernel-side probes.
+- Reusing `aya =0.16.0` keeps one pure-Rust userspace loader across Stage 1 (`johnny-daemon`) and Stage 2 without adding a C `libbpf-dev` build dependency (`libbpf-dev` is not installed on Rock Box as of S2-0, 2026-11-22) or maintaining two separate loader stacks, while keeping clang-built C BPF objects for kernel-side probes.
 - Because S2-1 loaded via Python `ctypes` + `libbpf.so.1`, `aya =0.16.0`'s ability to load and attach `BPF_PROG_TYPE_LSM` + `BPF_MAP_TYPE_CGROUP_ARRAY` / `BPF_LSM_CGROUP` cleanly on kernel `7.3.0-10-generic` is **UNVERIFIED**. Gating on an S2-1R parity re-run of Cases A–D catches any loader or attach-type gap before agent design locks, and the three explicit revisit criteria keep the exit ramp clear if parity, signed BPF light skeletons (**UNVERIFIED**), or attach-type coverage requires switching.
 
 ---
@@ -71,7 +71,7 @@
 | **Q1** | M1 (`lsm/bprm_check_security` + subtree helper) primary; M2 (`lsm_cgroup`) fallback **only** with global observer (`j_s2_cgtest_obs`) | Enforced in future runner + Rust startup gate |
 | **Q2** | M2+observer = full labeled pass (`mechanism=M2 obs=yes`); bare M2 = `STAGE2-CGROUP-SCOPE-PARTIAL mechanism=M2 obs=no` + non-zero exit (still requiring Case A safety checks); startup tries M1 → M2+observer → refuse to arm enforcement; enforce-only only via explicit AJ-signed profile | Pinned `stage2/cgtest/run_s2_1.sh` left untouched; fix in future runner version and Rust startup gate |
 | **Q3** | Hook B (`socket_connect`) gets its own **S2-2** test before agent design | Run S2-2 after S2-1R |
-| **Q4** | Use `aya =0.16.0` (from Stage 1 / O5) as Rust loader + keep clang-built C BPF objects | Gated on **S2-1R** (`aya` parity re-run of S2-1 Cases A–D on `7.3.0-10-generic`) before locking agent design; revisit on non-trivial parity failure, signed BPF / `libbpf` light skeletons (**UNVERIFIED**), or missing attach type in `aya 0.16` |
+| **Q4** | Use `aya =0.16.0` (from Stage 1 / O5) as Rust loader + keep clang-built C BPF objects | Gated on **S2-1R** (`aya` parity re-run of S2-1 Cases A–D on `7.3.0-10-generic`) before locking agent design; revisit if parity fails, signed BPF / `libbpf` light skeletons (**UNVERIFIED**), or missing attach type in `aya 0.16` |
 
 ---
 
