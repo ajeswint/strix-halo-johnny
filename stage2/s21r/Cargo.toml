@@ -1,0 +1,18 @@
+[package]
+name = "s21r-loader"
+description = "Johnny Stage 2 S2-1R aya =0.16.0 parity loader for the cgroup-scoped BPF LSM feasibility test"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+aya = { version = "=0.16.0", default-features = false }
+aya-obj = "=0.6.0"
+libc = "0.2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+overflow-checks = true
+panic = "abort"
+strip = "symbols"
