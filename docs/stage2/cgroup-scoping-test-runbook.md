@@ -1,5 +1,7 @@
 # Stage 2: Rock Box BPF LSM Cgroup-Scoping Feasibility Test Runbook
 
+**Decisions 2026-11-24:** AJ recorded post-S2-1 Q1–Q4 decisions (M1 primary; M2 fallback only with `j_s2_cgtest_obs`; bare M2 = PARTIAL non-zero exit in a future runner version; the Rust startup gate refuses to arm enforcement; pinned `run_s2_1.sh` untouched; Hook B gets S2-2; `aya =0.16.0` + clang C BPF gated on S2-1R parity before S2-2 and agent design). Record: [`docs/sessions/2026-11-24-stage2-decisions-q1-q4.md`](../sessions/2026-11-24-stage2-decisions-q1-q4.md). Runbook procedure and paste blocks below are unchanged.
+
 Rev 3, 2026-11-23 America/Chicago. Status: **S2-1 APPLIED 2026-11-23, PASS `mechanism=M1`** (`STAGE2-CGROUP-SCOPE-PASS mechanism=M1`; commit `c90ba226b44715d3c0e34456c615eac3df4cab82`). Record: [`docs/sessions/2026-11-23-stage2-s21-applied.md`](../sessions/2026-11-23-stage2-s21-applied.md). Runbook body and paste blocks below are unchanged.
 
 Rev 2, 2026-11-22 America/Chicago (historical). Status: **S2-0A & S2-0B PASSED (`docs/sessions/2026-11-22-stage2-probes-s2-0.md`); PASTE S2-1 DRAFTED — NOT YET REVIEWED, NOT RUN.** BPF object compiled unprivileged on Rock Box (`stage2/cgtest/build/j_s2_cgtest.bpf.o`, gitignored); never loaded, attached, or pinned. Johnny (`192.168.50.152`) untouched.
